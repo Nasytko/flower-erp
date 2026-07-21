@@ -1,0 +1,13 @@
+# CODEOWNERS
+#
+# Flower ERP does not ship fictional GitHub teams.
+# Configure real GitHub users/teams for your organization before enforcing
+# required reviews. Until then this file documents intended ownership zones.
+#
+# Example (uncomment and replace):
+# * @your-org/maintainers
+# /docs/architecture/ @your-org/architecture
+# /apps/api/prisma/ @your-org/data
+# /SECURITY.md @your-org/security
+#
+# Without configured owners, CODEOWNERS will not assign automatic reviewers.

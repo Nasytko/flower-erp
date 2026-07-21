@@ -1,0 +1,142 @@
+# Flower ERP — production compose for shared VPS (ORVIX-safe)
+#
+# - Separate Compose project: flower-erp (no shared networks/volumes with ORVIX)
+# - No PostgreSQL service — DATABASE_URL comes from host .env
+# - Binds only to 127.0.0.1 (reverse proxy terminates TLS on 80/443)
+#
+# Usage (from /opt/flower-erp):
+#   docker compose -f docker-compose.production.yml --env-file .env.production up -d
+#   ./deploy/scripts/deploy.sh
+
+name: flower-erp
+
+x-flower-logging: &flower-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+    compress: "true"
+
+x-flower-restart: &flower-restart
+  restart: unless-stopped
+
+services:
+  migrate:
+    image: ${FLOWER_API_IMAGE:-flower-erp-api:production}
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+      target: migrate
+    container_name: flower-erp-migrate
+    profiles: ["migrate"]
+    environment:
+      DATABASE_MIGRATE_URL: ${DATABASE_MIGRATE_URL:?DATABASE_MIGRATE_URL is required for migrations}
+      DATABASE_URL: ${DATABASE_MIGRATE_URL}
+    networks:
+      - flower-erp-internal
+    restart: "no"
+    logging: *flower-logging
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+
+  api:
+    image: ${FLOWER_API_IMAGE:-flower-erp-api:production}
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+      target: production
+    container_name: flower-erp-api
+    <<: *flower-restart
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      API_PREFIX: ${API_PREFIX:-api/v1}
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
+      CORS_ORIGINS: ${CORS_ORIGINS:?CORS_ORIGINS is required}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      BODY_LIMIT: ${BODY_LIMIT:-1mb}
+      SWAGGER_ENABLED: ${SWAGGER_ENABLED:-false}
+      SWAGGER_PATH: ${SWAGGER_PATH:-docs}
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?JWT_ACCESS_SECRET is required}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?JWT_REFRESH_SECRET is required}
+      JWT_ACCESS_TTL_SECONDS: ${JWT_ACCESS_TTL_SECONDS:-900}
+      JWT_REFRESH_TTL_DAYS: ${JWT_REFRESH_TTL_DAYS:-14}
+      AUTH_COOKIE_SECURE: ${AUTH_COOKIE_SECURE:-true}
+      AUTH_COOKIE_SAME_SITE: ${AUTH_COOKIE_SAME_SITE:-lax}
+      ALLOW_OWNER_BOOTSTRAP: ${ALLOW_OWNER_BOOTSTRAP:-false}
+    ports:
+      - "127.0.0.1:${FLOWER_API_PORT:-4100}:4000"
+    networks:
+      - flower-erp-internal
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "node -e \"fetch('http://127.0.0.1:4000/api/v1/health/live').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\"",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    logging: *flower-logging
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+    cpus: ${FLOWER_API_CPUS:-0.75}
+    mem_limit: ${FLOWER_API_MEM_LIMIT:-768m}
+    mem_reservation: ${FLOWER_API_MEM_RESERVATION:-256m}
+
+  backoffice:
+    image: ${FLOWER_BACKOFFICE_IMAGE:-flower-erp-backoffice:production}
+    build:
+      context: .
+      dockerfile: apps/backoffice/Dockerfile
+      target: production
+      args:
+        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:?NEXT_PUBLIC_API_BASE_URL is required at build time}
+    container_name: flower-erp-backoffice
+    <<: *flower-restart
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL}
+    ports:
+      - "127.0.0.1:${FLOWER_BACKOFFICE_PORT:-3100}:3000"
+    networks:
+      - flower-erp-internal
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "node -e \"fetch('http://127.0.0.1:3000').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\"",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    logging: *flower-logging
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+    cpus: ${FLOWER_BACKOFFICE_CPUS:-0.50}
+    mem_limit: ${FLOWER_BACKOFFICE_MEM_LIMIT:-512m}
+    mem_reservation: ${FLOWER_BACKOFFICE_MEM_RESERVATION:-128m}
+    depends_on:
+      api:
+        condition: service_healthy
+
+networks:
+  flower-erp-internal:
+    name: flower-erp-internal
+    driver: bridge
+
+volumes:
+  flower-erp-backups:
+    name: flower-erp-backups

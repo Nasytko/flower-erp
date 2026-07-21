@@ -1,0 +1,172 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      DATABASE_URL: postgresql://flower:flower@localhost:5432/flower_erp?schema=public
+      NEXT_PUBLIC_API_BASE_URL: http://localhost:3001/api/v1
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Unit tests
+        run: pnpm --filter @flower/api test:unit
+
+      - name: Build
+        run: pnpm build
+
+      - name: Prisma validate
+        run: pnpm prisma:validate
+
+      - name: Dependency cruise
+        run: pnpm depcruise
+
+      - name: Secret scan (gitleaks)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Docker build API
+        run: docker build -f docker/api/Dockerfile -t flower-erp-api:ci .
+
+      - name: Docker build backoffice
+        run: docker build -f docker/backoffice/Dockerfile -t flower-erp-backoffice:ci --build-arg NEXT_PUBLIC_API_BASE_URL=http://localhost:3001/api/v1 .
+
+  postgres-integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: flower
+          POSTGRES_PASSWORD: flower
+          POSTGRES_DB: flower_erp
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U flower -d flower_erp"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://flower:flower@localhost:5432/flower_erp?schema=public
+      DATABASE_MIGRATE_URL: postgresql://flower:flower@localhost:5432/flower_erp?schema=public
+      JWT_ACCESS_SECRET: ci-test-access-secret-min-32-chars-long
+      JWT_REFRESH_SECRET: ci-test-refresh-secret-min-32-chars-long
+      ALLOW_OWNER_BOOTSTRAP: 'true'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Prisma generate
+        run: pnpm db:generate
+
+      - name: Prisma migrate deploy
+        run: pnpm db:migrate:deploy
+
+      - name: Prisma validate
+        run: pnpm prisma:validate
+
+      - name: Integration tests (PostgreSQL)
+        run: pnpm --filter @flower/api test:integration
+
+      - name: E2E tests (PostgreSQL)
+        run: pnpm --filter @flower/api test:e2e
+
+  vulnerability-scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run Trivy filesystem scan
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          severity: HIGH,CRITICAL
+          exit-code: '1'
+          ignore-unfixed: true
+
+  backoffice-playwright:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      NEXT_PUBLIC_API_BASE_URL: http://127.0.0.1:3001/api/v1
+      PLAYWRIGHT_BASE_URL: http://127.0.0.1:3000
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Build backoffice
+        run: pnpm --filter @flower/backoffice build
+
+      - name: Install Playwright browser
+        run: pnpm --filter @flower/backoffice exec playwright install --with-deps chromium
+
+      - name: Start backoffice
+        run: pnpm --filter @flower/backoffice start > /tmp/flower-backoffice.log 2>&1 &
+
+      - name: Wait for backoffice
+        run: |
+          for i in {1..30}; do
+            if curl -fsS http://127.0.0.1:3000/login >/dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          cat /tmp/flower-backoffice.log
+          exit 1
+
+      - name: Playwright smoke
+        run: pnpm --filter @flower/backoffice test:e2e --grep "auth smoke|inventory operations smoke"

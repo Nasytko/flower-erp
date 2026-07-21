@@ -1,0 +1,34 @@
+{
+  "name": "flower-erp",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Flower ERP — modular monolith for flower retail operations",
+  "packageManager": "pnpm@9.15.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md,yml,yaml}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md,yml,yaml}\"",
+    "db:generate": "pnpm --filter @flower/api db:generate",
+    "db:migrate": "node scripts/prisma-with-migrate-url.mjs migrate dev",
+    "db:migrate:deploy": "node scripts/prisma-with-migrate-url.mjs migrate deploy",
+    "prisma:validate": "pnpm --filter @flower/api prisma:validate",
+    "depcruise": "depcruise --config .dependency-cruiser.cjs apps packages",
+    "bootstrap:owner": "node --import tsx scripts/bootstrap-owner.mjs"
+  },
+  "devDependencies": {
+    "@flower/eslint-config": "workspace:*",
+    "@flower/tsconfig": "workspace:*",
+    "dependency-cruiser": "^16.9.0",
+    "eslint": "^9.17.0",
+    "prettier": "^3.4.2",
+    "turbo": "^2.3.3",
+    "typescript": "^5.7.2"
+  }
+}

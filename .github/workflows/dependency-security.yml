@@ -1,0 +1,29 @@
+# Dependency security — supplementary workflow
+#
+# Context: `pnpm audit` / npm legacy audit endpoint currently returns HTTP 410 Gone
+# and cannot be used as a reliable gate. See SECURITY.md.
+#
+# This workflow runs Trivy FS scan on a schedule so dependency drift is still reviewed
+# even if the main CI job is skipped for a fork without Actions permissions.
+
+name: Dependency security (Trivy)
+
+on:
+  schedule:
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+jobs:
+  trivy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Trivy FS
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          severity: HIGH,CRITICAL
+          exit-code: '1'
+          ignore-unfixed: true

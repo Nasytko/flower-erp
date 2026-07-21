@@ -1,0 +1,72 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: flower
+      POSTGRES_PASSWORD: flower
+      POSTGRES_DB: flower_erp
+    ports:
+      - "5432:5432"
+    volumes:
+      - flower_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U flower -d flower_erp"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: ..
+      dockerfile: docker/api/Dockerfile
+    environment:
+      NODE_ENV: development
+      PORT: 3001
+      DATABASE_URL: postgresql://flower:flower@postgres:5432/flower_erp?schema=public
+      DATABASE_MIGRATE_URL: postgresql://flower:flower@postgres:5432/flower_erp?schema=public
+      CORS_ORIGINS: http://localhost:3000
+      SWAGGER_ENABLED: "true"
+      SWAGGER_PATH: docs
+      LOG_LEVEL: info
+      BODY_LIMIT: 1mb
+    ports:
+      - "3001:3001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "node -e \"fetch('http://127.0.0.1:3001/api/v1/health/live').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\"",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  backoffice:
+    build:
+      context: ..
+      dockerfile: docker/backoffice/Dockerfile
+      args:
+        NEXT_PUBLIC_API_BASE_URL: http://localhost:3001/api/v1
+    environment:
+      NODE_ENV: development
+      NEXT_PUBLIC_API_BASE_URL: http://localhost:3001/api/v1
+    ports:
+      - "3000:3000"
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "node -e \"fetch('http://127.0.0.1:3000').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\"",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  flower_pg_data:

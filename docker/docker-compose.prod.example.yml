@@ -1,0 +1,63 @@
+# Production-oriented example. Uses external PostgreSQL DBaaS.
+# Do NOT add a local Postgres service here. Do NOT publish DB ports.
+# Fill secrets via orchestrator / secret manager — never bake into images.
+
+services:
+  api:
+    image: ghcr.io/example/flower-erp-api:TAG
+    build:
+      context: ..
+      dockerfile: docker/api/Dockerfile
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      # Runtime DML role (least privilege) — inject at deploy time
+      DATABASE_URL: postgresql://app_user:SECRET@db.example.com:5432/flower_erp?sslmode=require
+      # Migrations run as a separate job with DATABASE_MIGRATE_URL — not required at runtime
+      CORS_ORIGINS: https://backoffice.example.com
+      SWAGGER_ENABLED: "false"
+      LOG_LEVEL: info
+      BODY_LIMIT: 1mb
+    ports:
+      - "3001:3001"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "node -e \"fetch('http://127.0.0.1:3001/api/v1/health/live').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\"",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+
+  backoffice:
+    image: ghcr.io/example/flower-erp-backoffice:TAG
+    build:
+      context: ..
+      dockerfile: docker/backoffice/Dockerfile
+      args:
+        NEXT_PUBLIC_API_BASE_URL: https://api.example.com/api/v1
+    environment:
+      NODE_ENV: production
+      NEXT_PUBLIC_API_BASE_URL: https://api.example.com/api/v1
+    ports:
+      - "3000:3000"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "node -e \"fetch('http://127.0.0.1:3000').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\"",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
