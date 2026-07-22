@@ -42,3 +42,9 @@ test-results/
 playwright-report/
 **/test-results/
 **/playwright-report/
+
+# Local packaging experiments
+.deploy-api-test/
+**/.deploy-api-test/
+main-start.log
+
