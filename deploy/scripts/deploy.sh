@@ -27,8 +27,9 @@ echo "    Env:  ${ENV_FILE}"
 
 cd "${DEPLOY_ROOT}"
 
-echo "==> [1/4] Building images..."
+echo "==> [1/4] Building images (api, migrate, backoffice)..."
 docker compose -f "${COMPOSE_FILE}" --env-file "${ENV_FILE}" build api backoffice
+docker compose -f "${COMPOSE_FILE}" --env-file "${ENV_FILE}" --profile migrate build migrate
 
 echo "==> [2/4] Running migrations (must succeed before app rollout)..."
 "${SCRIPT_DIR}/migrate.sh"

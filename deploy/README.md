@@ -10,7 +10,7 @@ Deploy Flower ERP alongside an existing ORVIX Docker stack **without** sharing p
 | Directory | `/opt/flower-erp` | existing path |
 | Public ports | **none** (127.0.0.1 only) | keeps 80/443 |
 | Container names | `flower-erp-*` | unchanged |
-| Network | `flower-erp-internal` | unchanged |
+| Network | `flower-erp-internal` + external `leadflow_default` (API/migrate only) | unchanged |
 | PostgreSQL | DB `flower_erp`, user `flower_user` | own DB/users |
 | Volumes | `flower-erp-backups` (optional) | untouched |
 

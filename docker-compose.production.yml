@@ -21,8 +21,9 @@ x-flower-restart: &flower-restart
   restart: unless-stopped
 
 services:
+  # Dedicated migrate image (never reuse flower-erp-api:production — different target/entrypoint).
   migrate:
-    image: ${FLOWER_API_IMAGE:-flower-erp-api:production}
+    image: ${FLOWER_MIGRATE_IMAGE:-flower-erp-migrate:production}
     build:
       context: .
       dockerfile: apps/api/Dockerfile
@@ -34,6 +35,7 @@ services:
       DATABASE_URL: ${DATABASE_MIGRATE_URL}
     networks:
       - flower-erp-internal
+      - leadflow-db
     restart: "no"
     logging: *flower-logging
     security_opt:
@@ -71,6 +73,7 @@ services:
       - "127.0.0.1:${FLOWER_API_PORT:-4100}:4000"
     networks:
       - flower-erp-internal
+      - leadflow-db
     healthcheck:
       test:
         [
@@ -136,6 +139,12 @@ networks:
   flower-erp-internal:
     name: flower-erp-internal
     driver: bridge
+
+  # Existing LeadFlow / ORVIX Postgres network (hostname: leadflow-postgres-1).
+  # Do not create or modify this network from Flower ERP.
+  leadflow-db:
+    external: true
+    name: leadflow_default
 
 volumes:
   flower-erp-backups:

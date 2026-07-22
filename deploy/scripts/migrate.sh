@@ -28,6 +28,13 @@ echo "==> Flower ERP: running database migrations (project=${COMPOSE_PROJECT_NAM
 
 cd "${DEPLOY_ROOT}"
 
+# Ensure migrate target image is built (must not reuse flower-erp-api:production).
+docker compose \
+  -f "${COMPOSE_FILE}" \
+  --env-file "${ENV_FILE}" \
+  --profile migrate \
+  build migrate
+
 docker compose \
   -f "${COMPOSE_FILE}" \
   --env-file "${ENV_FILE}" \
