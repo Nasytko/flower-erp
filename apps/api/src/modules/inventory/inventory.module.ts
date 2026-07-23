@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { MasterDataModule } from '../master-data/master-data.module';
 import { OrganizationModule } from '../organization/organization.module';
 import { InventoryCountUseCases } from './application/inventory-count.use-cases';
 import { InventoryQueryUseCases } from './application/inventory-query.use-cases';
@@ -21,8 +22,13 @@ import { InventoryController } from './presentation/inventory.controller';
 import { InventoryCountsController } from './presentation/inventory-counts.controller';
 import { WriteOffsController } from './presentation/write-offs.controller';
 
+/**
+ * Inventory bounded context.
+ * Imports MasterDataModule so WriteOffUseCases can inject ItemUseCases
+ * (sibling AppModule import of MasterData is not visible inside this module).
+ */
 @Module({
-  imports: [OrganizationModule],
+  imports: [OrganizationModule, MasterDataModule],
   controllers: [InventoryController, WriteOffsController, InventoryCountsController],
   providers: [
     InventoryQueryUseCases,
