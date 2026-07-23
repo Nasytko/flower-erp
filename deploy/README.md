@@ -22,6 +22,8 @@ Deploy Flower ERP alongside an existing ORVIX Docker stack **without** sharing p
 | `apps/backoffice/Dockerfile` | Production multi-stage Backoffice (Next standalone) |
 | `docker-compose.production.yml` | Production compose (no Postgres service) |
 | `.env.production.example` | Environment template (no secrets) |
+| `deploy/scripts/init-production.sh` | Idempotent production secrets + `.env.production` init |
+| `deploy/scripts/test-env-upsert.sh` | Fixture tests for env upsert helpers |
 | `deploy/scripts/migrate.sh` | Safe migration job before rollout |
 | `deploy/scripts/deploy.sh` | Build → migrate → deploy |
 | `deploy/scripts/backup-db.sh` | `pg_dump` for `flower_erp` only |
@@ -105,15 +107,14 @@ Then set `DATABASE_URL` and `DATABASE_MIGRATE_URL` to the same connection string
 
 ```bash
 # On VPS — separate directory, separate project
-sudo mkdir -p /opt/flower-erp/backups
-sudo chown "$USER:$USER" /opt/flower-erp
-
-# Copy/sync release (git clone, rsync, or CI artifact)
+sudo mkdir -p /opt/flower-erp
+# Clone or pull release into /opt/flower-erp
 cd /opt/flower-erp
-cp .env.production.example .env.production
-nano .env.production   # fill secrets, domains, DB URLs
-
 chmod +x deploy/scripts/*.sh
+
+# Prepare secrets + .env.production (does NOT run migrations or start the app)
+./deploy/scripts/init-production.sh
+./deploy/scripts/init-production.sh --check
 
 # Verify no port conflict with ORVIX
 ss -tlnp | grep -E ':(3100|4100)\b'   # should be empty
@@ -127,6 +128,34 @@ curl -sf http://127.0.0.1:4100/api/v1/health/ready
 curl -sf -o /dev/null -w '%{http_code}\n' http://127.0.0.1:3100/
 ```
 
+### Production initialization (`init-production.sh`)
+
+One-shot / idempotent helper for VPS secrets:
+
+```bash
+cd /opt/flower-erp
+chmod +x deploy/scripts/init-production.sh
+./deploy/scripts/init-production.sh
+./deploy/scripts/init-production.sh --check
+```
+
+Rotate DB passwords + JWT (invalidates existing sessions; recreate API containers after):
+
+```bash
+./deploy/scripts/init-production.sh --rotate-secrets
+./deploy/scripts/deploy.sh
+```
+
+Behaviour:
+
+- Secrets live **only** in `/opt/flower-erp/.env.production` (`chmod 600`); they are **never** committed to Git.
+- Without `--rotate-secrets`, existing real passwords/JWT are left unchanged; only empty / `CHANGE_ME*` values are filled.
+- The script syncs `flower_user` / `flower_migrate` passwords in PostgreSQL (`leadflow-postgres-1`) and verifies TCP logins.
+- It does **not** run migrations, start Compose services, or restart LeadFlow.
+- First-init limitation: if role passwords are changed but previous values were unknown placeholders, automatic DB rollback is not possible — fix roles manually before retry.
+
+Manual `nano .env.production` is not required when using this script.
+
 ### Reverse proxy
 
 Add `deploy/nginx/flower-erp.conf.example` to your **existing** nginx (ORVIX config untouched):
@@ -139,8 +168,8 @@ sudo nginx -t && sudo systemctl reload nginx
 
 Set in `.env.production`:
 
-- `NEXT_PUBLIC_API_BASE_URL=https://flower-api.example.com/api/v1`
-- `CORS_ORIGINS=https://flower.example.com`
+- `NEXT_PUBLIC_API_BASE_URL=https://api-erp.nasytko.ru/api/v1`
+- `CORS_ORIGINS=https://erp.nasytko.ru`
 
 Rebuild backoffice after changing `NEXT_PUBLIC_API_BASE_URL`:
 
