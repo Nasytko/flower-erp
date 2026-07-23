@@ -90,10 +90,11 @@ export default function DashboardPage() {
 
   const canOps = auth.hasPermission('operations:read');
   const canSales = auth.hasPermission('sales:read');
+  const canOrders = auth.hasPermission('orders:read');
   const canDelivery = auth.hasPermission('delivery:read');
   const canStock =
     auth.hasPermission('workspace:read') ||
-    auth.hasPermission('orders:read') ||
+    canOrders ||
     auth.hasPermission('inventory:read');
   const canMasterData = auth.hasPermission('master-data:read');
 
@@ -111,52 +112,63 @@ export default function DashboardPage() {
     const tomorrowKey = toDateInputValue(tomorrow);
 
     try {
-      const opsPromise = canOps
-        ? client.getOperations(organizationId, storeId)
-        : Promise.resolve(null);
-      const salesPromise = canSales
-        ? client.listSales(organizationId, storeId, { status: 'COMPLETED' })
-        : Promise.resolve([] as SaleRow[]);
-      const ordersPromise =
-        canSales || canOps
-          ? client.listOrders(organizationId, storeId).catch(() => [])
-          : Promise.resolve([]);
-      const boardTodayPromise = canDelivery
-        ? client.getDeliveryBoard(organizationId, storeId, todayKey)
-        : Promise.resolve(null);
-      const boardTomorrowPromise = canDelivery
-        ? client.getDeliveryBoard(organizationId, storeId, tomorrowKey)
-        : Promise.resolve(null);
-      const stockPromise = canStock
-        ? client.getOperationalStock(organizationId, storeId).catch(() => null)
-        : Promise.resolve(null);
-      const flowersPromise = canMasterData
-        ? client
-            .listItems(organizationId, {
+      // Always attempt ops board when client thinks we can; catch individually so one
+      // 403 does not blank the whole dashboard (sales/delivery/stock still useful).
+      const settled = await Promise.allSettled([
+        canOps ? client.getOperations(organizationId, storeId) : Promise.resolve(null),
+        canSales
+          ? client.listSales(organizationId, storeId, { status: 'COMPLETED' })
+          : Promise.resolve([] as SaleRow[]),
+        canSales || canOrders
+          ? client.listOrders(organizationId, storeId)
+          : Promise.resolve([]),
+        canDelivery
+          ? client.getDeliveryBoard(organizationId, storeId, todayKey)
+          : Promise.resolve(null),
+        canDelivery
+          ? client.getDeliveryBoard(organizationId, storeId, tomorrowKey)
+          : Promise.resolve(null),
+        canStock
+          ? client.getOperationalStock(organizationId, storeId)
+          : Promise.resolve(null),
+        canMasterData
+          ? client.listItems(organizationId, {
               itemType: 'FLOWER',
               status: 'ACTIVE',
               pageSize: 200,
             })
-            .catch(() => null)
-        : Promise.resolve(null);
-
-      const [ops, sales, orders, boardToday, boardTomorrow, stock, flowers] = await Promise.all([
-        opsPromise,
-        salesPromise,
-        ordersPromise,
-        boardTodayPromise,
-        boardTomorrowPromise,
-        stockPromise,
-        flowersPromise,
+          : Promise.resolve(null),
       ]);
 
-      const orderTypeById = new Map(
-        (orders as Array<{ id: string; type: string }>).map((o) => [o.id, o.type]),
-      );
+      const value = <T,>(result: PromiseSettledResult<T>, fallback: T): T =>
+        result.status === 'fulfilled' ? result.value : fallback;
 
-      const todaySales = (sales as SaleRow[]).filter((s) =>
-        isWithinLocalDay(s.completedAt, today),
-      );
+      const ops = value(settled[0], null);
+      const sales = value(settled[1], [] as SaleRow[]);
+      const orders = value(settled[2], [] as Array<{ id: string; type: string }>);
+      const boardToday = value(settled[3], null);
+      const boardTomorrow = value(settled[4], null);
+      const stock = value(settled[5], null);
+      const flowers = value(settled[6], null);
+
+      const failedAll =
+        settled.every((r) => r.status === 'rejected') ||
+        (settled[0].status === 'rejected' &&
+          settled[1].status === 'rejected' &&
+          settled[3].status === 'rejected' &&
+          settled[5].status === 'rejected');
+
+      if (failedAll) {
+        const firstReject = settled.find((r) => r.status === 'rejected') as
+          | PromiseRejectedResult
+          | undefined;
+        const reason = firstReject?.reason;
+        throw reason instanceof Error ? reason : new Error('Не удалось загрузить обзор');
+      }
+
+      const orderTypeById = new Map(orders.map((o) => [o.id, o.type]));
+
+      const todaySales = sales.filter((s) => isWithinLocalDay(s.completedAt, today));
       let salesDelivery = 0;
       let salesStore = 0;
       let salesAmount = 0;
@@ -172,7 +184,6 @@ export default function DashboardPage() {
         if (orderType === 'PICKUP') {
           salesStore += 1;
         } else {
-          // ORDER_BASED without known type → считаем доставкой по умолчанию
           salesDelivery += 1;
         }
       }
@@ -241,6 +252,7 @@ export default function DashboardPage() {
     storeId,
     canOps,
     canSales,
+    canOrders,
     canDelivery,
     canStock,
     canMasterData,
