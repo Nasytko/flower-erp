@@ -1,7 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { randomBytes } from 'node:crypto';
 import type { ApiEnv } from '@flower/config';
+import { API_ENV } from '../../../infrastructure/infrastructure.module';
 
 export type AccessTokenPayload = {
   sub: string;
@@ -14,7 +15,7 @@ export type AccessTokenPayload = {
 export class JwtTokenService {
   constructor(
     private readonly jwt: JwtService,
-    private readonly env: ApiEnv,
+    @Inject(API_ENV) private readonly env: ApiEnv,
   ) {}
 
   signAccessToken(payload: AccessTokenPayload): string {

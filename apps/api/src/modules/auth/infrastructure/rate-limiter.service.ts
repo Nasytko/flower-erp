@@ -1,5 +1,6 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import type { ApiEnv } from '@flower/config';
+import { API_ENV } from '../../../infrastructure/infrastructure.module';
 
 type Bucket = { count: number; resetAt: number };
 
@@ -7,7 +8,7 @@ type Bucket = { count: number; resetAt: number };
 export class InMemoryRateLimiter {
   private readonly buckets = new Map<string, Bucket>();
 
-  constructor(private readonly env: ApiEnv) {}
+  constructor(@Inject(API_ENV) private readonly env: ApiEnv) {}
 
   consume(key: string, limit: number, windowMs = 60_000): boolean {
     const now = Date.now();

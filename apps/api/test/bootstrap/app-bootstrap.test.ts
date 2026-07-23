@@ -17,9 +17,13 @@ import { InfrastructureModule } from '../../src/infrastructure/infrastructure.mo
 import { WriteOffUseCases } from '../../src/modules/inventory/application/write-off.use-cases.js';
 import { ItemUseCases } from '../../src/modules/master-data/application/item.use-cases.js';
 import { OrganizationUseCases } from '../../src/modules/organization/application/organization.use-cases.js';
+import { JwtTokenService } from '../../src/modules/auth/infrastructure/jwt-token.service.js';
+import { AuthUseCases } from '../../src/modules/auth/application/auth.use-cases.js';
+import { InMemoryRateLimiter } from '../../src/modules/auth/infrastructure/rate-limiter.service.js';
 import { UNIT_OF_WORK } from '../../src/infrastructure/persistence/unit-of-work.port.js';
 import { CLOCK_PORT } from '@flower/shared-kernel';
 import { AUDIT_PORT } from '../../src/infrastructure/audit/audit.port.js';
+import { API_ENV } from '../../src/infrastructure/infrastructure.module.js';
 import { INVENTORY_WRITE_OFF_PORT } from '../../src/modules/inventory/application/ports/inventory-write-off.port.js';
 import { createApp } from '../helpers/app-test.helper.js';
 
@@ -78,6 +82,11 @@ test('AppModule DI graph compiles and resolves WriteOffUseCases', async () => {
       assert.ok(orgs instanceof OrganizationUseCases);
       assert.equal(writeOffs.constructor, WriteOffUseCases);
       assert.equal(items.constructor, ItemUseCases);
+
+      assert.ok(moduleRef.get(JwtTokenService, { strict: false }) instanceof JwtTokenService);
+      assert.ok(moduleRef.get(AuthUseCases, { strict: false }) instanceof AuthUseCases);
+      assert.ok(moduleRef.get(InMemoryRateLimiter, { strict: false }) instanceof InMemoryRateLimiter);
+      assert.ok(moduleRef.get(API_ENV, { strict: false }));
 
       assert.ok(moduleRef.get(UNIT_OF_WORK, { strict: false }));
       assert.ok(moduleRef.get(CLOCK_PORT, { strict: false }));
