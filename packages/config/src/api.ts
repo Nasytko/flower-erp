@@ -67,10 +67,15 @@ export type ApiEnv = z.infer<typeof apiEnvSchema>;
 export function loadApiEnv(env: NodeJS.ProcessEnv = process.env): ApiEnv {
   const result = apiEnvSchema.safeParse(env);
   if (!result.success) {
+    const names = [
+      ...new Set(result.error.issues.map((issue) => issue.path.join('.') || '(root)')),
+    ];
     const details = result.error.issues
-      .map((issue) => `${issue.path.join('.')}: ${issue.message}`)
+      .map((issue) => `${issue.path.join('.') || '(root)'}: ${issue.message}`)
       .join('; ');
-    throw new Error(`Invalid API environment: ${details}`);
+    throw new Error(
+      `Invalid API environment. Missing or invalid variables: ${names.join(', ')}. Details: ${details}`,
+    );
   }
 
   const parsed = result.data;
