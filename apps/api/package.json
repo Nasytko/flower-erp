@@ -15,6 +15,7 @@
     "test:e2e": "node --import tsx --test \"test/e2e/**/*.test.ts\"",
     "test:bootstrap": "node --import tsx --test \"test/bootstrap/**/*.test.ts\"",
     "smoke:bootstrap": "node --import tsx scripts/smoke-bootstrap.ts",
+    "create:initial-director": "node --import tsx src/scripts/create-initial-director.ts",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:migrate:deploy": "prisma migrate deploy",

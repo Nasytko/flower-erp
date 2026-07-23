@@ -36,6 +36,7 @@ RUN printf '%s\n' 'node-linker=hoisted' > /app/.npmrc \
     /prod/api/eslint.config.mjs /prod/api/tsconfig*.json /prod/api/nest-cli.json \
     /prod/api/Dockerfile /prod/api/*.tsbuildinfo /prod/api/.npmrc \
   && test -f /prod/api/dist/main.js \
+  && test -f /prod/api/dist/scripts/create-initial-director.js \
   && test -d /prod/api/node_modules/express \
   && node -e "require('express'); require('@nestjs/core'); require('@prisma/client');" \
   && if [ -n "$(find /prod/api -xtype l -print)" ]; then \

@@ -50,6 +50,12 @@ export type BootstrapOwnerInput = {
   password: string;
   displayName: string;
   email?: string | null;
+  /**
+   * When true, allow creating a new organization + director even if other users already exist.
+   * Still rejects duplicate logins and orgs that already have a DIRECTOR.
+   * Does not modify existing users/passwords.
+   */
+  allowExistingSystem?: boolean;
 };
 
 @Injectable()
@@ -87,8 +93,11 @@ export class BootstrapOwnerUseCases {
       }
     } else {
       const userCount = await this.identity.countUsers();
-      if (userCount > 0) {
-        throw new ConflictException({ code: 'BOOTSTRAP_ALREADY_DONE', message: 'System already bootstrapped' });
+      if (userCount > 0 && !input.allowExistingSystem) {
+        throw new ConflictException({
+          code: 'BOOTSTRAP_ALREADY_DONE',
+          message: 'System already bootstrapped (pass allowExistingSystem to create another organization director)',
+        });
       }
     }
 

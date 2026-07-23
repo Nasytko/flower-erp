@@ -20,7 +20,7 @@
     "db:migrate:deploy": "node scripts/prisma-with-migrate-url.mjs migrate deploy",
     "prisma:validate": "pnpm --filter @flower/api prisma:validate",
     "depcruise": "depcruise --config .dependency-cruiser.cjs apps packages",
-    "bootstrap:owner": "node --import tsx scripts/bootstrap-owner.mjs"
+    "bootstrap:owner": "pnpm --filter @flower/api create:initial-director"
   },
   "devDependencies": {
     "@flower/eslint-config": "workspace:*",

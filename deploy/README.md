@@ -128,6 +128,61 @@ curl -sf http://127.0.0.1:4100/api/v1/health/ready
 curl -sf -o /dev/null -w '%{http_code}\n' http://127.0.0.1:3100/
 ```
 
+### Initial production user (DIRECTOR)
+
+After migrations and a healthy API, create the first organization owner.  
+This reuses `BootstrapOwnerUseCases` (one DB transaction: org, store, warehouse, user, DIRECTOR, `ALL_STORES`, audit).
+
+Auth identity is **login** (derived from email local-part). Email is stored on the user record; Backoffice login field expects **login**.
+
+Interactive (password is hidden; never pass password on the command line):
+
+```bash
+cd /opt/flower-erp
+
+docker compose \
+  --env-file .env.production \
+  -f docker-compose.production.yml \
+  run --rm --no-deps -it \
+  -e ALLOW_OWNER_BOOTSTRAP=true \
+  api node dist/scripts/create-initial-director.js
+```
+
+The CLI prompts for: email, password, password confirmation, full name, organization name, first store name.
+
+Non-interactive automation (password via env only — never log it):
+
+```bash
+docker compose \
+  --env-file .env.production \
+  -f docker-compose.production.yml \
+  run --rm --no-deps \
+  -e ALLOW_OWNER_BOOTSTRAP=true \
+  -e INITIAL_ADMIN_EMAIL='director@example.com' \
+  -e INITIAL_ADMIN_PASSWORD='…' \
+  -e INITIAL_ADMIN_FULL_NAME='Director Name' \
+  -e INITIAL_ORGANIZATION_NAME='My Flowers' \
+  -e INITIAL_STORE_NAME='Main Store' \
+  api node dist/scripts/create-initial-director.js
+```
+
+Rules:
+
+- Run only after successful migrations.
+- Default: refuses if any users/organizations already exist.
+- Repeat run does not create duplicates (`USER_EXISTS` / `BOOTSTRAP_ALREADY_DONE`).
+- `--allow-existing-system` only for intentionally adding another org director (still no password overwrite / silent elevation).
+- After success, set `ALLOW_OWNER_BOOTSTRAP=false` in `.env.production` and recreate the API container.
+- Sign in at https://erp.nasytko.ru using **Login** + password.
+
+Verify users (no password hash):
+
+```bash
+docker exec leadflow-postgres-1 \
+  psql -U flower_user -d flower_erp \
+  -c 'SELECT login, email, display_name FROM users;'
+```
+
 ### Production initialization (`init-production.sh`)
 
 One-shot / idempotent helper for VPS secrets:
