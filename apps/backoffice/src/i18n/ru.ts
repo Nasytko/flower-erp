@@ -50,6 +50,13 @@ export const ru = {
   actionFailed: 'Действие не выполнено',
   archiveFailed: 'Не удалось архивировать',
   unknownError: 'Неизвестная ошибка',
+  selectStore: 'Выберите магазин',
+  selectStoreHint: 'Выберите магазин в шапке, чтобы открыть разделы',
+  storeNotSelected: 'Магазин не выбран',
+  storeSelected: 'Магазин',
+  failedToLoadStores: 'Не удалось загрузить магазины',
+  noStores: 'Магазинов пока нет',
+  allOrganizations: 'Все организации',
 } as const;
 
 export type RuKey = keyof typeof ru;

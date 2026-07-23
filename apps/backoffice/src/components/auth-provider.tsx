@@ -6,6 +6,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { getApiClient, resetApiClient } from '@/lib/api-client';
 import { clearAccessToken, getAccessToken, setAccessToken } from '@/lib/auth-session';
 import { resolveStoreHomePath } from '@/lib/nav';
+import { clearLastWorkspace, setLastWorkspace } from '@/lib/workspace-context';
 
 type AuthState = {
   loading: boolean;
@@ -31,6 +32,11 @@ async function resolvePostAuthPath(
     const stores = await getApiClient().listStores(organizationId, 1, 1);
     const first = stores.items[0];
     if (!first) return '/organizations';
+    setLastWorkspace({
+      organizationId,
+      storeId: first.id,
+      storeName: first.name,
+    });
     return resolveStoreHomePath(organizationId, first.id, hasPermission);
   } catch {
     return '/organizations';
@@ -102,6 +108,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } finally {
       clearAccessToken();
       resetApiClient();
+      clearLastWorkspace();
       setState({ loading: false, user: null, organization: null, permissions: [] });
       router.replace('/login');
     }

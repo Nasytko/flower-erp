@@ -6,18 +6,21 @@ import { useAuth } from '@/components/auth-provider';
 import { t } from '@/i18n/ru';
 import {
   filterNavByPermissions,
-  parseStoreRoute,
   PRIMARY_NAV,
   resolveNavActionShortcuts,
+  resolveNavWorkspace,
 } from '@/lib/nav';
 
 export function CommandPalette() {
   const auth = useAuth();
   const router = useRouter();
   const pathname = usePathname();
-  const route = parseStoreRoute(pathname);
-  const organizationId = auth.organization?.id ?? route.organizationId;
-  const storeId = route.storeId;
+  const workspace = useMemo(
+    () => resolveNavWorkspace(pathname, auth.organization?.id),
+    [pathname, auth.organization?.id],
+  );
+  const organizationId = workspace.organizationId;
+  const storeId = workspace.storeId;
   const listId = useId();
 
   const [open, setOpen] = useState(false);

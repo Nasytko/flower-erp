@@ -1,13 +1,16 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/components/auth-provider';
 import { t } from '@/i18n/ru';
+import { resolveNavWorkspace, resolveStoreHomePath } from '@/lib/nav';
 import { DesktopSidebar } from './desktop-sidebar';
 import { MobileDrawer } from './mobile-drawer';
-import { OrganizationSwitcherPlaceholder } from './placeholders';
+import { WorkspaceSwitcher } from './workspace-switcher';
+import { WorkspaceContextSync } from './workspace-context-sync';
 import { CommandPalette } from '@/components/workspace/command-palette';
 
 export function AppShell({ children }: { children: ReactNode }) {
@@ -16,12 +19,23 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const closeMobile = useCallback(() => setMobileOpen(false), []);
 
+  const workspace = useMemo(
+    () => resolveNavWorkspace(pathname, auth.organization?.id),
+    [pathname, auth.organization?.id],
+  );
+
+  const homeHref =
+    workspace.organizationId && workspace.storeId
+      ? resolveStoreHomePath(workspace.organizationId, workspace.storeId, auth.hasPermission)
+      : '/';
+
   if (pathname === '/login') {
     return <>{children}</>;
   }
 
   return (
     <div className="shell">
+      <WorkspaceContextSync />
       <DesktopSidebar />
       <MobileDrawer open={mobileOpen} onClose={closeMobile} />
 
@@ -37,14 +51,15 @@ export function AppShell({ children }: { children: ReactNode }) {
           >
             {t('menu')}
           </button>
-          <span className="shell__title">{t('backoffice')}</span>
-          <OrganizationSwitcherPlaceholder />
+          <Link href={homeHref} className="shell__title">
+            {t('backoffice')}
+          </Link>
+          <WorkspaceSwitcher />
         </div>
         <div className="shell__header-right">
           {auth.user ? (
             <div className="shell__user-menu">
               <span>{auth.user.displayName}</span>
-              {auth.organization ? <span>{auth.organization.name}</span> : null}
               <button type="button" onClick={() => void auth.logout()}>
                 {t('logout')}
               </button>

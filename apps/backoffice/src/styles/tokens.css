@@ -68,7 +68,7 @@
   --radius-lg: 18px;
 
   /* Layout */
-  --sidebar-width: 268px;
+  --sidebar-width: 280px;
   --header-height: 60px;
   --content-max-width: 1180px;
   --page-padding: var(--space-5);

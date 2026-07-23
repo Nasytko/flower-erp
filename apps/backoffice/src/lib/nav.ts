@@ -1,3 +1,12 @@
+import {
+  getLastWorkspace,
+  parseOrganizationRoute,
+  setLastWorkspace,
+  type LastWorkspace,
+} from './workspace-context';
+
+export type NavGroup = 'work' | 'catalog' | 'store' | 'org' | 'system';
+
 export type NavItem = {
   href: string;
   label: string;
@@ -5,139 +14,174 @@ export type NavItem = {
   orgScoped?: boolean;
   storeScoped?: boolean;
   /** Group for sidebar / command palette sections. */
-  group?: 'ops' | 'admin';
+  group: NavGroup;
+};
+
+export const NAV_GROUP_ORDER: NavGroup[] = ['work', 'catalog', 'store', 'org', 'system'];
+
+export const NAV_GROUP_LABELS: Record<NavGroup, string> = {
+  work: 'Работа',
+  catalog: 'Справочники',
+  store: 'Магазин',
+  org: 'Организация',
+  system: 'Система',
 };
 
 export const PRIMARY_NAV: NavItem[] = [
-  // Primary ops (store-scoped)
+  // Работа
+  {
+    href: '/',
+    label: 'Обзор',
+    group: 'work',
+  },
   {
     href: '/organizations/{orgId}/stores/{storeId}/today',
     label: 'Сегодня',
     permission: 'workspace:read',
     storeScoped: true,
-    group: 'ops',
+    group: 'work',
   },
   {
     href: '/organizations/{orgId}/stores/{storeId}/operations',
     label: 'Операции',
     permission: 'operations:read',
     storeScoped: true,
-    group: 'ops',
+    group: 'work',
   },
   {
     href: '/organizations/{orgId}/stores/{storeId}/orders',
     label: 'Заказы',
     permission: 'orders:read',
     storeScoped: true,
-    group: 'ops',
+    group: 'work',
   },
   {
     href: '/organizations/{orgId}/stores/{storeId}/deliveries',
     label: 'Доставка',
     permission: 'delivery:read',
     storeScoped: true,
-    group: 'ops',
+    group: 'work',
   },
   {
     href: '/organizations/{orgId}/stores/{storeId}/sales',
     label: 'Продажи',
     permission: 'sales:read',
     storeScoped: true,
-    group: 'ops',
+    group: 'work',
   },
   {
     href: '/organizations/{orgId}/stores/{storeId}/payments',
     label: 'Оплаты',
     permission: 'payments:read',
     storeScoped: true,
-    group: 'ops',
+    group: 'work',
   },
   {
     href: '/organizations/{orgId}/stores/{storeId}/stock',
     label: 'Остатки',
     permission: 'inventory:read',
     storeScoped: true,
-    group: 'ops',
+    group: 'work',
   },
   {
     href: '/organizations/{orgId}/stores/{storeId}/write-offs',
     label: 'Списания',
     permission: 'write-offs:read',
     storeScoped: true,
-    group: 'ops',
+    group: 'work',
   },
   {
     href: '/organizations/{orgId}/stores/{storeId}/transfers',
     label: 'Перемещения',
     permission: 'transfers:read',
     storeScoped: true,
-    group: 'ops',
+    group: 'work',
   },
   {
     href: '/organizations/{orgId}/stores/{storeId}/inventory-counts',
     label: 'Инвентаризации',
     permission: 'inventory-counts:read',
     storeScoped: true,
-    group: 'ops',
+    group: 'work',
   },
 
-  // Secondary / admin
+  // Справочники
+  {
+    href: '/organizations/{orgId}/master-data',
+    label: 'Справочники',
+    permission: 'master-data:read',
+    orgScoped: true,
+    group: 'catalog',
+  },
+
+  // Магазин
+  {
+    href: '/organizations/{orgId}/stores/{storeId}/supplies',
+    label: 'Поставки',
+    permission: 'supply:read',
+    storeScoped: true,
+    group: 'store',
+  },
   {
     href: '/organizations/{orgId}/stores/{storeId}/payment-methods',
     label: 'Способы оплаты',
     permission: 'payments:manage-methods',
     storeScoped: true,
-    group: 'admin',
+    group: 'store',
   },
   {
     href: '/organizations/{orgId}/stores/{storeId}/cash-accounts',
     label: 'Касса',
     permission: 'payments:view-cash',
     storeScoped: true,
-    group: 'admin',
+    group: 'store',
   },
   {
-    href: '/organizations/{orgId}/stores/{storeId}/supplies',
-    label: 'Поставки',
-    permission: 'supply:read',
+    href: '/organizations/{orgId}/stores/{storeId}/couriers',
+    label: 'Курьеры',
+    permission: 'delivery:read',
     storeScoped: true,
-    group: 'admin',
+    group: 'store',
   },
+
+  // Организация
   {
     href: '/organizations/{orgId}/customers',
     label: 'Клиенты',
     permission: 'customers:read',
     orgScoped: true,
-    group: 'admin',
+    group: 'org',
   },
   {
     href: '/organizations/{orgId}/users',
     label: 'Пользователи',
     permission: 'users:read',
     orgScoped: true,
-    group: 'admin',
+    group: 'org',
   },
   {
     href: '/organizations/{orgId}/roles',
     label: 'Роли',
     permission: 'roles:manage',
     orgScoped: true,
-    group: 'admin',
+    group: 'org',
   },
   {
     href: '/organizations/{orgId}/audit',
     label: 'Аудит',
     permission: 'audit:read',
     orgScoped: true,
-    group: 'admin',
+    group: 'org',
   },
-  { href: '/sessions', label: 'Сессии', group: 'admin' },
+
+  // Система
   {
     href: '/organizations',
     label: 'Организации',
     permission: 'organization:read',
-    group: 'admin',
+    group: 'system',
   },
+  { href: '/sessions', label: 'Сессии', group: 'system' },
 ];
 
 /** Action shortcuts that resolve to PRIMARY_NAV routes (not a second nav source). */
@@ -185,7 +229,11 @@ export function resolveStoreHomePath(
     if (preferred === 'today' && canWorkspace) {
       return `${base}/today`;
     }
-    return `${base}/operations`;
+    if (preferred === 'operations') {
+      return `${base}/operations`;
+    }
+    // Default director home: KPI dashboard (uses last store context).
+    return '/';
   }
   if (canWorkspace) {
     return `${base}/today`;
@@ -202,6 +250,51 @@ export function parseStoreRoute(pathname: string): {
     organizationId: match?.[1] ?? null,
     storeId: match?.[2] ?? null,
   };
+}
+
+/**
+ * Resolve org/store for nav: URL store → last store (same org) → org from URL/auth/last.
+ */
+export function resolveNavWorkspace(
+  pathname: string,
+  authOrganizationId?: string | null,
+): { organizationId: string | null; storeId: string | null; fromLastStore: boolean } {
+  const route = parseStoreRoute(pathname);
+  const pathOrg = parseOrganizationRoute(pathname);
+  const last = getLastWorkspace();
+
+  const organizationId =
+    route.organizationId ?? authOrganizationId ?? pathOrg ?? last?.organizationId ?? null;
+
+  if (route.storeId) {
+    return { organizationId, storeId: route.storeId, fromLastStore: false };
+  }
+
+  if (
+    organizationId &&
+    last &&
+    last.organizationId === organizationId &&
+    last.storeId
+  ) {
+    return { organizationId, storeId: last.storeId, fromLastStore: true };
+  }
+
+  return { organizationId, storeId: null, fromLastStore: false };
+}
+
+export function rememberWorkspaceFromPath(
+  pathname: string,
+  storeName?: string,
+): LastWorkspace | null {
+  const route = parseStoreRoute(pathname);
+  if (!route.organizationId || !route.storeId) return null;
+  const workspace: LastWorkspace = {
+    organizationId: route.organizationId,
+    storeId: route.storeId,
+    storeName,
+  };
+  setLastWorkspace(workspace);
+  return workspace;
 }
 
 export function resolveNavHref(
@@ -224,6 +317,8 @@ export function isNavItemActive(pathname: string, href: string): boolean {
   if (href === '/') {
     return pathname === '/';
   }
+  // Prefer exact/child match, but don't mark /organizations active for every nested page
+  // when comparing against the system list entry — keep previous behavior for deep links.
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
@@ -240,6 +335,20 @@ export function filterNavByPermissions(
       return href ? { ...item, href } : null;
     })
     .filter((item): item is NavItem & { href: string } => item !== null);
+}
+
+/** Items the user could see if store context were present (for empty-state hints). */
+export function countStoreScopedEligible(
+  items: NavItem[],
+  hasPermission: (code: string) => boolean,
+  group?: NavGroup,
+): number {
+  return items.filter(
+    (item) =>
+      item.storeScoped &&
+      (!group || item.group === group) &&
+      (!item.permission || hasPermission(item.permission)),
+  ).length;
 }
 
 /** Map action shortcuts onto resolved PRIMARY_NAV hrefs (New sale → /sales/new). */
