@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../../../infrastructure/prisma/prisma.service';
+import { resolvePrismaClient } from '../../../infrastructure/persistence/prisma-transaction-context';
 import type { SessionRecord, SessionRepository } from '../application/ports/identity.repository';
 
 function mapSession(row: {
@@ -21,6 +22,10 @@ function mapSession(row: {
 export class PrismaSessionRepository implements SessionRepository {
   constructor(private readonly prisma: PrismaService) {}
 
+  private client() {
+    return resolvePrismaClient(this.prisma);
+  }
+
   async createSession(input: {
     userId: string;
     membershipId: string;
@@ -31,7 +36,7 @@ export class PrismaSessionRepository implements SessionRepository {
     userAgent?: string | null;
     lastUsedAt: Date;
   }): Promise<SessionRecord> {
-    const row = await this.prisma.session.create({
+    const row = await this.client().session.create({
       data: {
         id: randomUUID(),
         userId: input.userId,
@@ -48,7 +53,7 @@ export class PrismaSessionRepository implements SessionRepository {
   }
 
   async findByRefreshHash(refreshTokenHash: string): Promise<SessionRecord | null> {
-    const row = await this.prisma.session.findFirst({
+    const row = await this.client().session.findFirst({
       where: { refreshTokenHash },
       orderBy: { createdAt: 'desc' },
     });
@@ -56,14 +61,14 @@ export class PrismaSessionRepository implements SessionRepository {
   }
 
   async findActiveByRefreshHash(refreshTokenHash: string): Promise<SessionRecord | null> {
-    const row = await this.prisma.session.findFirst({
+    const row = await this.client().session.findFirst({
       where: { refreshTokenHash, status: 'ACTIVE', expiresAt: { gt: new Date() } },
     });
     return row ? mapSession(row) : null;
   }
 
   async findById(sessionId: string): Promise<SessionRecord | null> {
-    const row = await this.prisma.session.findUnique({ where: { id: sessionId } });
+    const row = await this.client().session.findUnique({ where: { id: sessionId } });
     return row ? mapSession(row) : null;
   }
 
@@ -71,28 +76,28 @@ export class PrismaSessionRepository implements SessionRepository {
     sessionId: string,
     input: { refreshTokenHash: string; expiresAt: Date; lastUsedAt: Date },
   ): Promise<void> {
-    await this.prisma.session.update({
+    await this.client().session.update({
       where: { id: sessionId },
       data: input,
     });
   }
 
   async revokeSession(sessionId: string, reason: string, revokedAt: Date): Promise<void> {
-    await this.prisma.session.update({
+    await this.client().session.update({
       where: { id: sessionId },
       data: { status: 'REVOKED', revokeReason: reason, revokedAt },
     });
   }
 
   async expireSession(sessionId: string, expiredAt: Date): Promise<void> {
-    await this.prisma.session.update({
+    await this.client().session.update({
       where: { id: sessionId },
       data: { status: 'EXPIRED', revokedAt: expiredAt, revokeReason: 'EXPIRED' },
     });
   }
 
   async revokeFamily(familyId: string, reason: string, revokedAt: Date): Promise<void> {
-    await this.prisma.session.updateMany({
+    await this.client().session.updateMany({
       where: { familyId, status: 'ACTIVE' },
       data: { status: 'REVOKED', revokeReason: reason, revokedAt },
     });
@@ -104,7 +109,7 @@ export class PrismaSessionRepository implements SessionRepository {
     revokedAt: Date,
     exceptSessionId?: string,
   ): Promise<void> {
-    await this.prisma.session.updateMany({
+    await this.client().session.updateMany({
       where: {
         userId,
         status: 'ACTIVE',
@@ -115,7 +120,7 @@ export class PrismaSessionRepository implements SessionRepository {
   }
 
   async listUserSessions(userId: string): Promise<SessionRecord[]> {
-    const rows = await this.prisma.session.findMany({
+    const rows = await this.client().session.findMany({
       where: { userId },
       orderBy: { lastUsedAt: 'desc' },
     });

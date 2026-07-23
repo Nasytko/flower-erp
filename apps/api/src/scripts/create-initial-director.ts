@@ -251,8 +251,37 @@ async function main(): Promise<void> {
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     const safe = redactSecrets(message, [password, passwordConfirm].filter(Boolean));
-    // Nest HTTP exceptions often put details in getResponse()
-    if (err && typeof err === 'object' && 'getResponse' in err && typeof (err as { getResponse: () => unknown }).getResponse === 'function') {
+
+    // Prisma FK / constraint failures — name the model/operation, never dump secrets.
+    if (
+      err &&
+      typeof err === 'object' &&
+      'code' in err &&
+      typeof (err as { code: unknown }).code === 'string' &&
+      String((err as { code: string }).code).startsWith('P')
+    ) {
+      const prismaErr = err as {
+        code: string;
+        meta?: { modelName?: string; field_name?: string; constraint?: string };
+        message?: string;
+      };
+      const model = prismaErr.meta?.modelName ?? 'unknown';
+      const constraint = prismaErr.meta?.field_name ?? prismaErr.meta?.constraint ?? 'unknown';
+      stderr.write(
+        `[ERROR] Database operation failed (${prismaErr.code}) on model=${model} constraint=${constraint}\n`,
+      );
+      stderr.write(
+        `[ERROR] ${redactSecrets(prismaErr.message ?? safe, [password, passwordConfirm].filter(Boolean)).split('\n')[0]}\n`,
+      );
+      process.exit(1);
+    }
+
+    if (
+      err &&
+      typeof err === 'object' &&
+      'getResponse' in err &&
+      typeof (err as { getResponse: () => unknown }).getResponse === 'function'
+    ) {
       const body = (err as { getResponse: () => unknown }).getResponse();
       const code =
         body && typeof body === 'object' && 'code' in body

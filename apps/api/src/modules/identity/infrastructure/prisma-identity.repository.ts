@@ -1,7 +1,17 @@
 import { Injectable } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
-import { COURIER_PERMISSIONS, DIRECTOR_PERMISSIONS, FLORIST_PERMISSIONS, SYSTEM_ROLE_PRESETS } from '@flower/permissions';
+import {
+  COURIER_PERMISSIONS,
+  DIRECTOR_PERMISSIONS,
+  FLORIST_PERMISSIONS,
+  SYSTEM_ROLE_PRESETS,
+} from '@flower/permissions';
 import { PrismaService } from '../../../infrastructure/prisma/prisma.service';
+import {
+  getActivePrismaTx,
+  resolvePrismaClient,
+  type PrismaTransactionClient,
+} from '../../../infrastructure/persistence/prisma-transaction-context';
 import type {
   AuthProfile,
   IdentityRepository,
@@ -29,17 +39,22 @@ function mapUser(row: {
 export class PrismaIdentityRepository implements IdentityRepository {
   constructor(private readonly prisma: PrismaService) {}
 
+  /** Always prefer the active UnitOfWork client so FK inserts see uncommitted parents. */
+  private client() {
+    return resolvePrismaClient(this.prisma);
+  }
+
   countUsers(): Promise<number> {
-    return this.prisma.user.count();
+    return this.client().user.count();
   }
 
   async findUserByLogin(login: string): Promise<UserRecord | null> {
-    const row = await this.prisma.user.findUnique({ where: { login } });
+    const row = await this.client().user.findUnique({ where: { login } });
     return row ? mapUser(row) : null;
   }
 
   async findUserById(id: string): Promise<UserRecord | null> {
-    const row = await this.prisma.user.findUnique({ where: { id } });
+    const row = await this.client().user.findUnique({ where: { id } });
     return row ? mapUser(row) : null;
   }
 
@@ -51,7 +66,7 @@ export class PrismaIdentityRepository implements IdentityRepository {
     mustChangePassword?: boolean;
   }): Promise<UserRecord> {
     const now = new Date();
-    const row = await this.prisma.user.create({
+    const row = await this.client().user.create({
       data: {
         id: randomUUID(),
         login: input.login,
@@ -73,7 +88,7 @@ export class PrismaIdentityRepository implements IdentityRepository {
       lastLoginAt?: Date | null;
     },
   ): Promise<void> {
-    await this.prisma.user.update({ where: { id: userId }, data: input });
+    await this.client().user.update({ where: { id: userId }, data: input });
   }
 
   async updateUserPassword(
@@ -81,18 +96,18 @@ export class PrismaIdentityRepository implements IdentityRepository {
     passwordHash: string,
     mustChangePassword: boolean,
   ): Promise<void> {
-    await this.prisma.user.update({
+    await this.client().user.update({
       where: { id: userId },
       data: { passwordHash, passwordChangedAt: new Date(), mustChangePassword },
     });
   }
 
   async updateUserStatus(userId: string, status: UserRecord['status']): Promise<void> {
-    await this.prisma.user.update({ where: { id: userId }, data: { status } });
+    await this.client().user.update({ where: { id: userId }, data: { status } });
   }
 
   async findMembership(userId: string, organizationId: string): Promise<MembershipRecord | null> {
-    const row = await this.prisma.organizationMembership.findUnique({
+    const row = await this.client().organizationMembership.findUnique({
       where: { organizationId_userId: { organizationId, userId } },
       include: { organization: true },
     });
@@ -108,7 +123,7 @@ export class PrismaIdentityRepository implements IdentityRepository {
   }
 
   async listActiveMemberships(userId: string): Promise<MembershipRecord[]> {
-    const rows = await this.prisma.organizationMembership.findMany({
+    const rows = await this.client().organizationMembership.findMany({
       where: { userId, status: 'ACTIVE' },
       include: { organization: true },
     });
@@ -123,7 +138,7 @@ export class PrismaIdentityRepository implements IdentityRepository {
   }
 
   async loadAuthProfile(membershipId: string): Promise<AuthProfile | null> {
-    const membership = await this.prisma.organizationMembership.findUnique({
+    const membership = await this.client().organizationMembership.findUnique({
       where: { id: membershipId },
       include: {
         user: true,
@@ -168,7 +183,7 @@ export class PrismaIdentityRepository implements IdentityRepository {
     userId: string;
     storeAccessMode?: 'ALL_STORES' | 'SELECTED_STORES';
   }): Promise<MembershipRecord> {
-    const row = await this.prisma.organizationMembership.create({
+    const row = await this.client().organizationMembership.create({
       data: {
         id: randomUUID(),
         organizationId: input.organizationId,
@@ -188,7 +203,7 @@ export class PrismaIdentityRepository implements IdentityRepository {
   }
 
   async assignRole(membershipId: string, roleId: string): Promise<void> {
-    await this.prisma.membershipRole.upsert({
+    await this.client().membershipRole.upsert({
       where: { membershipId_roleId: { membershipId, roleId } },
       create: { membershipId, roleId },
       update: {},
@@ -200,7 +215,7 @@ export class PrismaIdentityRepository implements IdentityRepository {
     mode: 'ALL_STORES' | 'SELECTED_STORES',
     storeIds: string[],
   ): Promise<void> {
-    await this.prisma.$transaction(async (tx) => {
+    const apply = async (tx: PrismaTransactionClient | ReturnType<PrismaIdentityRepository['client']>) => {
       await tx.organizationMembership.update({
         where: { id: membershipId },
         data: { storeAccessMode: mode },
@@ -213,11 +228,19 @@ export class PrismaIdentityRepository implements IdentityRepository {
           });
         }
       }
-    });
+    };
+
+    // Join outer UnitOfWork when present; otherwise open a local transaction.
+    const active = getActivePrismaTx();
+    if (active) {
+      await apply(active);
+      return;
+    }
+    await this.prisma.$transaction(async (tx) => apply(tx));
   }
 
   async listUsers(organizationId: string) {
-    const rows = await this.prisma.organizationMembership.findMany({
+    const rows = await this.client().organizationMembership.findMany({
       where: { organizationId },
       include: { user: true },
     });
@@ -240,7 +263,7 @@ export class PrismaIdentityRepository implements IdentityRepository {
   }
 
   async organizationHasOwner(organizationId: string): Promise<boolean> {
-    const count = await this.prisma.membershipRole.count({
+    const count = await this.client().membershipRole.count({
       where: {
         membership: { organizationId, status: 'ACTIVE' },
         role: { organizationId, code: 'DIRECTOR', status: 'ACTIVE', isSystem: true },
@@ -250,7 +273,7 @@ export class PrismaIdentityRepository implements IdentityRepository {
   }
 
   async findRoleIdByCode(organizationId: string, code: string): Promise<string | null> {
-    const role = await this.prisma.role.findUnique({
+    const role = await this.client().role.findUnique({
       where: { organizationId_code: { organizationId, code } },
       select: { id: true },
     });
@@ -258,7 +281,7 @@ export class PrismaIdentityRepository implements IdentityRepository {
   }
 
   async listRoles(organizationId: string) {
-    const rows = await this.prisma.role.findMany({
+    const rows = await this.client().role.findMany({
       where: { organizationId, status: 'ACTIVE' },
       include: {
         permissions: {
@@ -282,11 +305,12 @@ export class PrismaIdentityRepository implements IdentityRepository {
     preset: { code: string; name: string },
     permissionCodes: readonly string[],
   ) {
-    let role = await this.prisma.role.findUnique({
+    const client = this.client();
+    let role = await client.role.findUnique({
       where: { organizationId_code: { organizationId, code: preset.code } },
     });
     if (!role) {
-      role = await this.prisma.role.create({
+      role = await client.role.create({
         data: {
           id: randomUUID(),
           organizationId,
@@ -296,11 +320,11 @@ export class PrismaIdentityRepository implements IdentityRepository {
         },
       });
     }
-    const permissions = await this.prisma.permission.findMany({
+    const permissions = await client.permission.findMany({
       where: { code: { in: [...permissionCodes] } },
     });
     for (const permission of permissions) {
-      await this.prisma.rolePermission.upsert({
+      await client.rolePermission.upsert({
         where: { roleId_permissionId: { roleId: role.id, permissionId: permission.id } },
         create: { roleId: role.id, permissionId: permission.id },
         update: {},
