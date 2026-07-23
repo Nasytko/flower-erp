@@ -1,11 +1,13 @@
 # syntax=docker/dockerfile:1.7
 # CI path — mirrors apps/api/Dockerfile production packaging (pnpm deploy + hoisted).
 
-FROM node:20-bookworm-slim AS base
+FROM node:22-bookworm-slim AS base
 WORKDIR /app
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
+ARG PNPM_VERSION=9.15.0
 RUN corepack enable \
+  && corepack prepare "pnpm@${PNPM_VERSION}" --activate \
   && apt-get update \
   && apt-get install -y --no-install-recommends openssl ca-certificates findutils \
   && rm -rf /var/lib/apt/lists/*
@@ -40,7 +42,7 @@ RUN printf '%s\n' 'node-linker=hoisted' > /app/.npmrc \
        echo 'ERROR: broken symlinks:' >&2; find /prod/api -xtype l -print >&2; exit 1; \
      fi
 
-FROM node:20-bookworm-slim AS runner
+FROM node:22-bookworm-slim AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 RUN apt-get update \

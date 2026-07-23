@@ -4,12 +4,15 @@
 # node_modules so the final image has no broken pnpm symlinks.
 # Build context: monorepo root.
 
-FROM node:20-bookworm-slim AS base
+FROM node:22-bookworm-slim AS base
 WORKDIR /app
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
+# Must match package.json "packageManager" — corepack otherwise may fetch pnpm 11+ (requires Node 22.13+).
+ARG PNPM_VERSION=9.15.0
 # Prefer classic flat node_modules in deploy output (portable across COPY stages).
 RUN corepack enable \
+  && corepack prepare "pnpm@${PNPM_VERSION}" --activate \
   && apt-get update \
   && apt-get install -y --no-install-recommends openssl ca-certificates findutils \
   && rm -rf /var/lib/apt/lists/* \
@@ -93,7 +96,7 @@ RUN printf '%s\n' 'node-linker=hoisted' > /app/.npmrc \
        exit 1; \
      fi
 
-FROM node:20-bookworm-slim AS migrate
+FROM node:22-bookworm-slim AS migrate
 WORKDIR /app
 ENV NODE_ENV=production
 RUN apt-get update \
@@ -106,7 +109,7 @@ USER flower
 ENTRYPOINT ["/app/docker-migrate-entrypoint.sh"]
 CMD ["migrate", "deploy"]
 
-FROM node:20-bookworm-slim AS production
+FROM node:22-bookworm-slim AS production
 WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=4000
