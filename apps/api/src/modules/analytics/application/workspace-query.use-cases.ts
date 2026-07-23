@@ -305,7 +305,10 @@ export class WorkspaceQueryUseCases {
     if (!hasAnyPermission(permissions, ['workspace:read', 'orders:read'])) {
       throw new ForbiddenException({
         code: 'ACCESS_DENIED',
-        message: 'workspace:read or orders:read required',
+        message:
+          permissions.length === 0
+            ? 'Authentication context missing (workspace:read or orders:read required)'
+            : 'workspace:read or orders:read required',
       });
     }
   }
@@ -315,7 +318,10 @@ export class WorkspaceQueryUseCases {
     if (!hasAnyPermission(permissions, ['operations:read', 'orders:read'])) {
       throw new ForbiddenException({
         code: 'ACCESS_DENIED',
-        message: 'operations:read required',
+        message:
+          permissions.length === 0
+            ? 'Authentication context missing (operations:read required)'
+            : 'operations:read required',
       });
     }
   }

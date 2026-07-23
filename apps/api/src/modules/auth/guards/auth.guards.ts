@@ -82,9 +82,6 @@ export class JwtAuthGuard implements CanActivate {
     const authContext = this.auth.buildAuthContext(profile, session.id);
     request.authContext = authContext;
 
-    // Always bind auth into ALS. Nest may run guards outside the middleware `run()`
-    // frame; skipping enterWith leaves getRequestContext().auth null and use-cases
-    // incorrectly deny with "operations:read required" after PermissionsGuard passed.
     const existing = getRequestContext();
     requestContextStorage.enterWith({
       requestId: existing?.requestId ?? 'unknown',

@@ -1,8 +1,9 @@
 import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
-import { APP_GUARD } from '@nestjs/core';
+import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { API_ENV } from '../../infrastructure/infrastructure.module';
 import type { ApiEnv } from '@flower/config';
+import { RequestContextInterceptor } from '../../infrastructure/http/request-context.interceptor';
 import { AuthUseCases } from './application/auth.use-cases';
 import { AuthController } from './presentation/auth.controller';
 import { JwtTokenService } from './infrastructure/jwt-token.service';
@@ -34,6 +35,7 @@ import { IdentityModule } from '../identity/identity.module';
     { provide: APP_GUARD, useClass: OrganizationMembershipGuard },
     { provide: APP_GUARD, useClass: PermissionsGuard },
     { provide: APP_GUARD, useClass: StoreScopeGuard },
+    { provide: APP_INTERCEPTOR, useClass: RequestContextInterceptor },
   ],
   exports: [AuthUseCases, JwtTokenService],
 })
