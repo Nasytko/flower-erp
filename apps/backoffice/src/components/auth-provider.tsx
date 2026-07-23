@@ -118,7 +118,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   if (state.loading && pathname !== '/login') {
-    return <div className="page-state">Loading session…</div>;
+    return <div className="page-state">Загрузка сессии…</div>;
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

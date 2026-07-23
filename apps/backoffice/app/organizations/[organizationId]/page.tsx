@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import Link from 'next/link';
 import { useEffect, useState, type FormEvent } from 'react';
@@ -40,7 +40,7 @@ export default function OrganizationDetailPage() {
       setOrg(organization);
       setStores(storeList.items);
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Failed to load');
+      setError(err instanceof ApiClientError ? err.message : 'Не удалось загрузить');
     } finally {
       setLoading(false);
     }
@@ -62,7 +62,7 @@ export default function OrganizationDetailPage() {
       setCode('');
       await load();
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Create store failed');
+      setError(err instanceof ApiClientError ? err.message : 'Не удалось создать магазин');
     } finally {
       setCreating(false);
     }
@@ -72,11 +72,11 @@ export default function OrganizationDetailPage() {
     <main>
       <PageContainer>
         <PageHeader
-          title={org?.name ?? 'Organization'}
-          description={org ? `ID ${org.id}` : 'Loading organization details…'}
+          title={org?.name ?? 'Организация'}
+          description={org ? `ID ${org.id}` : 'Загрузка данных организации…'}
           breadcrumbs={[
-            { label: 'Organizations', href: '/organizations' },
-            { label: org?.name ?? 'Details' },
+            { label: 'Организации', href: '/organizations' },
+            { label: org?.name ?? 'Подробности' },
           ]}
           actions={org ? <StatusBadge status={org.status} /> : undefined}
         />
@@ -98,15 +98,15 @@ export default function OrganizationDetailPage() {
           </Section>
         ) : null}
 
-        {loading ? <LoadingState message="Loading organization…" /> : null}
+        {loading ? <LoadingState message="Загрузка организации…" /> : null}
         {error ? <ErrorState message={error} /> : null}
 
         {!loading && !error ? (
           <>
             <Section>
-              <Card title="Stores">
+              <Card title="Магазины">
                 {stores.length === 0 ? (
-                  <EmptyState message="No stores yet. Creating a store also creates its default warehouse." />
+                  <EmptyState message="Магазинов пока нет. При создании магазина также создаётся склад по умолчанию." />
                 ) : (
                   <ul className="list-stack">
                     {stores.map((store) => (
@@ -130,29 +130,29 @@ export default function OrganizationDetailPage() {
             </Section>
 
             <Section>
-              <Card title="Create store">
+              <Card title="Создать магазин">
                 <p style={{ margin: '0 0 12px', color: 'var(--color-muted)', fontSize: 'var(--text-sm)' }}>
-                  Creates a store with a default warehouse.
+                  Создаёт магазин со складом по умолчанию.
                 </p>
                 <form onSubmit={onCreateStore} className="form-grid">
                   <Input
-                    placeholder="Store name"
+                    placeholder="Название магазина"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     required
                     minLength={2}
-                    aria-label="Store name"
+                    aria-label="Название магазина"
                   />
                   <Input
-                    placeholder="Code (e.g. MSK-01)"
+                    placeholder="Код (например, MSK-01)"
                     value={code}
                     onChange={(e) => setCode(e.target.value)}
                     required
                     minLength={2}
-                    aria-label="Store code"
+                    aria-label="Код магазина"
                   />
                   <Button type="submit" disabled={creating}>
-                    {creating ? 'Creating…' : 'Create store'}
+                    {creating ? 'Создание…' : 'Создать магазин'}
                   </Button>
                 </form>
               </Card>

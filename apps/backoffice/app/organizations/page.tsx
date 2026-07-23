@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import Link from 'next/link';
 import { useEffect, useState, type FormEvent } from 'react';
@@ -27,7 +27,7 @@ export default function OrganizationsPage() {
       const res = await getApiClient().listOrganizations();
       setItems(res.items);
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Failed to load');
+      setError(err instanceof ApiClientError ? err.message : 'Не удалось загрузить');
     } finally {
       setLoading(false);
     }
@@ -46,7 +46,7 @@ export default function OrganizationsPage() {
       setName('');
       await load();
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Create failed');
+      setError(err instanceof ApiClientError ? err.message : 'Не удалось создать');
     } finally {
       setCreating(false);
     }
@@ -56,17 +56,17 @@ export default function OrganizationsPage() {
     <main>
       <PageContainer>
         <PageHeader
-          title="Organizations"
-          description="Manage tenant organizations for Flower ERP."
-          breadcrumbs={[{ label: 'Organizations' }]}
+          title="Организации"
+          description="Управление организациями-арендаторами Flower ERP."
+          breadcrumbs={[{ label: 'Организации' }]}
         />
 
         <Section>
-          <Card title="All organizations">
-            {loading ? <LoadingState message="Loading organizations…" /> : null}
+          <Card title="Все организации">
+            {loading ? <LoadingState message="Загрузка организаций…" /> : null}
             {error ? <ErrorState message={error} /> : null}
             {!loading && !error && items.length === 0 ? (
-              <EmptyState message="Create the first organization to continue the vertical slice." />
+              <EmptyState message="Создайте первую организацию, чтобы продолжить вертикальный срез." />
             ) : null}
             {!loading && items.length > 0 ? (
               <ul className="list-stack">
@@ -89,21 +89,21 @@ export default function OrganizationsPage() {
         </Section>
 
         <Section>
-          <Card title="Create organization">
+          <Card title="Создать организацию">
             <form onSubmit={onCreate} className="form-grid">
               <label>
-                <span className="visually-hidden">Organization name</span>
+                <span className="visually-hidden">Название организации</span>
                 <Input
-                  placeholder="Organization name"
+                  placeholder="Название организации"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   required
                   minLength={2}
-                  aria-label="Organization name"
+                  aria-label="Название организации"
                 />
               </label>
               <Button type="submit" disabled={creating || name.trim().length < 2}>
-                {creating ? 'Creating…' : 'Create'}
+                {creating ? 'Создание…' : 'Создать'}
               </Button>
             </form>
           </Card>

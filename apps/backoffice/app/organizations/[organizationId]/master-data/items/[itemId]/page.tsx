@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
@@ -40,7 +40,7 @@ export default function ItemDetailPage() {
       })
       .catch((err: unknown) => {
         if (!cancelled) {
-          setError(err instanceof ApiClientError ? err.message : 'Failed to load');
+          setError(err instanceof ApiClientError ? err.message : 'Не удалось загрузить');
         }
       })
       .finally(() => {
@@ -57,7 +57,7 @@ export default function ItemDetailPage() {
       const updated = await getApiClient().archiveItem(organizationId, itemId);
       setItem((current) => (current ? { ...current, status: updated.status } : current));
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Archive failed');
+      setError(err instanceof ApiClientError ? err.message : 'Не удалось архивировать');
     }
   }
 
@@ -68,8 +68,8 @@ export default function ItemDetailPage() {
           title={item?.name ?? 'Товар'}
           description={item ? item.code : 'Загрузка…'}
           breadcrumbs={[
-            { label: 'Organizations', href: '/organizations' },
-            { label: 'Organization', href: `/organizations/${organizationId}` },
+            { label: 'Организации', href: '/organizations' },
+            { label: 'Организация', href: `/organizations/${organizationId}` },
             { label: 'Справочники', href: base },
             { label: 'Товары', href: `${base}/items` },
             { label: item?.name ?? 'Товар' },

@@ -2,6 +2,7 @@
 
 import { FormEvent, useState } from 'react';
 import { useAuth } from '@/components/auth-provider';
+import { t } from '@/i18n/ru';
 import { Button, Input } from '@flower/ui';
 
 export default function LoginPage() {
@@ -19,7 +20,7 @@ export default function LoginPage() {
     try {
       await auth.login(login, password, organizationId || undefined);
     } catch {
-      setError('Invalid login or password');
+      setError(t('invalidCredentials'));
     } finally {
       setPending(false);
     }
@@ -28,14 +29,14 @@ export default function LoginPage() {
   return (
     <main className="login-page">
       <form className="login-card" onSubmit={onSubmit}>
-        <h1>Flower ERP</h1>
-        <p>Sign in to backoffice</p>
+        <h1 className="login-card__brand">{t('brand')}</h1>
+        <p className="login-card__subtitle">{t('loginSubtitle')}</p>
         <label>
-          Login
+          {t('loginField')}
           <Input value={login} onChange={(e) => setLogin(e.target.value)} autoComplete="username" />
         </label>
         <label>
-          Password
+          {t('passwordField')}
           <Input
             type="password"
             value={password}
@@ -44,12 +45,12 @@ export default function LoginPage() {
           />
         </label>
         <label>
-          Organization ID (optional)
+          {t('orgIdOptional')}
           <Input value={organizationId} onChange={(e) => setOrganizationId(e.target.value)} />
         </label>
         {error ? <p className="form-error">{error}</p> : null}
         <Button type="submit" disabled={pending}>
-          {pending ? 'Signing in…' : 'Sign in'}
+          {pending ? t('signingIn') : t('signIn')}
         </Button>
       </form>
     </main>

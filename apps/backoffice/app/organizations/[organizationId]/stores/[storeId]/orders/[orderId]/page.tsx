@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import Link from 'next/link';
 import { useEffect, useState, type FormEvent } from 'react';
@@ -122,7 +122,7 @@ export default function OrderDetailPage() {
         setMembershipId(detail.activeAssignment.membershipId);
       }
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Failed to load');
+      setError(err instanceof ApiClientError ? err.message : 'Не удалось загрузить');
     } finally {
       setLoading(false);
     }
@@ -141,7 +141,7 @@ export default function OrderDetailPage() {
       await action();
       await load();
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Action failed');
+      setError(err instanceof ApiClientError ? err.message : 'Действие не выполнено');
     } finally {
       setBusy(false);
     }
@@ -150,7 +150,7 @@ export default function OrderDetailPage() {
   async function resolveMyMembershipId(): Promise<string> {
     if (!auth.user?.login) {
       throw new ApiClientError({
-        message: 'No session user',
+        message: 'Нет пользователя сессии',
         code: 'UNAUTHENTICATED',
         status: 401,
         requestId: 'local',
@@ -160,7 +160,7 @@ export default function OrderDetailPage() {
     const me = users.find((u) => u.login === auth.user!.login);
     if (!me?.membershipId) {
       throw new ApiClientError({
-        message: 'Membership not found for current user',
+        message: 'Участник не найден для текущего пользователя',
         code: 'NOT_FOUND',
         status: 404,
         requestId: 'local',
@@ -233,7 +233,7 @@ export default function OrderDetailPage() {
   }
 
   if (!auth.hasPermission('orders:read')) {
-    return <p className="page-state">Access denied</p>;
+    return <p className="page-state">Доступ запрещён</p>;
   }
 
   const client = getApiClient();
@@ -246,11 +246,11 @@ export default function OrderDetailPage() {
       <PageContainer>
         <PageHeader
           title={order ? `Заказ ${order.number}` : 'Заказ'}
-          description="Draft → Confirm → Partial/Reserved → Prep → Ready → Complete"
+          description="Черновик → Подтверждение → Частично зарезервирован → Подготовка → Готов → Завершён"
           breadcrumbs={[
-            { label: 'Organizations', href: '/organizations' },
-            { label: 'Organization', href: `/organizations/${organizationId}` },
-            { label: 'Store', href: base },
+            { label: 'Организации', href: '/organizations' },
+            { label: 'Организация', href: `/organizations/${organizationId}` },
+            { label: 'Магазин', href: base },
             { label: 'Заказы', href: `${base}/orders` },
             { label: order?.number ?? 'Order' },
           ]}
@@ -341,12 +341,12 @@ export default function OrderDetailPage() {
                     <Input
                       name="referenceUrl"
                       defaultValue={order.referenceUrl ?? ''}
-                      placeholder="Reference URL"
+                      placeholder="URL референса"
                     />
                     <Input
                       name="referenceComment"
                       defaultValue={order.referenceComment ?? ''}
-                      placeholder="Reference comment"
+                      placeholder="Комментарий к референсу"
                     />
                     <Input
                       name="plannedPrice"

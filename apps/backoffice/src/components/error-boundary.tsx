@@ -21,7 +21,7 @@ export class ErrorBoundary extends Component<Props, State> {
     if (this.state.error) {
       return (
         <div style={{ padding: 24 }}>
-          <Card title="Something went wrong">
+          <Card title="Что-то пошло не так">
             <p style={{ margin: 0 }}>{this.state.error.message}</p>
           </Card>
         </div>

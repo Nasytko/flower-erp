@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useState, type FormEvent } from 'react';
 import { useParams } from 'next/navigation';
@@ -39,7 +39,7 @@ export default function PoliciesPage() {
       const res = await getApiClient().listPolicies(organizationId, 1, 100);
       setItems(res.items);
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Failed to load');
+      setError(err instanceof ApiClientError ? err.message : 'Не удалось загрузить');
     } finally {
       setLoading(false);
     }
@@ -68,7 +68,7 @@ export default function PoliciesPage() {
       setName('');
       await load();
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Create failed');
+      setError(err instanceof ApiClientError ? err.message : 'Не удалось создать');
     } finally {
       setCreating(false);
     }
@@ -80,7 +80,7 @@ export default function PoliciesPage() {
       await getApiClient().archivePolicy(organizationId, policyId);
       await load();
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Archive failed');
+      setError(err instanceof ApiClientError ? err.message : 'Не удалось архивировать');
     }
   }
 
@@ -91,8 +91,8 @@ export default function PoliciesPage() {
           title="Политики учета"
           description="InventoryPolicy описывает правила учёта, но не хранит остатки."
           breadcrumbs={[
-            { label: 'Organizations', href: '/organizations' },
-            { label: 'Organization', href: `/organizations/${organizationId}` },
+            { label: 'Организации', href: '/organizations' },
+            { label: 'Организация', href: `/organizations/${organizationId}` },
             { label: 'Справочники', href: base },
             { label: 'Политики' },
           ]}
@@ -150,12 +150,12 @@ export default function PoliciesPage() {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
-                aria-label="Policy name"
+                aria-label="Название политики"
               />
               <select
                 value={itemType}
                 onChange={(e) => setItemType(e.target.value as 'FLOWER' | 'MATERIAL')}
-                aria-label="Policy item type"
+                aria-label="Тип позиции политики"
                 style={{ minHeight: 40, borderRadius: 6, border: '1px solid var(--color-border)', padding: 8 }}
               >
                 <option value="FLOWER">FLOWER</option>

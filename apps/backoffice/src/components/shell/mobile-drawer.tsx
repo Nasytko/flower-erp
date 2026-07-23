@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useId, useRef } from 'react';
+import { t } from '@/i18n/ru';
 import { SidebarNav } from './sidebar-nav';
 
 type MobileDrawerProps = {
@@ -86,12 +87,12 @@ export function MobileDrawer({ open, onClose }: MobileDrawerProps) {
           type="button"
           className="shell-drawer__close"
           onClick={onClose}
-          aria-label="Close navigation"
+          aria-label={t('closeNav')}
         >
-          Close
+          {t('close')}
         </button>
         <div id={titleId} className="shell__brand">
-          Flower ERP
+          {t('brand')}
         </div>
         <SidebarNav onNavigate={onClose} />
       </div>

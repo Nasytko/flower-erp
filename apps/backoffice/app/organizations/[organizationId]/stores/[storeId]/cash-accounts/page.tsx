@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
@@ -39,7 +39,7 @@ export default function CashAccountsPage() {
       setAccounts(list);
       setSelectedId((prev) => prev ?? list[0]?.id ?? null);
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Failed to load');
+      setError(err instanceof ApiClientError ? err.message : 'Не удалось загрузить');
     } finally {
       setLoading(false);
     }
@@ -56,7 +56,7 @@ export default function CashAccountsPage() {
       );
       setOperations(list);
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Failed to load operations');
+      setError(err instanceof ApiClientError ? err.message : 'Не удалось загрузить операции');
       setOperations([]);
     } finally {
       setOpsLoading(false);
@@ -83,14 +83,14 @@ export default function CashAccountsPage() {
       await loadAccounts();
       setSelectedId(account.id);
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Action failed');
+      setError(err instanceof ApiClientError ? err.message : 'Действие не выполнено');
     } finally {
       setBusy(false);
     }
   }
 
   if (!auth.hasPermission('payments:view-cash')) {
-    return <p className="page-state">Access denied</p>;
+    return <p className="page-state">Доступ запрещён</p>;
   }
 
   const selected = accounts.find((a) => a.id === selectedId) ?? null;
@@ -102,9 +102,9 @@ export default function CashAccountsPage() {
           title="Касса"
           description="Кассовые счета и операции (только просмотр)."
           breadcrumbs={[
-            { label: 'Organizations', href: '/organizations' },
-            { label: 'Organization', href: `/organizations/${organizationId}` },
-            { label: 'Store', href: base },
+            { label: 'Организации', href: '/organizations' },
+            { label: 'Организация', href: `/organizations/${organizationId}` },
+            { label: 'Магазин', href: base },
             { label: 'Касса' },
           ]}
           actions={

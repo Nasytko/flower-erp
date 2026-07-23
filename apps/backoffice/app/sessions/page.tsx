@@ -30,7 +30,7 @@ export default function SessionsPage() {
       const rows = await getApiClient().listSessions();
       setSessions(rows);
     } catch {
-      setError('Failed to load sessions');
+      setError('Не удалось загрузить сессии');
     } finally {
       setLoading(false);
     }
@@ -43,7 +43,10 @@ export default function SessionsPage() {
   return (
     <main>
       <PageContainer>
-        <PageHeader title="Sessions" description="Active and revoked refresh-token sessions" />
+        <PageHeader
+          title="Сессии"
+          description="Активные и отозванные сессии refresh-токенов"
+        />
         {loading ? <LoadingState /> : null}
         {error ? <ErrorState message={error} /> : null}
         <ul className="list-stack">
@@ -51,8 +54,8 @@ export default function SessionsPage() {
             <li key={session.id}>
               <div className="meta-row">
                 <StatusBadge status={session.status} />
-                <span>last used {new Date(session.lastUsedAt).toLocaleString()}</span>
-                <span>expires {new Date(session.expiresAt).toLocaleString()}</span>
+                <span>последнее использование {new Date(session.lastUsedAt).toLocaleString()}</span>
+                <span>истекает {new Date(session.expiresAt).toLocaleString()}</span>
                 {session.status === 'ACTIVE' ? (
                   <Button
                     type="button"
@@ -63,7 +66,7 @@ export default function SessionsPage() {
                         .then(() => load())
                     }
                   >
-                    Revoke
+                    Отозвать
                   </Button>
                 ) : null}
               </div>
@@ -72,7 +75,7 @@ export default function SessionsPage() {
         </ul>
         <div style={{ marginTop: 16 }}>
           <Button type="button" variant="secondary" onClick={() => void getApiClient().logoutAll().then(() => auth.logout())}>
-            Logout all devices
+            Выйти на всех устройствах
           </Button>
         </div>
       </PageContainer>

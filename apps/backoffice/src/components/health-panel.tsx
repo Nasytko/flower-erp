@@ -35,7 +35,7 @@ export function HealthPanel() {
             ? `${error.code}: ${error.message}`
             : error instanceof Error
               ? error.message
-              : 'Unknown error';
+              : 'Неизвестная ошибка';
         setState({ status: 'error', message });
       });
 
@@ -45,10 +45,10 @@ export function HealthPanel() {
   }, []);
 
   return (
-    <Card title="API health">
-      {state.status === 'loading' ? <LoadingState message="Checking API…" /> : null}
+    <Card title="Состояние API">
+      {state.status === 'loading' ? <LoadingState message="Проверка API…" /> : null}
       {state.status === 'error' ? (
-        <ErrorState title="API unavailable" message={state.message} />
+        <ErrorState title="API недоступен" message={state.message} />
       ) : null}
       {state.status === 'ok' ? (
         <div style={{ display: 'grid', gap: 8, fontSize: 'var(--text-sm)' }}>
@@ -60,7 +60,7 @@ export function HealthPanel() {
             <span>Ready</span>
             <StatusBadge status={state.ready.status} />
             <span style={{ color: 'var(--color-muted)' }}>
-              database: {state.ready.checks.database}
+              база данных: {state.ready.checks.database}
             </span>
           </div>
           <div style={{ color: 'var(--color-muted)' }}>{state.ready.timestamp}</div>

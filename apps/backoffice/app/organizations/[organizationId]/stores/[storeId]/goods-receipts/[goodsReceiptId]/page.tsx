@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useState, type FormEvent } from 'react';
 import { useParams } from 'next/navigation';
@@ -61,7 +61,7 @@ export default function GoodsReceiptPage() {
       setSupplyLines(supply.items);
       if (supply.items[0] && !supplyItemId) setSupplyItemId(supply.items[0].id);
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Failed to load');
+      setError(err instanceof ApiClientError ? err.message : 'Не удалось загрузить');
     } finally {
       setLoading(false);
     }
@@ -86,7 +86,7 @@ export default function GoodsReceiptPage() {
       });
       await load();
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Add line failed');
+      setError(err instanceof ApiClientError ? err.message : 'Не удалось добавить строку');
     } finally {
       setBusy(false);
     }
@@ -104,7 +104,7 @@ export default function GoodsReceiptPage() {
       );
       await load();
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Post failed');
+      setError(err instanceof ApiClientError ? err.message : 'Не удалось провести');
     } finally {
       setBusy(false);
     }
@@ -135,7 +135,7 @@ export default function GoodsReceiptPage() {
           title={receipt ? receipt.number : 'Goods Receipt'}
           description="Приёмка и проведение в остатки."
           breadcrumbs={[
-            { label: 'Store', href: base },
+            { label: 'Магазин', href: base },
             { label: 'Поставки', href: `${base}/supplies` },
             { label: receipt?.number ?? 'Receipt' },
           ]}
@@ -185,25 +185,25 @@ export default function GoodsReceiptPage() {
                     <Input
                       value={receivedQuantity}
                       onChange={(e) => setReceivedQuantity(e.target.value)}
-                      placeholder="Received"
+                      placeholder="Получено"
                       required
                     />
                     <Input
                       value={acceptedQuantity}
                       onChange={(e) => setAcceptedQuantity(e.target.value)}
-                      placeholder="Accepted"
+                      placeholder="Принято"
                       required
                     />
                     <Input
                       value={defectiveQuantity}
                       onChange={(e) => setDefectiveQuantity(e.target.value)}
-                      placeholder="Defective"
+                      placeholder="Брак"
                       required
                     />
                     <Input
                       value={actualUnitPrice}
                       onChange={(e) => setActualUnitPrice(e.target.value)}
-                      placeholder="Unit price"
+                      placeholder="Цена за единицу"
                       required
                     />
                     <Button type="submit" disabled={busy}>

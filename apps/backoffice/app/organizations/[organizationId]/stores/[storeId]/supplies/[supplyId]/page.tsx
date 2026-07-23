@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import Link from 'next/link';
 import { useEffect, useState, type FormEvent } from 'react';
@@ -48,7 +48,7 @@ export default function SupplyDetailPage() {
       setCatalog(items.items);
       if (items.items[0]) setItemId(items.items[0].id);
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Failed to load');
+      setError(err instanceof ApiClientError ? err.message : 'Не удалось загрузить');
     } finally {
       setLoading(false);
     }
@@ -70,7 +70,7 @@ export default function SupplyDetailPage() {
       });
       await load();
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Add item failed');
+      setError(err instanceof ApiClientError ? err.message : 'Не удалось добавить позицию');
     } finally {
       setBusy(false);
     }
@@ -83,7 +83,7 @@ export default function SupplyDetailPage() {
       await getApiClient().submitSupply(organizationId, storeId, supplyId);
       await load();
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Submit failed');
+      setError(err instanceof ApiClientError ? err.message : 'Не удалось отправить');
     } finally {
       setBusy(false);
     }
@@ -98,7 +98,7 @@ export default function SupplyDetailPage() {
       });
       router.push(`${base}/supplies/${supplyId}/receipts/${receipt.id}`);
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Create receipt failed');
+      setError(err instanceof ApiClientError ? err.message : 'Не удалось создать приёмку');
       setBusy(false);
     }
   }
@@ -114,10 +114,10 @@ export default function SupplyDetailPage() {
           title={supply?.number ?? 'Поставка'}
           description="Карточка Supply"
           breadcrumbs={[
-            { label: 'Organizations', href: '/organizations' },
-            { label: 'Store', href: base },
+            { label: 'Организации', href: '/organizations' },
+            { label: 'Магазин', href: base },
             { label: 'Поставки', href: `${base}/supplies` },
-            { label: supply?.number ?? 'Supply' },
+            { label: supply?.number ?? 'Поставка' },
           ]}
           actions={supply ? <StatusBadge status={supply.status} /> : undefined}
         />
@@ -144,7 +144,7 @@ export default function SupplyDetailPage() {
                     <select
                       value={itemId}
                       onChange={(e) => setItemId(e.target.value)}
-                      aria-label="Item"
+                      aria-label="Товар"
                       style={{ minHeight: 40, borderRadius: 6, border: '1px solid var(--color-border)', padding: 8 }}
                     >
                       {catalog.map((item) => (
@@ -156,7 +156,7 @@ export default function SupplyDetailPage() {
                     <Input
                       value={qty}
                       onChange={(e) => setQty(e.target.value)}
-                      aria-label="Ordered quantity"
+                      aria-label="Заказанное количество"
                       required
                     />
                     <Button type="submit" disabled={busy}>

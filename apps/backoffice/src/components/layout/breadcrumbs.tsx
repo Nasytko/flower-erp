@@ -1,4 +1,4 @@
-import Link from 'next/link';
+﻿import Link from 'next/link';
 
 export type BreadcrumbItem = {
   label: string;
@@ -11,7 +11,7 @@ export function Breadcrumbs({ items }: { items: BreadcrumbItem[] }) {
   }
 
   return (
-    <nav aria-label="Breadcrumb">
+    <nav aria-label="Навигация">
       <ol className="breadcrumbs">
         {items.map((item, index) => {
           const isLast = index === items.length - 1;

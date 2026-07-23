@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
@@ -28,24 +28,24 @@ export default function RolesPage() {
     void getApiClient()
       .listRoles(params.organizationId)
       .then(setRoles)
-      .catch(() => setError('Failed to load roles'))
+      .catch(() => setError('Не удалось загрузить роли'))
       .finally(() => setLoading(false));
   }, [auth, params.organizationId]);
 
   if (!auth.hasPermission('roles:manage')) {
-    return <p className="page-state">Access denied</p>;
+    return <p className="page-state">Доступ запрещён</p>;
   }
 
   return (
     <main>
       <PageContainer>
         <PageHeader
-          title="Roles"
-          description="System role presets and permission bundles"
+          title="Роли"
+          description="Системные роли и наборы разрешений"
           breadcrumbs={[
-            { label: 'Organizations', href: '/organizations' },
-            { label: 'Organization', href: `/organizations/${params.organizationId}` },
-            { label: 'Roles' },
+            { label: 'Организации', href: '/organizations' },
+            { label: 'Организация', href: `/organizations/${params.organizationId}` },
+            { label: 'Роли' },
           ]}
         />
         {loading ? <LoadingState /> : null}
@@ -56,7 +56,7 @@ export default function RolesPage() {
               <strong>
                 {role.name} ({role.code})
               </strong>
-              {role.isSystem ? <span> — system</span> : null}
+              {role.isSystem ? <span> — системная</span> : null}
               <ul>
                 {role.permissions.map((code) => (
                   <li key={code}>{code}</li>

@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { Suspense, useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
@@ -30,7 +30,7 @@ function newKey() {
 
 export default function NewSalePage() {
   return (
-    <Suspense fallback={<main><LoadingState message="Loading…" /></main>}>
+    <Suspense fallback={<main><LoadingState message="Загрузка…" /></main>}>
       <NewSalePageInner />
     </Suspense>
   );
@@ -100,7 +100,7 @@ function NewSalePageInner() {
       })
       .catch((err: unknown) => {
         if (cancelled) return;
-        setError(err instanceof ApiClientError ? err.message : 'Failed to load');
+        setError(err instanceof ApiClientError ? err.message : 'Не удалось загрузить');
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -181,13 +181,13 @@ function NewSalePageInner() {
       }
       router.push(`${base}/sales/${saleId}`);
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Create failed');
+      setError(err instanceof ApiClientError ? err.message : 'Не удалось создать');
       setBusy(false);
     }
   }
 
   if (!auth.hasPermission('sales:create')) {
-    return <p className="page-state">Access denied</p>;
+    return <p className="page-state">Доступ запрещён</p>;
   }
 
   return (
@@ -201,9 +201,9 @@ function NewSalePageInner() {
               : 'Прямая продажа: коммерческая линия + состав со склада.'
           }
           breadcrumbs={[
-            { label: 'Organizations', href: '/organizations' },
-            { label: 'Organization', href: `/organizations/${organizationId}` },
-            { label: 'Store', href: base },
+            { label: 'Организации', href: '/organizations' },
+            { label: 'Организация', href: `/organizations/${organizationId}` },
+            { label: 'Магазин', href: base },
             { label: 'Продажи', href: `${base}/sales` },
             { label: 'Новая' },
           ]}

@@ -1,49 +1,52 @@
 :root {
   /* Surfaces */
-  --color-background: #f4f7f4;
-  --color-foreground: #14231a;
+  --color-background: #eef3ef;
+  --color-foreground: #0f1f16;
   --color-surface: #ffffff;
-  --color-surface-muted: #e9eee9;
-  --color-surface-sidebar: #143528;
-  --color-sidebar-foreground: #e7f0ea;
-  --color-sidebar-muted: #a9c0b2;
+  --color-surface-muted: #e4ebe5;
+  --color-surface-sidebar: #0c2419;
+  --color-sidebar-foreground: #eef6f1;
+  --color-sidebar-muted: #8fafa0;
+  --color-sidebar-active: #163d2a;
 
   /* Borders / focus */
-  --color-border: #d5ded7;
-  --color-border-strong: #b7c5bb;
-  --color-focus-ring: #2f7a4f;
+  --color-border: #d0dbd3;
+  --color-border-strong: #aebdb4;
+  --color-focus-ring: #2d8a56;
 
   /* Brand */
-  --color-primary: #1f6b43;
-  --color-primary-hover: #185636;
-  --color-primary-active: #13452b;
+  --color-primary: #1a7a45;
+  --color-primary-hover: #146339;
+  --color-primary-active: #0f4d2c;
   --color-primary-foreground: #ffffff;
-  --color-primary-soft: #e5f3eb;
+  --color-primary-soft: #dff0e6;
 
   /* Semantic */
-  --color-destructive: #a3262a;
-  --color-destructive-soft: #f8e8e8;
+  --color-destructive: #b42318;
+  --color-destructive-soft: #fdecea;
   --color-warning: #9a6700;
   --color-warning-soft: #fff4d6;
-  --color-success: #1f6b43;
-  --color-success-soft: #e5f3eb;
-  --color-info: #1d5f8a;
-  --color-info-soft: #e7f2f8;
-  --color-muted: #5f7266;
+  --color-success: #1a7a45;
+  --color-success-soft: #dff0e6;
+  --color-info: #175cd3;
+  --color-info-soft: #eff4ff;
+  --color-muted: #5a6d62;
 
   /* Elevation */
-  --shadow-sm: 0 1px 2px rgba(20, 35, 26, 0.06);
-  --shadow-md: 0 8px 24px rgba(20, 35, 26, 0.1);
+  --shadow-sm: 0 1px 2px rgba(15, 31, 22, 0.05);
+  --shadow-md: 0 12px 32px rgba(15, 31, 22, 0.12);
+  --shadow-lg: 0 24px 48px rgba(15, 31, 22, 0.16);
 
-  /* Typography */
-  --font-sans: 'Segoe UI', 'IBM Plex Sans', system-ui, sans-serif;
+  /* Typography — overridden by next/font CSS variables when present */
+  --font-sans: var(--font-manrope), 'Segoe UI', system-ui, sans-serif;
+  --font-display: var(--font-source-serif), Georgia, 'Times New Roman', serif;
   --text-xs: 0.75rem;
   --text-sm: 0.875rem;
   --text-md: 1rem;
   --text-lg: 1.125rem;
   --text-xl: 1.35rem;
-  --text-2xl: 1.6rem;
-  --leading-tight: 1.25;
+  --text-2xl: 1.75rem;
+  --leading-tight: 1.2;
   --leading-normal: 1.5;
   --font-medium: 500;
   --font-semibold: 600;
@@ -60,14 +63,14 @@
   --space-10: 2.5rem;
 
   /* Radius */
-  --radius-sm: 6px;
-  --radius-md: 10px;
-  --radius-lg: 14px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 18px;
 
   /* Layout */
-  --sidebar-width: 260px;
-  --header-height: 56px;
-  --content-max-width: 1120px;
+  --sidebar-width: 268px;
+  --header-height: 60px;
+  --content-max-width: 1180px;
   --page-padding: var(--space-5);
 
   /* Motion */

@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { useParams } from 'next/navigation';
@@ -48,7 +48,7 @@ export default function CouriersPage() {
       setCouriers(list);
       setUsers(orgUsers);
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Failed to load couriers');
+      setError(err instanceof ApiClientError ? err.message : 'Не удалось загрузить курьеров');
     } finally {
       setLoading(false);
     }
@@ -77,7 +77,7 @@ export default function CouriersPage() {
       setVehicleType('');
       await load();
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Create failed');
+      setError(err instanceof ApiClientError ? err.message : 'Не удалось создать');
     } finally {
       setBusy(false);
     }
@@ -87,7 +87,7 @@ export default function CouriersPage() {
     return (
       <main>
         <PageContainer>
-          <ErrorState message="Access denied." />
+          <ErrorState message="Доступ запрещён." />
         </PageContainer>
       </main>
     );
@@ -213,7 +213,7 @@ export default function CouriersPage() {
             .archiveCourier(organizationId, storeId, id)
             .then(() => load())
             .catch((err) =>
-              setError(err instanceof ApiClientError ? err.message : 'Archive failed'),
+              setError(err instanceof ApiClientError ? err.message : 'Не удалось архивировать'),
             )
             .finally(() => setBusy(false));
         }}

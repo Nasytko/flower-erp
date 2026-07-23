@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
@@ -39,7 +39,7 @@ export default function PaymentsPage() {
       );
       setPayments(list);
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Failed to load');
+      setError(err instanceof ApiClientError ? err.message : 'Не удалось загрузить');
     } finally {
       setLoading(false);
     }
@@ -52,7 +52,7 @@ export default function PaymentsPage() {
   }, [organizationId, storeId, status, auth]);
 
   if (!auth.hasPermission('payments:read')) {
-    return <p className="page-state">Access denied</p>;
+    return <p className="page-state">Доступ запрещён</p>;
   }
 
   return (
@@ -62,9 +62,9 @@ export default function PaymentsPage() {
           title="Платежи"
           description="Предоплаты по заказам и оплаты продаж."
           breadcrumbs={[
-            { label: 'Organizations', href: '/organizations' },
-            { label: 'Organization', href: `/organizations/${organizationId}` },
-            { label: 'Store', href: base },
+            { label: 'Организации', href: '/organizations' },
+            { label: 'Организация', href: `/organizations/${organizationId}` },
+            { label: 'Магазин', href: base },
             { label: 'Платежи' },
           ]}
         />

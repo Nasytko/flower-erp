@@ -19,7 +19,7 @@ export const PRIMARY_NAV: NavItem[] = [
   },
   {
     href: '/organizations/{orgId}/stores/{storeId}/operations',
-    label: 'Operations',
+    label: 'Операции',
     permission: 'operations:read',
     storeScoped: true,
     group: 'ops',
@@ -84,14 +84,14 @@ export const PRIMARY_NAV: NavItem[] = [
   // Secondary / admin
   {
     href: '/organizations/{orgId}/stores/{storeId}/payment-methods',
-    label: 'Payment methods',
+    label: 'Способы оплаты',
     permission: 'payments:manage-methods',
     storeScoped: true,
     group: 'admin',
   },
   {
     href: '/organizations/{orgId}/stores/{storeId}/cash-accounts',
-    label: 'Cash',
+    label: 'Касса',
     permission: 'payments:view-cash',
     storeScoped: true,
     group: 'admin',
@@ -105,36 +105,36 @@ export const PRIMARY_NAV: NavItem[] = [
   },
   {
     href: '/organizations/{orgId}/customers',
-    label: 'Customers',
+    label: 'Клиенты',
     permission: 'customers:read',
     orgScoped: true,
     group: 'admin',
   },
   {
     href: '/organizations/{orgId}/users',
-    label: 'Users',
+    label: 'Пользователи',
     permission: 'users:read',
     orgScoped: true,
     group: 'admin',
   },
   {
     href: '/organizations/{orgId}/roles',
-    label: 'Roles',
+    label: 'Роли',
     permission: 'roles:manage',
     orgScoped: true,
     group: 'admin',
   },
   {
     href: '/organizations/{orgId}/audit',
-    label: 'Audit',
+    label: 'Аудит',
     permission: 'audit:read',
     orgScoped: true,
     group: 'admin',
   },
-  { href: '/sessions', label: 'Sessions', group: 'admin' },
+  { href: '/sessions', label: 'Сессии', group: 'admin' },
   {
     href: '/organizations',
-    label: 'Organizations',
+    label: 'Организации',
     permission: 'organization:read',
     group: 'admin',
   },
@@ -149,13 +149,13 @@ export type NavActionShortcut = {
 };
 
 export const NAV_ACTION_SHORTCUTS: NavActionShortcut[] = [
-  { id: 'new-order', label: 'New order', navLabel: 'Заказы' },
-  { id: 'new-sale', label: 'New sale', navLabel: 'Продажи' },
-  { id: 'stock', label: 'Stock', navLabel: 'Остатки' },
-  { id: 'today', label: 'Today', navLabel: 'Сегодня' },
-  { id: 'write-off', label: 'New write-off', navLabel: 'Списания' },
-  { id: 'transfer', label: 'New transfer', navLabel: 'Перемещения' },
-  { id: 'inventory-count', label: 'New inventory count', navLabel: 'Инвентаризации' },
+  { id: 'new-order', label: 'Новый заказ', navLabel: 'Заказы' },
+  { id: 'new-sale', label: 'Новая продажа', navLabel: 'Продажи' },
+  { id: 'stock', label: 'Остатки', navLabel: 'Остатки' },
+  { id: 'today', label: 'Сегодня', navLabel: 'Сегодня' },
+  { id: 'write-off', label: 'Новое списание', navLabel: 'Списания' },
+  { id: 'transfer', label: 'Новое перемещение', navLabel: 'Перемещения' },
+  { id: 'inventory-count', label: 'Новая инвентаризация', navLabel: 'Инвентаризации' },
 ];
 
 export const HOME_ROUTE_STORAGE_KEY = 'flower.homeRoute';

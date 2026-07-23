@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { FormEvent, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
@@ -43,7 +43,7 @@ export default function CustomersPage() {
       const rows = await getApiClient().listCustomers(organizationId);
       setCustomers(rows);
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Failed to load customers');
+      setError(err instanceof ApiClientError ? err.message : 'Не удалось загрузить клиентов');
     } finally {
       setLoading(false);
     }
@@ -72,7 +72,7 @@ export default function CustomersPage() {
       setNotes('');
       await load();
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Failed to create customer');
+      setError(err instanceof ApiClientError ? err.message : 'Не удалось создать клиента');
     } finally {
       setCreating(false);
     }
@@ -85,14 +85,14 @@ export default function CustomersPage() {
       await getApiClient().archiveCustomer(organizationId, customerId);
       await load();
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Failed to archive customer');
+      setError(err instanceof ApiClientError ? err.message : 'Не удалось архивировать клиента');
     } finally {
       setBusyId(null);
     }
   }
 
   if (!auth.hasPermission('customers:read')) {
-    return <p className="page-state">Access denied</p>;
+    return <p className="page-state">Доступ запрещён</p>;
   }
 
   const canManage = auth.hasPermission('customers:manage');
@@ -101,12 +101,12 @@ export default function CustomersPage() {
     <main>
       <PageContainer>
         <PageHeader
-          title="Customers"
+          title="Клиенты"
           description="Клиенты организации: телефон уникален, архив вместо удаления."
           breadcrumbs={[
-            { label: 'Organizations', href: '/organizations' },
-            { label: 'Organization', href: `/organizations/${organizationId}` },
-            { label: 'Customers' },
+            { label: 'Организации', href: '/organizations' },
+            { label: 'Организация', href: `/organizations/${organizationId}` },
+            { label: 'Клиенты' },
           ]}
         />
 

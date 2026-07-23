@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
@@ -34,7 +34,7 @@ export default function InventoryCountDetailPage() {
         ),
       );
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Failed to load inventory count');
+      setError(err instanceof ApiClientError ? err.message : 'Не удалось загрузить инвентаризацию');
     } finally {
       setLoading(false);
     }
@@ -56,7 +56,7 @@ export default function InventoryCountDetailPage() {
         })),
       }));
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Failed to save counted quantities');
+      setError(err instanceof ApiClientError ? err.message : 'Не удалось сохранить подсчитанные количества');
     }
   }
 
@@ -71,7 +71,7 @@ export default function InventoryCountDetailPage() {
         crypto.randomUUID(),
       ));
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Failed to post inventory count');
+      setError(err instanceof ApiClientError ? err.message : 'Не удалось провести инвентаризацию');
     }
   }
 
@@ -79,46 +79,46 @@ export default function InventoryCountDetailPage() {
     try {
       setDoc(await getApiClient().cancelInventoryCount(organizationId, storeId, inventoryCountId));
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Failed to cancel inventory count');
+      setError(err instanceof ApiClientError ? err.message : 'Не удалось отменить инвентаризацию');
     }
   }
 
   if (!auth.hasPermission('inventory-counts:read')) {
-    return <main><PageContainer><ErrorState message="Access denied: inventory-counts:read required." /></PageContainer></main>;
+    return <main><PageContainer><ErrorState message="Доступ запрещён: требуется inventory-counts:read." /></PageContainer></main>;
   }
 
   return (
     <main>
       <PageContainer>
         <PageHeader
-          title={doc ? doc.number : 'Inventory count'}
-          description="Review snapshot lines, count, and post differences."
+          title={doc ? doc.number : 'Инвентаризация'}
+          description="Проверьте строки снимка, подсчитайте и проведите расхождения."
           breadcrumbs={[
-            { label: 'Store', href: base },
+            { label: 'Магазин', href: base },
             { label: 'Инвентаризации', href: `${base}/inventory-counts` },
             { label: doc?.number ?? 'Document' },
           ]}
           actions={
             <div className="page-header__actions">
-              <Button type="button" variant="secondary" onClick={() => void load()}>Refresh</Button>
-              {(doc?.status === 'DRAFT' || doc?.status === 'COUNTED') && auth.hasPermission('inventory-counts:count') ? <Button type="button" onClick={() => void saveCount()}>Save count</Button> : null}
-              {doc?.status === 'COUNTED' && auth.hasPermission('inventory-counts:post') ? <Button type="button" onClick={() => void postCount()}>Post</Button> : null}
-              {doc?.status !== 'POSTED' && doc?.status !== 'CANCELLED' && auth.hasPermission('inventory-counts:cancel') ? <Button type="button" variant="secondary" onClick={() => void cancelCount()}>Cancel</Button> : null}
+              <Button type="button" variant="secondary" onClick={() => void load()}>Обновить</Button>
+              {(doc?.status === 'DRAFT' || doc?.status === 'COUNTED') && auth.hasPermission('inventory-counts:count') ? <Button type="button" onClick={() => void saveCount()}>Сохранить подсчёт</Button> : null}
+              {doc?.status === 'COUNTED' && auth.hasPermission('inventory-counts:post') ? <Button type="button" onClick={() => void postCount()}>Провести</Button> : null}
+              {doc?.status !== 'POSTED' && doc?.status !== 'CANCELLED' && auth.hasPermission('inventory-counts:cancel') ? <Button type="button" variant="secondary" onClick={() => void cancelCount()}>Отменить</Button> : null}
             </div>
           }
         />
 
-        {loading ? <LoadingState message="Loading inventory count…" /> : null}
+        {loading ? <LoadingState message="Загрузка инвентаризации…" /> : null}
         {error ? <ErrorState message={error} /> : null}
 
         {!loading && !error && doc ? (
           <>
             <Section>
-              <Card title="Summary">
+              <Card title="Сводка">
                 <div className="meta-row">
                   <StatusBadge status={doc.status} />
                   <span>Warehouse {doc.warehouseId}</span>
-                  <span>Version {doc.version}</span>
+                  <span>Версия {doc.version}</span>
                 </div>
               </Card>
             </Section>
@@ -126,7 +126,7 @@ export default function InventoryCountDetailPage() {
             <Section>
               <Card title={`Lines (${doc.items.length})`}>
                 {doc.items.length === 0 ? (
-                  <EmptyState message="No snapshot lines were created." />
+                  <EmptyState message="Строки снимка не созданы." />
                 ) : (
                   <ul className="stock-list">
                     {doc.items.map((item) => (
@@ -134,17 +134,17 @@ export default function InventoryCountDetailPage() {
                         <div style={{ display: 'grid', gap: 8, width: '100%' }}>
                           <strong>{item.itemId}</strong>
                           <div className="meta-row">
-                            <span>Expected {item.expectedQuantity}</span>
-                            <span>Variance {item.varianceQuantity ?? '—'}</span>
+                            <span>Ожидается {item.expectedQuantity}</span>
+                            <span>Расхождение {item.varianceQuantity ?? '—'}</span>
                           </div>
                           {(doc.status === 'DRAFT' || doc.status === 'COUNTED') && auth.hasPermission('inventory-counts:count') ? (
                             <Input
                               value={draftValues[item.id] ?? ''}
                               onChange={(e) => setDraftValues((current) => ({ ...current, [item.id]: e.target.value }))}
-                              placeholder="Counted quantity"
+                              placeholder="Подсчитанное количество"
                             />
                           ) : (
-                            <span>Counted {item.countedQuantity ?? '—'}</span>
+                            <span>Подсчитано {item.countedQuantity ?? '—'}</span>
                           )}
                         </div>
                       </li>

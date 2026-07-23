@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import { useCallback, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/components/auth-provider';
+import { t } from '@/i18n/ru';
 import { DesktopSidebar } from './desktop-sidebar';
 import { MobileDrawer } from './mobile-drawer';
 import { OrganizationSwitcherPlaceholder } from './placeholders';
@@ -29,14 +30,14 @@ export function AppShell({ children }: { children: ReactNode }) {
           <button
             type="button"
             className="shell__menu-btn"
-            aria-label={mobileOpen ? 'Close navigation' : 'Open navigation'}
+            aria-label={mobileOpen ? t('closeNav') : t('openNav')}
             aria-expanded={mobileOpen}
             aria-controls="shell-mobile-drawer"
             onClick={() => setMobileOpen((current) => !current)}
           >
-            Menu
+            {t('menu')}
           </button>
-          <span className="shell__title">Backoffice</span>
+          <span className="shell__title">{t('backoffice')}</span>
           <OrganizationSwitcherPlaceholder />
         </div>
         <div className="shell__header-right">
@@ -45,7 +46,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               <span>{auth.user.displayName}</span>
               {auth.organization ? <span>{auth.organization.name}</span> : null}
               <button type="button" onClick={() => void auth.logout()}>
-                Logout
+                {t('logout')}
               </button>
             </div>
           ) : null}

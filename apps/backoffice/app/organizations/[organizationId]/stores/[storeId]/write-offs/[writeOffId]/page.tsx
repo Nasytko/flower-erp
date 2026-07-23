@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
@@ -29,7 +29,7 @@ export default function WriteOffDetailPage() {
     try {
       setDoc(await getApiClient().getWriteOff(organizationId, storeId, writeOffId));
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Failed to load write-off');
+      setError(err instanceof ApiClientError ? err.message : 'Не удалось загрузить списание');
     } finally {
       setLoading(false);
     }
@@ -47,7 +47,7 @@ export default function WriteOffDetailPage() {
       setItemId('');
       setQuantity('');
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Failed to add item');
+      setError(err instanceof ApiClientError ? err.message : 'Не удалось добавить позицию');
     }
   }
 
@@ -55,7 +55,7 @@ export default function WriteOffDetailPage() {
     try {
       setDoc(await getApiClient().postWriteOff(organizationId, storeId, writeOffId, crypto.randomUUID()));
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Failed to post write-off');
+      setError(err instanceof ApiClientError ? err.message : 'Не удалось провести списание');
     }
   }
 
@@ -63,12 +63,12 @@ export default function WriteOffDetailPage() {
     try {
       setDoc(await getApiClient().reverseWriteOff(organizationId, storeId, writeOffId, crypto.randomUUID()));
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Failed to reverse write-off');
+      setError(err instanceof ApiClientError ? err.message : 'Не удалось сторнировать списание');
     }
   }
 
   if (!auth.hasPermission('write-offs:read')) {
-    return <main><PageContainer><ErrorState message="Access denied: write-offs:read required." /></PageContainer></main>;
+    return <main><PageContainer><ErrorState message="Доступ запрещён: требуется write-offs:read." /></PageContainer></main>;
   }
 
   return (
@@ -76,16 +76,16 @@ export default function WriteOffDetailPage() {
       <PageContainer>
         <PageHeader
           title={doc ? doc.number : 'Write-off'}
-          description="Review lines, then post or reverse."
+          description="Проверьте строки, затем проведите или сторнируйте."
           breadcrumbs={[
-            { label: 'Store', href: base },
+            { label: 'Магазин', href: base },
             { label: 'Списания', href: `${base}/write-offs` },
             { label: doc?.number ?? 'Document' },
           ]}
           actions={
             <div className="page-header__actions">
               <Button type="button" variant="secondary" onClick={() => void load()}>
-                Refresh
+                Обновить
               </Button>
               {doc?.status === 'DRAFT' && auth.hasPermission('write-offs:post') ? (
                 <Button type="button" onClick={() => void post()}>
@@ -101,18 +101,18 @@ export default function WriteOffDetailPage() {
           }
         />
 
-        {loading ? <LoadingState message="Loading write-off…" /> : null}
+        {loading ? <LoadingState message="Загрузка списания…" /> : null}
         {error ? <ErrorState message={error} /> : null}
 
         {!loading && !error && doc ? (
           <>
             <Section>
-              <Card title="Summary">
+              <Card title="Сводка">
                 <div className="meta-row">
                   <StatusBadge status={doc.status} />
-                  <span>Reason {doc.reason}</span>
+                  <span>Причина {doc.reason}</span>
                   <span>Warehouse {doc.warehouseId}</span>
-                  <span>Version {doc.version}</span>
+                  <span>Версия {doc.version}</span>
                 </div>
                 {doc.comment ? <p style={{ marginTop: 12 }}>{doc.comment}</p> : null}
               </Card>
@@ -122,8 +122,8 @@ export default function WriteOffDetailPage() {
               <Section>
                 <Card title="Добавить позицию">
                   <div className="stock-filters">
-                    <Input value={itemId} onChange={(e) => setItemId(e.target.value)} placeholder="Item UUID" />
-                    <Input value={quantity} onChange={(e) => setQuantity(e.target.value)} placeholder="Quantity" />
+                    <Input value={itemId} onChange={(e) => setItemId(e.target.value)} placeholder="UUID товара" />
+                    <Input value={quantity} onChange={(e) => setQuantity(e.target.value)} placeholder="Количество" />
                     <Button type="button" onClick={() => void addItem()} disabled={!itemId || !quantity}>
                       Add item
                     </Button>
@@ -135,7 +135,7 @@ export default function WriteOffDetailPage() {
             <Section>
               <Card title={`Items (${doc.items.length})`}>
                 {doc.items.length === 0 ? (
-                  <EmptyState message="No items yet." />
+                  <EmptyState message="Позиций пока нет." />
                 ) : (
                   <ul className="stock-list">
                     {doc.items.map((item) => (
@@ -144,7 +144,7 @@ export default function WriteOffDetailPage() {
                           <strong>{item.itemId}</strong>
                           <div className="meta-row">
                             <span>Qty {item.quantity}</span>
-                            {item.unitCostSnapshot ? <span>Cost {item.unitCostSnapshot}</span> : null}
+                            {item.unitCostSnapshot ? <span>Себестоимость {item.unitCostSnapshot}</span> : null}
                             {item.costAmountSnapshot ? <span>Amount {item.costAmountSnapshot}</span> : null}
                           </div>
                         </div>

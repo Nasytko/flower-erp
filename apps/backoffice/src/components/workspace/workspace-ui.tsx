@@ -255,8 +255,8 @@ export function ConfirmDialog({
   open,
   title,
   message,
-  confirmLabel = 'Confirm',
-  cancelLabel = 'Cancel',
+  confirmLabel = 'Подтвердить',
+  cancelLabel = 'Отмена',
   destructive,
   busy,
   onConfirm,
@@ -265,7 +265,7 @@ export function ConfirmDialog({
   if (!open) return null;
   return (
     <div className="confirm-dialog" role="presentation">
-      <button type="button" className="confirm-dialog__backdrop" aria-label="Close" onClick={onCancel} />
+      <button type="button" className="confirm-dialog__backdrop" aria-label="Закрыть" onClick={onCancel} />
       <div
         className="confirm-dialog__panel"
         role="alertdialog"

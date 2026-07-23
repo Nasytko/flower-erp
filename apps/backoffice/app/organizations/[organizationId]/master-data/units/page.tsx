@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useState, type FormEvent } from 'react';
 import { useParams } from 'next/navigation';
@@ -32,7 +32,7 @@ export default function UnitsPage() {
       const res = await getApiClient().listUnits(organizationId, 1, 100);
       setItems(res.items);
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Failed to load');
+      setError(err instanceof ApiClientError ? err.message : 'Не удалось загрузить');
     } finally {
       setLoading(false);
     }
@@ -53,7 +53,7 @@ export default function UnitsPage() {
       setSymbol('');
       await load();
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Create failed');
+      setError(err instanceof ApiClientError ? err.message : 'Не удалось создать');
     } finally {
       setCreating(false);
     }
@@ -65,7 +65,7 @@ export default function UnitsPage() {
       await getApiClient().archiveUnit(organizationId, unitId);
       await load();
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Archive failed');
+      setError(err instanceof ApiClientError ? err.message : 'Не удалось архивировать');
     }
   }
 
@@ -76,8 +76,8 @@ export default function UnitsPage() {
           title="Единицы измерения"
           description="Нельзя архивировать единицу, пока она используется активными товарами."
           breadcrumbs={[
-            { label: 'Organizations', href: '/organizations' },
-            { label: 'Organization', href: `/organizations/${organizationId}` },
+            { label: 'Организации', href: '/organizations' },
+            { label: 'Организация', href: `/organizations/${organizationId}` },
             { label: 'Справочники', href: base },
             { label: 'Единицы' },
           ]}
@@ -127,14 +127,14 @@ export default function UnitsPage() {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
-                aria-label="Unit name"
+                aria-label="Название единицы"
               />
               <Input
                 placeholder="Символ (шт, ветка…)"
                 value={symbol}
                 onChange={(e) => setSymbol(e.target.value)}
                 required
-                aria-label="Unit symbol"
+                aria-label="Символ единицы"
               />
               <Button type="submit" disabled={creating}>
                 {creating ? 'Создание…' : 'Создать'}

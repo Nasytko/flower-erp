@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import Link from 'next/link';
 import { useEffect, useState, type FormEvent } from 'react';
@@ -44,7 +44,7 @@ export default function SuppliersPage() {
       });
       setItems(res.items);
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Failed to load');
+      setError(err instanceof ApiClientError ? err.message : 'Не удалось загрузить');
     } finally {
       setLoading(false);
     }
@@ -65,7 +65,7 @@ export default function SuppliersPage() {
       setCode('');
       await load();
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Create failed');
+      setError(err instanceof ApiClientError ? err.message : 'Не удалось создать');
     } finally {
       setCreating(false);
     }
@@ -77,7 +77,7 @@ export default function SuppliersPage() {
       await getApiClient().archiveSupplier(organizationId, supplierId);
       await load();
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Archive failed');
+      setError(err instanceof ApiClientError ? err.message : 'Не удалось архивировать');
     }
   }
 
@@ -88,8 +88,8 @@ export default function SuppliersPage() {
           title="Поставщики"
           description="Справочник поставщиков. Hard delete запрещён."
           breadcrumbs={[
-            { label: 'Organizations', href: '/organizations' },
-            { label: 'Organization', href: `/organizations/${organizationId}` },
+            { label: 'Организации', href: '/organizations' },
+            { label: 'Организация', href: `/organizations/${organizationId}` },
             { label: 'Справочники', href: base },
             { label: 'Поставщики' },
           ]}
@@ -107,7 +107,7 @@ export default function SuppliersPage() {
                 placeholder="Название"
                 value={nameFilter}
                 onChange={(e) => setNameFilter(e.target.value)}
-                aria-label="Filter suppliers by name"
+                aria-label="Фильтр поставщиков по названию"
               />
               <Button type="submit" variant="secondary">
                 Найти
@@ -165,14 +165,14 @@ export default function SuppliersPage() {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
-                aria-label="Supplier name"
+                aria-label="Название поставщика"
               />
               <Input
                 placeholder="Код"
                 value={code}
                 onChange={(e) => setCode(e.target.value)}
                 required
-                aria-label="Supplier code"
+                aria-label="Код поставщика"
               />
               <Button type="submit" disabled={creating}>
                 {creating ? 'Создание…' : 'Создать'}

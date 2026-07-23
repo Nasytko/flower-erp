@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import Link from 'next/link';
 import { Suspense, useEffect, useState, type FormEvent } from 'react';
@@ -28,7 +28,7 @@ function newIdempotencyKey() {
 
 export default function SaleDetailPage() {
   return (
-    <Suspense fallback={<main><LoadingState message="Loading…" /></main>}>
+    <Suspense fallback={<main><LoadingState message="Загрузка…" /></main>}>
       <SaleDetailPageInner />
     </Suspense>
   );
@@ -86,7 +86,7 @@ function SaleDetailPageInner() {
         setPayMethodId((prev) => prev || methods[0]!.id);
       }
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Failed to load');
+      setError(err instanceof ApiClientError ? err.message : 'Не удалось загрузить');
     } finally {
       setLoading(false);
     }
@@ -105,7 +105,7 @@ function SaleDetailPageInner() {
       await action();
       await load();
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Action failed');
+      setError(err instanceof ApiClientError ? err.message : 'Действие не выполнено');
     } finally {
       setBusy(false);
     }
@@ -175,7 +175,7 @@ function SaleDetailPageInner() {
   }
 
   if (!auth.hasPermission('sales:read')) {
-    return <p className="page-state">Access denied</p>;
+    return <p className="page-state">Доступ запрещён</p>;
   }
 
   return (
@@ -185,9 +185,9 @@ function SaleDetailPageInner() {
           title={sale ? `Продажа ${sale.number}` : 'Продажа'}
           description="DRAFT → COMPLETED → ANNULLED. Списание остатков при завершении."
           breadcrumbs={[
-            { label: 'Organizations', href: '/organizations' },
-            { label: 'Organization', href: `/organizations/${organizationId}` },
-            { label: 'Store', href: base },
+            { label: 'Организации', href: '/organizations' },
+            { label: 'Организация', href: `/organizations/${organizationId}` },
+            { label: 'Магазин', href: base },
             { label: 'Продажи', href: `${base}/sales` },
             { label: sale?.number ?? 'Sale' },
           ]}

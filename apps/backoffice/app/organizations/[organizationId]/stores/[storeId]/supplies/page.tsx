@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import Link from 'next/link';
 import { useEffect, useState, type FormEvent } from 'react';
@@ -44,7 +44,7 @@ export default function SuppliesPage() {
       if (wh) setWarehouseId(wh.id);
       if (supplierList.items[0]) setSupplierId(supplierList.items[0].id);
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Failed to load');
+      setError(err instanceof ApiClientError ? err.message : 'Не удалось загрузить');
     } finally {
       setLoading(false);
     }
@@ -66,7 +66,7 @@ export default function SuppliesPage() {
       });
       router.push(`${base}/supplies/${created.id}`);
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Create failed');
+      setError(err instanceof ApiClientError ? err.message : 'Не удалось создать');
       setCreating(false);
     }
   }
@@ -76,11 +76,11 @@ export default function SuppliesPage() {
       <PageContainer>
         <PageHeader
           title="Поставки"
-          description="Supply drafts → отправка поставщику → приёмка. Без прямого изменения остатков."
+          description="Черновики поставок → отправка поставщику → приёмка. Без прямого изменения остатков."
           breadcrumbs={[
-            { label: 'Organizations', href: '/organizations' },
-            { label: 'Organization', href: `/organizations/${organizationId}` },
-            { label: 'Store', href: base },
+            { label: 'Организации', href: '/organizations' },
+            { label: 'Организация', href: `/organizations/${organizationId}` },
+            { label: 'Магазин', href: base },
             { label: 'Поставки' },
           ]}
         />
@@ -110,7 +110,7 @@ export default function SuppliesPage() {
                 value={supplierId}
                 onChange={(e) => setSupplierId(e.target.value)}
                 required
-                aria-label="Supplier"
+                aria-label="Поставщик"
                 style={{ minHeight: 40, borderRadius: 6, border: '1px solid var(--color-border)', padding: 8 }}
               >
                 {suppliers.map((s) => (
@@ -119,7 +119,7 @@ export default function SuppliesPage() {
                   </option>
                 ))}
               </select>
-              <Input value={warehouseId} readOnly aria-label="Warehouse id" />
+              <Input value={warehouseId} readOnly aria-label="ID склада" />
               <Button type="submit" disabled={creating || !supplierId || !warehouseId}>
                 {creating ? 'Создание…' : 'Создать DRAFT'}
               </Button>

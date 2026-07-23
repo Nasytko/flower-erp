@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -46,7 +46,7 @@ export default function DeliveriesMapPage() {
         return prev && ids.includes(prev) ? prev : (map.points[0]?.deliveryId ?? null);
       });
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Failed to load map');
+      setError(err instanceof ApiClientError ? err.message : 'Не удалось загрузить карту');
     } finally {
       setLoading(false);
     }
@@ -81,7 +81,7 @@ export default function DeliveriesMapPage() {
     return (
       <main>
         <PageContainer>
-          <ErrorState message="Access denied: delivery:read required." />
+          <ErrorState message="Доступ запрещён: требуется delivery:read." />
         </PageContainer>
       </main>
     );
@@ -104,7 +104,7 @@ export default function DeliveriesMapPage() {
           }
         />
 
-        <nav className="delivery-tabs" aria-label="Delivery views">
+        <nav className="delivery-tabs" aria-label="Виды доставки">
           <Link href={`${base}/deliveries`}>Доска</Link>
           <Link href={`${base}/deliveries/map`} aria-current="page">
             Карта
@@ -122,7 +122,7 @@ export default function DeliveriesMapPage() {
 
         <div className="delivery-map-mobile-toggle" style={{ marginBottom: 16 }}>
           <SegmentedControl
-            ariaLabel="Map or list"
+            ariaLabel="Карта или список"
             value={mobileView}
             onChange={(v) => setMobileView(v as 'list' | 'map')}
             options={[

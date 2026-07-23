@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import Link from 'next/link';
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
@@ -78,7 +78,7 @@ export default function ItemsPage() {
       setCategoryId((current) => current || cats.items[0]?.id || '');
       setUnitId((current) => current || unts.items[0]?.id || '');
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Failed to load');
+      setError(err instanceof ApiClientError ? err.message : 'Не удалось загрузить');
     } finally {
       setLoading(false);
     }
@@ -110,7 +110,7 @@ export default function ItemsPage() {
       setCode('');
       await load();
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Create failed');
+      setError(err instanceof ApiClientError ? err.message : 'Не удалось создать');
     } finally {
       setCreating(false);
     }
@@ -122,7 +122,7 @@ export default function ItemsPage() {
       await getApiClient().archiveItem(organizationId, itemId);
       await load();
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Archive failed');
+      setError(err instanceof ApiClientError ? err.message : 'Не удалось архивировать');
     }
   }
 
@@ -133,8 +133,8 @@ export default function ItemsPage() {
           title="Товары"
           description="Единый Item. FLOWER и MATERIAL различаются ItemType и InventoryPolicy."
           breadcrumbs={[
-            { label: 'Organizations', href: '/organizations' },
-            { label: 'Organization', href: `/organizations/${organizationId}` },
+            { label: 'Организации', href: '/organizations' },
+            { label: 'Организация', href: `/organizations/${organizationId}` },
             { label: 'Справочники', href: base },
             { label: 'Товары' },
           ]}
@@ -155,12 +155,12 @@ export default function ItemsPage() {
                 placeholder="Название"
                 value={nameFilter}
                 onChange={(e) => setNameFilter(e.target.value)}
-                aria-label="Filter by name"
+                aria-label="Фильтр по названию"
               />
               <select
                 value={typeFilter}
                 onChange={(e) => setTypeFilter(e.target.value)}
-                aria-label="Filter by type"
+                aria-label="Фильтр по типу"
                 style={{ minHeight: 40, borderRadius: 6, border: '1px solid var(--color-border)', padding: 8 }}
               >
                 <option value="">Все типы</option>
@@ -170,7 +170,7 @@ export default function ItemsPage() {
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                aria-label="Filter by status"
+                aria-label="Фильтр по статусу"
                 style={{ minHeight: 40, borderRadius: 6, border: '1px solid var(--color-border)', padding: 8 }}
               >
                 <option value="">Все статусы</option>
@@ -258,7 +258,7 @@ export default function ItemsPage() {
                 onChange={(e) => setName(e.target.value)}
                 required
                 minLength={2}
-                aria-label="Item name"
+                aria-label="Название товара"
               />
               <Input
                 placeholder="Код"
@@ -266,12 +266,12 @@ export default function ItemsPage() {
                 onChange={(e) => setCode(e.target.value)}
                 required
                 minLength={2}
-                aria-label="Item code"
+                aria-label="Код товара"
               />
               <select
                 value={itemType}
                 onChange={(e) => setItemType(e.target.value as 'FLOWER' | 'MATERIAL')}
-                aria-label="Item type"
+                aria-label="Тип товара"
                 style={{ minHeight: 40, borderRadius: 6, border: '1px solid var(--color-border)', padding: 8 }}
               >
                 <option value="FLOWER">FLOWER</option>
@@ -281,7 +281,7 @@ export default function ItemsPage() {
                 value={categoryId}
                 onChange={(e) => setCategoryId(e.target.value)}
                 required
-                aria-label="Category"
+                aria-label="Категория"
                 style={{ minHeight: 40, borderRadius: 6, border: '1px solid var(--color-border)', padding: 8 }}
               >
                 {categories.map((c) => (
@@ -294,7 +294,7 @@ export default function ItemsPage() {
                 value={unitId}
                 onChange={(e) => setUnitId(e.target.value)}
                 required
-                aria-label="Unit"
+                aria-label="Единица"
                 style={{ minHeight: 40, borderRadius: 6, border: '1px solid var(--color-border)', padding: 8 }}
               >
                 {units.map((u) => (
@@ -307,7 +307,7 @@ export default function ItemsPage() {
                 value={inventoryPolicyId}
                 onChange={(e) => setInventoryPolicyId(e.target.value)}
                 required
-                aria-label="Inventory policy"
+                aria-label="Политика учёта"
                 style={{ minHeight: 40, borderRadius: 6, border: '1px solid var(--color-border)', padding: 8 }}
               >
                 {policies

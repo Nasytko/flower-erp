@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import Link from 'next/link';
@@ -133,7 +133,7 @@ export default function WorkOrderPage() {
           : null,
       );
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Failed to load work order');
+      setError(err instanceof ApiClientError ? err.message : 'Не удалось загрузить рабочий заказ');
     } finally {
       setLoading(false);
     }
@@ -154,11 +154,11 @@ export default function WorkOrderPage() {
       if (opts?.reload !== false) await load();
     } catch (err) {
       if (err instanceof ApiClientError && err.code === 'VERSION_CONFLICT') {
-        setInfo('Version conflict — reloading the latest work order. Re-apply your changes.');
+        setInfo('Конфликт версий — загружаем последний рабочий заказ. Повторите изменения.');
         await load();
         return;
       }
-      setError(err instanceof ApiClientError ? err.message : 'Action failed');
+      setError(err instanceof ApiClientError ? err.message : 'Действие не выполнено');
     } finally {
       setBusy(false);
     }
@@ -211,7 +211,7 @@ export default function WorkOrderPage() {
       if (!data.order.hasActiveAssignment) {
         primaryActions.push({
           key: 'claim',
-          label: 'Claim',
+          label: 'Взять',
           onClick: () => void run(() => getApiClient().claimOrder(organizationId, storeId, orderId)),
         });
       }
@@ -224,7 +224,7 @@ export default function WorkOrderPage() {
       if (auth.hasPermission('orders:prepare')) {
         primaryActions.push({
           key: 'start',
-          label: 'Start preparation',
+          label: 'Начать подготовку',
           onClick: () =>
             void run(() => getApiClient().startOrderPreparation(organizationId, storeId, orderId)),
         });
@@ -233,21 +233,21 @@ export default function WorkOrderPage() {
     if (auth.hasPermission('orders:prepare') && data.order.status === 'IN_PREPARATION') {
       primaryActions.push({
         key: 'ready',
-        label: 'Mark ready',
+        label: 'Отметить готовым',
         onClick: () => setConfirmReady(true),
       });
     }
     if (data.order.status === 'READY' && action === 'CREATE_SALE') {
       primaryActions.push({
         key: 'sale',
-        label: 'Create sale',
+        label: 'Создать продажу',
         onClick: () => router.push(`${base}/sales/new?fromOrder=${orderId}`),
       });
     }
     if (auth.hasPermission('orders:assign') && data.order.hasActiveAssignment) {
       primaryActions.push({
         key: 'release',
-        label: 'Release',
+        label: 'Освободить',
         variant: 'secondary',
         onClick: () => setConfirmRelease(true),
       });
@@ -258,7 +258,7 @@ export default function WorkOrderPage() {
     return (
       <main>
         <PageContainer>
-          <ErrorState message="Access denied: workspace:read or orders:read required." />
+          <ErrorState message="Доступ запрещён: требуется workspace:read или orders:read." />
         </PageContainer>
       </main>
     );
@@ -278,7 +278,7 @@ export default function WorkOrderPage() {
         </Button>
       ))}
       <Button type="button" variant="secondary" disabled={busy} onClick={() => void load()}>
-        Refresh
+        Обновить
       </Button>
     </>
   );
@@ -287,16 +287,16 @@ export default function WorkOrderPage() {
     <main className="work-order-page">
       <PageContainer>
         <PageHeader
-          title={data ? `Work order ${data.order.number}` : 'Work order'}
-          description={data ? `${data.order.status} · ${data.order.occasion}` : 'Loading…'}
+          title={data ? `Рабочий заказ ${data.order.number}` : 'Рабочий заказ'}
+          description={data ? `${data.order.status} · ${data.order.occasion}` : 'Загрузка…'}
           breadcrumbs={[
             { label: 'Сегодня', href: `${base}/today` },
-            { label: data?.order.number ?? 'Work order' },
+            { label: data?.order.number ?? 'Рабочий заказ' },
           ]}
           actions={<div className="work-order-actions work-order-actions--desktop">{actionButtons}</div>}
         />
 
-        {loading ? <LoadingState message="Loading work order…" /> : null}
+        {loading ? <LoadingState message="Загрузка рабочего заказа…" /> : null}
         {error ? <ErrorState message={error} /> : null}
         {info ? <InlineAlert tone="warning">{info}</InlineAlert> : null}
 
@@ -304,7 +304,7 @@ export default function WorkOrderPage() {
           <div className="work-order-layout">
             <div className="work-order-layout__main">
               <Section>
-                <Card title="Order">
+                <Card title="Заказ">
                   <div className="meta-row">
                     <StatusBadge status={data.order.status} />
                     <span className={`urgency-badge urgency-badge--${data.urgency.toLowerCase()}`}>
@@ -323,8 +323,8 @@ export default function WorkOrderPage() {
                       .join(' · ')}
                   </p>
                   {data.order.hasDeficit ? (
-                    <InlineAlert tone="warning" title="Shortage">
-                      Planned composition has deficit — check availability before marking ready.
+                    <InlineAlert tone="warning" title="Нехватка">
+                      В плане есть дефицит — проверьте доступность перед отметкой готовности.
                     </InlineAlert>
                   ) : null}
                   {deliveryHint ? (
@@ -334,7 +334,7 @@ export default function WorkOrderPage() {
                         <StatusBadge status={deliveryHint.status} />
                         <span>{deliveryHint.status}</span>
                         {deliveryHint.status === 'READY_FOR_DISPATCH' ? (
-                          <span className="status-badge status-badge--info">readyDispatch</span>
+                          <span className="status-badge status-badge--info">к отправке</span>
                         ) : null}
                       </div>
                       <p className="order-card__sub">
@@ -363,7 +363,7 @@ export default function WorkOrderPage() {
               </Section>
 
               <Section>
-                <Card title="Planned composition">
+                <Card title="Плановый состав">
                   <ul className="list-stack">
                     {data.plannedLines.map((line) => (
                       <li key={line.id}>
@@ -371,12 +371,12 @@ export default function WorkOrderPage() {
                           {line.itemName} ({line.itemCode})
                         </strong>
                         <div className="meta-row">
-                          <span>Plan {line.plannedQuantity}</span>
-                          <span>Reserved {line.reservedQuantity}</span>
-                          <span>Available {line.availableQuantity}</span>
+                          <span>План {line.plannedQuantity}</span>
+                          <span>Зарезервировано {line.reservedQuantity}</span>
+                          <span>Доступно {line.availableQuantity}</span>
                           {Number(line.deficitQuantity) > 0 ? (
                             <span className="status-badge status-badge--warning">
-                              Deficit {line.deficitQuantity}
+                              Дефицит {line.deficitQuantity}
                             </span>
                           ) : null}
                         </div>
@@ -391,14 +391,14 @@ export default function WorkOrderPage() {
                         disabled={busy}
                         onClick={() => setReplaceOpen((v) => !v)}
                       >
-                        Replace item
+                        Заменить позицию
                       </Button>
                     </div>
                   ) : null}
                   {replaceOpen ? (
                     <form className="stack-form" style={{ marginTop: 16 }} onSubmit={submitReplace}>
                       <label>
-                        From item
+                        Из позиции
                         <select
                           value={fromItemId}
                           onChange={(e) => setFromItemId(e.target.value)}
@@ -412,7 +412,7 @@ export default function WorkOrderPage() {
                         </select>
                       </label>
                       <label>
-                        To item
+                        В позицию
                         <select value={toItemId} onChange={(e) => setToItemId(e.target.value)} required>
                           {catalog.map((item) => (
                             <option key={item.id} value={item.id}>
@@ -422,7 +422,7 @@ export default function WorkOrderPage() {
                         </select>
                       </label>
                       <label>
-                        Quantity
+                        Количество
                         <Input
                           value={replaceQty}
                           onChange={(e) => setReplaceQty(e.target.value)}
@@ -430,7 +430,7 @@ export default function WorkOrderPage() {
                         />
                       </label>
                       <label>
-                        Reason
+                        Причина
                         <select
                           value={replaceReason}
                           onChange={(e) =>
@@ -445,14 +445,14 @@ export default function WorkOrderPage() {
                         </select>
                       </label>
                       <label>
-                        Comment
+                        Комментарий
                         <Input
                           value={replaceComment}
                           onChange={(e) => setReplaceComment(e.target.value)}
                         />
                       </label>
                       <Button type="submit" disabled={busy}>
-                        Apply replacement
+                        Применить замену
                       </Button>
                     </form>
                   ) : null}
@@ -460,7 +460,7 @@ export default function WorkOrderPage() {
               </Section>
 
               <Section>
-                <Card title="Actual composition">
+                <Card title="Фактический состав">
                   <form className="stack-form" onSubmit={saveActual}>
                     {drafts.map((line, index) => (
                       <div key={`${line.itemId}-${index}`} className="actual-line-editor">
@@ -468,7 +468,7 @@ export default function WorkOrderPage() {
                           {line.itemName} ({line.itemCode})
                         </strong>
                         <label>
-                          Quantity
+                          Количество
                           <Input
                             value={line.actualQuantity}
                             onChange={(e) => {
@@ -482,7 +482,7 @@ export default function WorkOrderPage() {
                           />
                         </label>
                         <label>
-                          Batch
+                          Партия
                           <Input
                             value={line.batchId}
                             onChange={(e) => {
@@ -496,7 +496,7 @@ export default function WorkOrderPage() {
                           />
                         </label>
                         <label>
-                          Comment
+                          Комментарий
                           <Input
                             value={line.comment}
                             onChange={(e) => {
@@ -513,7 +513,7 @@ export default function WorkOrderPage() {
                     ))}
                     {auth.hasPermission('orders:prepare') ? (
                       <Button type="submit" disabled={busy || drafts.length === 0}>
-                        Save actual composition
+                        Сохранить фактический состав
                       </Button>
                     ) : null}
                   </form>
@@ -521,32 +521,32 @@ export default function WorkOrderPage() {
               </Section>
 
               <Section>
-                <Card title="Payment">
+                <Card title="Оплата">
                   <div className="meta-row">
-                    <span>Planned {data.paymentSummary.plannedPrice ?? '—'}</span>
-                    <span>Allocated to order {data.paymentSummary.allocatedToOrder}</span>
+                    <span>План {data.paymentSummary.plannedPrice ?? '—'}</span>
+                    <span>Выделено на заказ {data.paymentSummary.allocatedToOrder}</span>
                     {data.paymentSummary.saleId ? (
                       <span>
-                        Sale {data.paymentSummary.saleStatus} ·{' '}
+                        Продажа {data.paymentSummary.saleStatus} ·{' '}
                         {data.paymentSummary.saleNetAmount ?? '—'}
                       </span>
                     ) : null}
                   </div>
                   <div className="meta-row" style={{ marginTop: 12 }}>
-                    <Link href={`${base}/payments`}>Payments</Link>
+                    <Link href={`${base}/payments`}>Оплаты</Link>
                     {data.paymentSummary.saleId ? (
-                      <Link href={`${base}/sales/${data.paymentSummary.saleId}`}>Open sale</Link>
+                      <Link href={`${base}/sales/${data.paymentSummary.saleId}`}>Открыть продажу</Link>
                     ) : null}
                     {data.order.status === 'READY' && !data.paymentSummary.saleId ? (
-                      <Link href={`${base}/sales/new?fromOrder=${orderId}`}>Create sale</Link>
+                      <Link href={`${base}/sales/new?fromOrder=${orderId}`}>Создать продажу</Link>
                     ) : null}
                   </div>
                 </Card>
               </Section>
             </div>
 
-            <aside className="work-order-layout__aside" aria-label="Actions">
-              <Card title="Actions">
+            <aside className="work-order-layout__aside" aria-label="Действия">
+              <Card title="Действия">
                 <div className="stack-form">{actionButtons}</div>
               </Card>
             </aside>
@@ -558,9 +558,9 @@ export default function WorkOrderPage() {
 
       <ConfirmDialog
         open={confirmReady}
-        title="Mark order ready?"
-        message="Confirm the actual composition is complete before marking ready."
-        confirmLabel="Mark ready"
+        title="Отметить заказ готовым?"
+        message="Подтвердите, что фактический состав завершён, перед отметкой готовности."
+        confirmLabel="Отметить готовым"
         busy={busy}
         onCancel={() => setConfirmReady(false)}
         onConfirm={() => {
@@ -570,9 +570,9 @@ export default function WorkOrderPage() {
       />
       <ConfirmDialog
         open={confirmRelease}
-        title="Release assignment?"
-        message="This removes the active florist assignment from the order."
-        confirmLabel="Release"
+        title="Освободить назначение?"
+        message="Это снимает активное назначение флориста с заказа."
+        confirmLabel="Освободить"
         destructive
         busy={busy}
         onCancel={() => setConfirmRelease(false)}

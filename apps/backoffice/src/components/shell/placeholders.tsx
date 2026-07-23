@@ -1,11 +1,13 @@
+import { t } from '@/i18n/ru';
+
 /**
  * Visual placeholder only — auth/session not wired.
  * Must not imply a working account menu.
  */
 export function UserMenuPlaceholder() {
   return (
-    <span className="shell__placeholder" aria-disabled="true" title="Authentication is not configured yet">
-      Account · soon
+    <span className="shell__placeholder" aria-disabled="true" title={t('loadingSession')}>
+      {t('accountSoon')}
     </span>
   );
 }
@@ -16,12 +18,8 @@ export function UserMenuPlaceholder() {
  */
 export function OrganizationSwitcherPlaceholder() {
   return (
-    <span
-      className="shell__placeholder"
-      aria-disabled="true"
-      title="Organization switcher will use live org context when ready"
-    >
-      Org context
+    <span className="shell__placeholder" aria-disabled="true" title={t('orgContext')}>
+      {t('orgContext')}
     </span>
   );
 }

@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useState, type FormEvent } from 'react';
 import { useParams } from 'next/navigation';
@@ -47,7 +47,7 @@ export default function PaymentMethodsPage() {
       const list = await getApiClient().listPaymentMethods(organizationId, storeId);
       setMethods(list);
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Failed to load');
+      setError(err instanceof ApiClientError ? err.message : 'Не удалось загрузить');
     } finally {
       setLoading(false);
     }
@@ -66,7 +66,7 @@ export default function PaymentMethodsPage() {
       await action();
       await load();
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Action failed');
+      setError(err instanceof ApiClientError ? err.message : 'Действие не выполнено');
     } finally {
       setBusy(false);
     }
@@ -96,7 +96,7 @@ export default function PaymentMethodsPage() {
   }
 
   if (!auth.hasPermission('payments:manage-methods')) {
-    return <p className="page-state">Access denied</p>;
+    return <p className="page-state">Доступ запрещён</p>;
   }
 
   return (
@@ -106,9 +106,9 @@ export default function PaymentMethodsPage() {
           title="Способы оплаты"
           description="Справочник методов оплаты магазина."
           breadcrumbs={[
-            { label: 'Organizations', href: '/organizations' },
-            { label: 'Organization', href: `/organizations/${organizationId}` },
-            { label: 'Store', href: base },
+            { label: 'Организации', href: '/organizations' },
+            { label: 'Организация', href: `/organizations/${organizationId}` },
+            { label: 'Магазин', href: base },
             { label: 'Способы оплаты' },
           ]}
           actions={

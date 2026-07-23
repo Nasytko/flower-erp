@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
@@ -78,7 +78,7 @@ export default function OperationsPage() {
         setDeliveryAttention(null);
       }
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Failed to load operations');
+      setError(err instanceof ApiClientError ? err.message : 'Не удалось загрузить операции');
     } finally {
       setLoading(false);
     }
@@ -103,7 +103,7 @@ export default function OperationsPage() {
     return (
       <main>
         <PageContainer>
-          <ErrorState message="Access denied: operations:read required." />
+          <ErrorState message="Доступ запрещён: требуется operations:read." />
         </PageContainer>
       </main>
     );
@@ -113,45 +113,45 @@ export default function OperationsPage() {
     <main>
       <PageContainer>
         <PageHeader
-          title="Operations"
-          description="Director operations board"
+          title="Операции"
+          description="Операционная панель директора"
           breadcrumbs={[
-            { label: 'Store', href: base },
-            { label: 'Operations' },
+            { label: 'Магазин', href: base },
+            { label: 'Операции' },
           ]}
           actions={
             <Button type="button" variant="secondary" onClick={() => void load()}>
-              Refresh
+              Обновить
             </Button>
           }
         />
 
-        {loading ? <LoadingState message="Loading operations…" /> : null}
+        {loading ? <LoadingState message="Загрузка операций…" /> : null}
         {error ? <ErrorState message={error} /> : null}
 
         {!loading && !error && data ? (
           <>
             <Section>
               <div className="metric-grid">
-                <MetricCard label="Orders today" value={data.kpis.ordersToday} href={`${base}/today`} />
-                <MetricCard label="In progress" value={data.kpis.inProgress} />
-                <MetricCard label="Ready" value={data.kpis.ready} tone="success" />
-                <MetricCard label="Overdue" value={data.kpis.overdue} tone="danger" href={`${base}/today`} />
-                <MetricCard label="Sales today" value={data.kpis.salesToday} href={`${base}/sales`} />
+                <MetricCard label="Заказы сегодня" value={data.kpis.ordersToday} href={`${base}/today`} />
+                <MetricCard label="В работе" value={data.kpis.inProgress} />
+                <MetricCard label="Готовы" value={data.kpis.ready} tone="success" />
+                <MetricCard label="Просрочены" value={data.kpis.overdue} tone="danger" href={`${base}/today`} />
+                <MetricCard label="Продажи сегодня" value={data.kpis.salesToday} href={`${base}/sales`} />
                 <MetricCard
-                  label="Unpaid balance"
+                  label="Неоплаченный остаток"
                   value={data.kpis.unpaidBalance}
                   href={`${base}/payments`}
                   tone="warning"
                 />
                 <MetricCard
-                  label="Shortages"
+                  label="Нехватка"
                   value={data.kpis.shortages}
                   href={`${base}/stock`}
                   tone="warning"
                 />
                 <MetricCard
-                  label="Supplies awaiting"
+                  label="Поставки ожидают приёмки"
                   value={data.kpis.suppliesAwaitingReceipt}
                   href={`${base}/supplies`}
                 />
@@ -159,9 +159,9 @@ export default function OperationsPage() {
             </Section>
 
             <Section>
-              <Card title="Attention">
+              <Card title="Требует внимания">
                 {data.attentionItems.length === 0 ? (
-                  <EmptyState message="No attention items." />
+                  <EmptyState message="Нет элементов, требующих внимания." />
                 ) : (
                   <div className="attention-list">
                     {data.attentionItems.map((item) => (
@@ -183,16 +183,16 @@ export default function OperationsPage() {
             {deliveryAttention &&
             (deliveryAttention.problems > 0 || deliveryAttention.withoutCourier > 0) ? (
               <Section>
-                <Card title="Delivery attention">
+                <Card title="Доставка: требует внимания">
                   <div className="metric-grid">
                     <MetricCard
-                      label="Problems"
+                      label="Проблемы"
                       value={deliveryAttention.problems}
                       href={`${base}/deliveries`}
                       tone="danger"
                     />
                     <MetricCard
-                      label="Without courier"
+                      label="Без курьера"
                       value={deliveryAttention.withoutCourier}
                       href={`${base}/deliveries`}
                       tone="warning"
@@ -206,24 +206,24 @@ export default function OperationsPage() {
               <Card title="Складские операции">
                 <div className="metric-grid">
                   <MetricCard
-                    label="Attention buckets"
+                    label="Группы внимания"
                     value={inventoryAttention.reduce((sum, item) => sum + item.count, 0)}
                     href={`${base}/write-offs`}
                     tone="warning"
                   />
                   <MetricCard
-                    label="In transit"
+                    label="В пути"
                     value={inventoryTransit.length}
                     href={`${base}/transfers`}
                   />
                   <MetricCard
-                    label="Loss documents"
+                    label="Документы потерь"
                     value={inventoryLosses.length}
                     href={`${base}/write-offs`}
                     tone="danger"
                   />
                   <MetricCard
-                    label="Open counts"
+                    label="Открытые инвентаризации"
                     value={inventoryCountProgress.filter((item) => item.status !== 'POSTED' && item.status !== 'CANCELLED').length}
                     href={`${base}/inventory-counts`}
                   />

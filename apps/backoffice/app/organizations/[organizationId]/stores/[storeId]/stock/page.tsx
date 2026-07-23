@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
@@ -38,7 +38,7 @@ export default function OperationalStockPage() {
       const stock = await getApiClient().getOperationalStock(organizationId, storeId);
       setData(stock);
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Failed to load stock');
+      setError(err instanceof ApiClientError ? err.message : 'Не удалось загрузить остатки');
     } finally {
       setLoading(false);
     }
@@ -70,7 +70,7 @@ export default function OperationalStockPage() {
     return (
       <main>
         <PageContainer>
-          <ErrorState message="Access denied: inventory:read required." />
+          <ErrorState message="Доступ запрещён: требуется inventory:read." />
         </PageContainer>
       </main>
     );
@@ -81,9 +81,9 @@ export default function OperationalStockPage() {
       <PageContainer>
         <PageHeader
           title="Остатки"
-          description="Operational stock balances"
+          description="Операционные остатки на складе"
           breadcrumbs={[
-            { label: 'Store', href: base },
+            { label: 'Магазин', href: base },
             { label: 'Остатки' },
           ]}
           actions={
@@ -99,41 +99,41 @@ export default function OperationalStockPage() {
                 </Button>
               ) : null}
               <Button type="button" variant="secondary" onClick={() => void load()}>
-                Refresh
+                Обновить
               </Button>
             </div>
           }
         />
 
-        {loading ? <LoadingState message="Loading stock…" /> : null}
+        {loading ? <LoadingState message="Загрузка остатков…" /> : null}
         {error ? <ErrorState message={error} /> : null}
 
         {!loading && !error && data ? (
           <>
             {data.costRedacted ? (
-              <InlineAlert tone="info" title="Cost redacted">
-                Unit cost is hidden without inventory:view-cost permission.
+              <InlineAlert tone="info" title="Себестоимость скрыта">
+                Себестоимость скрыта без разрешения inventory:view-cost.
               </InlineAlert>
             ) : null}
 
             <Section>
-              <Card title="Filters">
+              <Card title="Фильтры">
                 <div className="stock-filters">
                   <Input
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
-                    placeholder="Search by name or code"
-                    aria-label="Search stock"
+                    placeholder="Поиск по названию или коду"
+                    aria-label="Поиск по остаткам"
                   />
                   <SegmentedControl
-                    ariaLabel="Stock filter"
+                    ariaLabel="Фильтр остатков"
                     value={filter}
                     onChange={(value) => setFilter(value as StockFilter)}
                     options={[
-                      { value: 'all', label: 'All' },
-                      { value: 'available', label: 'Available' },
-                      { value: 'reserved', label: 'Reserved' },
-                      { value: 'low', label: 'Low' },
+                      { value: 'all', label: 'Все' },
+                      { value: 'available', label: 'Доступно' },
+                      { value: 'reserved', label: 'Зарезервировано' },
+                      { value: 'low', label: 'Мало' },
                     ]}
                   />
                 </div>
@@ -141,9 +141,9 @@ export default function OperationalStockPage() {
             </Section>
 
             <Section>
-              <Card title={`Items (${filtered.length})`}>
+              <Card title={`Позиции (${filtered.length})`}>
                 {filtered.length === 0 ? (
-                  <EmptyState message="No stock rows match the filter." />
+                  <EmptyState message="Нет строк остатков по фильтру." />
                 ) : (
                   <ul className="stock-list">
                     {filtered.map((row) => (
@@ -153,11 +153,11 @@ export default function OperationalStockPage() {
                             {row.itemName} ({row.itemCode})
                           </strong>
                           <div className="meta-row">
-                            <span>On hand {row.onHandQuantity}</span>
-                            <span>Reserved {row.reservedQuantity}</span>
-                            <span>Available {row.availableQuantity}</span>
+                            <span>На складе {row.onHandQuantity}</span>
+                            <span>Зарезервировано {row.reservedQuantity}</span>
+                            <span>Доступно {row.availableQuantity}</span>
                             {!data.costRedacted && row.unitCost != null ? (
-                              <span>Cost {row.unitCost}</span>
+                              <span>Себестоимость {row.unitCost}</span>
                             ) : null}
                           </div>
                         </div>

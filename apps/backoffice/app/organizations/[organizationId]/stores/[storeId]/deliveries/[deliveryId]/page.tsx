@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
@@ -91,7 +91,7 @@ export default function DeliveryDetailPage() {
         routes.find((r) => r.stops.some((s) => s.deliveryJobId === deliveryId)) ?? null;
       setRoute(matched);
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Failed to load delivery');
+      setError(err instanceof ApiClientError ? err.message : 'Не удалось загрузить доставку');
     } finally {
       setLoading(false);
     }
@@ -109,7 +109,7 @@ export default function DeliveryDetailPage() {
       await action();
       await load();
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Action failed');
+      setError(err instanceof ApiClientError ? err.message : 'Действие не выполнено');
     } finally {
       setBusy(false);
     }
@@ -151,7 +151,7 @@ export default function DeliveryDetailPage() {
     return (
       <main>
         <PageContainer>
-          <ErrorState message="Access denied: delivery:read required." />
+          <ErrorState message="Доступ запрещён: требуется delivery:read." />
         </PageContainer>
       </main>
     );

@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
@@ -65,7 +65,7 @@ export default function StoreDetailPage() {
       })
       .catch((err: unknown) => {
         if (cancelled) return;
-        setError(err instanceof ApiClientError ? err.message : 'Failed to load');
+        setError(err instanceof ApiClientError ? err.message : 'Не удалось загрузить');
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -82,12 +82,12 @@ export default function StoreDetailPage() {
     <main>
       <PageContainer>
         <PageHeader
-          title={store ? `${store.name} (${store.code})` : 'Store'}
-          description={store ? store.timezone : 'Loading store details…'}
+          title={store ? `${store.name} (${store.code})` : 'Магазин'}
+          description={store ? store.timezone : 'Загрузка данных магазина…'}
           breadcrumbs={[
-            { label: 'Organizations', href: '/organizations' },
-            { label: 'Organization', href: `/organizations/${organizationId}` },
-            { label: store?.name ?? 'Store' },
+            { label: 'Организации', href: '/organizations' },
+            { label: 'Организация', href: `/organizations/${organizationId}` },
+            { label: store?.name ?? 'Магазин' },
           ]}
           actions={store ? <StatusBadge status={store.status} /> : undefined}
         />
@@ -107,7 +107,7 @@ export default function StoreDetailPage() {
                     variant="secondary"
                     onClick={() => router.push(`${base}/operations`)}
                   >
-                    Operations
+                    Операции
                   </Button>
                 ) : null}
                 <Button type="button" variant="secondary" onClick={() => router.push(`${base}/orders`)}>
@@ -158,13 +158,13 @@ export default function StoreDetailPage() {
           </Section>
         ) : null}
 
-        {loading ? <LoadingState message="Loading store…" /> : null}
+        {loading ? <LoadingState message="Загрузка магазина…" /> : null}
         {error ? <ErrorState message={error} /> : null}
 
         {!loading && !error && store ? (
           <>
             <Section>
-              <Card title="Store details">
+              <Card title="Данные магазина">
                 <div className="meta-row">
                   <StatusBadge status={store.status} />
                   <span>{store.timezone}</span>
@@ -172,15 +172,15 @@ export default function StoreDetailPage() {
                 {store.address ? (
                   <p style={{ margin: '12px 0 0' }}>{store.address}</p>
                 ) : (
-                  <p style={{ margin: '12px 0 0', color: 'var(--color-muted)' }}>No address set.</p>
+                  <p style={{ margin: '12px 0 0', color: 'var(--color-muted)' }}>Адрес не указан.</p>
                 )}
               </Card>
             </Section>
 
             <Section>
-              <Card title="Default warehouse">
+              <Card title="Склад по умолчанию">
                 {!defaultWarehouse ? (
-                  <EmptyState message="No warehouse found for this store." />
+                  <EmptyState message="Склад для этого магазина не найден." />
                 ) : (
                   <div style={{ display: 'grid', gap: 8 }}>
                     <div className="meta-row">
@@ -195,7 +195,7 @@ export default function StoreDetailPage() {
                       ) : (
                         <StatusBadge status="WAREHOUSE" />
                       )}
-                      <span>Type: {defaultWarehouse.type}</span>
+                      <span>Тип: {defaultWarehouse.type}</span>
                       <span style={{ color: 'var(--color-muted)', fontSize: 'var(--text-xs)' }}>
                         {defaultWarehouse.id}
                       </span>
@@ -205,7 +205,7 @@ export default function StoreDetailPage() {
                         Остатки / партии / движения
                       </Link>
                       {auth.hasPermission('inventory:read') ? (
-                        <Link href={`${base}/stock`}>Operational stock</Link>
+                        <Link href={`${base}/stock`}>Операционные остатки</Link>
                       ) : null}
                     </div>
                   </div>
@@ -220,7 +220,7 @@ export default function StoreDetailPage() {
                     <Link href={`${base}/today`}>Сегодня</Link>
                   ) : null}
                   {auth.hasPermission('operations:read') ? (
-                    <Link href={`${base}/operations`}>Operations</Link>
+                    <Link href={`${base}/operations`}>Операции</Link>
                   ) : null}
                   <Link href={`${base}/orders`}>Очередь заказов</Link>
                   <Link href={`${base}/sales`}>Продажи</Link>

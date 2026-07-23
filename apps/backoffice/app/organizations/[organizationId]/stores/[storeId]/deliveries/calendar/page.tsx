@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
@@ -45,7 +45,7 @@ export default function DeliveriesCalendarPage() {
       const calendar = await getApiClient().getDeliveryCalendar(organizationId, storeId, date);
       setData(calendar);
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Failed to load calendar');
+      setError(err instanceof ApiClientError ? err.message : 'Не удалось загрузить календарь');
     } finally {
       setLoading(false);
     }
@@ -60,7 +60,7 @@ export default function DeliveriesCalendarPage() {
     return (
       <main>
         <PageContainer>
-          <ErrorState message="Access denied: delivery:read required." />
+          <ErrorState message="Доступ запрещён: требуется delivery:read." />
         </PageContainer>
       </main>
     );
@@ -83,7 +83,7 @@ export default function DeliveriesCalendarPage() {
           }
         />
 
-        <nav className="delivery-tabs" aria-label="Delivery views">
+        <nav className="delivery-tabs" aria-label="Виды доставки">
           <Link href={`${base}/deliveries`}>Доска</Link>
           <Link href={`${base}/deliveries/map`}>Карта</Link>
           <Link href={`${base}/deliveries/calendar`} aria-current="page">

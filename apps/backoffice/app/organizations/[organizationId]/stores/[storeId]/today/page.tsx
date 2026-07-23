@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
@@ -20,11 +20,11 @@ import {
 } from '@/components/workspace/workspace-ui';
 
 const PRIMARY_ACTION_LABEL: Record<string, string> = {
-  CLAIM: 'Claim',
-  START_PREPARATION: 'Start prep',
-  EDIT_ACTUAL: 'Edit actual',
-  MARK_READY: 'Mark ready',
-  CREATE_SALE: 'Create sale',
+  CLAIM: 'Взять',
+  START_PREPARATION: 'Начать подготовку',
+  EDIT_ACTUAL: 'Изменить факт',
+  MARK_READY: 'Отметить готовым',
+  CREATE_SALE: 'Создать продажу',
   VIEW: 'Open',
   NONE: 'Open',
 };
@@ -53,7 +53,7 @@ export default function TodayWorkspacePage() {
       setData(today);
       setCapturedAt(Date.now());
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Failed to load workspace');
+      setError(err instanceof ApiClientError ? err.message : 'Не удалось загрузить рабочее пространство');
     } finally {
       setLoading(false);
     }
@@ -88,7 +88,7 @@ export default function TodayWorkspacePage() {
       }
       await load();
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Action failed');
+      setError(err instanceof ApiClientError ? err.message : 'Действие не выполнено');
     } finally {
       setBusy(false);
     }
@@ -101,12 +101,12 @@ export default function TodayWorkspacePage() {
     try {
       const result = await getApiClient().claimNextOrder(organizationId, storeId);
       if (result.code === 'NO_ORDER_AVAILABLE' || !result.order) {
-        setMessage('No order available to claim.');
+        setMessage('Нет заказа для взятия в работу.');
         return;
       }
       router.push(`${base}/work-orders/${result.order.id}`);
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Claim next failed');
+      setError(err instanceof ApiClientError ? err.message : 'Не удалось взять следующий заказ');
     } finally {
       setBusy(false);
     }
@@ -125,7 +125,7 @@ export default function TodayWorkspacePage() {
       <Section>
         <Card title={title}>
           {cards.length === 0 ? (
-            <EmptyState message="Nothing here." />
+            <EmptyState message="Пока ничего нет." />
           ) : (
             <div className="order-card-list">
               {cards.map((card) => (
@@ -161,7 +161,7 @@ export default function TodayWorkspacePage() {
     return (
       <main>
         <PageContainer>
-          <ErrorState message="Access denied: workspace:read or orders:read required." />
+          <ErrorState message="Доступ запрещён: требуется workspace:read или orders:read." />
         </PageContainer>
       </main>
     );
@@ -175,26 +175,26 @@ export default function TodayWorkspacePage() {
       <PageContainer>
         <PageHeader
           title="Сегодня"
-          description="Florist workspace for today’s queue"
+          description="Рабочее место флориста: очередь на сегодня"
           breadcrumbs={[
-            { label: 'Store', href: base },
+            { label: 'Магазин', href: base },
             { label: 'Сегодня' },
           ]}
           actions={
             <div className="page-header__actions">
               {canClaimNext ? (
                 <Button type="button" disabled={busy} onClick={() => void claimNext()}>
-                  Claim next
+                  Взять следующий
                 </Button>
               ) : null}
               <Button type="button" variant="secondary" disabled={busy} onClick={() => void load()}>
-                Refresh
+                Обновить
               </Button>
             </div>
           }
         />
 
-        {loading ? <LoadingState message="Loading workspace…" /> : null}
+        {loading ? <LoadingState message="Загрузка рабочего пространства…" /> : null}
         {error ? <ErrorState message={error} /> : null}
         {message ? <InlineAlert tone="info">{message}</InlineAlert> : null}
 
@@ -203,40 +203,40 @@ export default function TodayWorkspacePage() {
             <Section>
               <div className="metric-grid">
                 <MetricCard
-                  label="Overdue"
+                  label="Просрочены"
                   value={data.counters.overdue.count}
                   href={filterHref(data.counters.overdue.filterLink)}
                   tone="danger"
                 />
                 <MetricCard
-                  label="Soon"
+                  label="Скоро"
                   value={data.counters.soon.count}
                   href={filterHref(data.counters.soon.filterLink)}
                   tone="warning"
                 />
                 <MetricCard
-                  label="Unassigned"
+                  label="Без назначения"
                   value={data.counters.unassigned.count}
                   href={filterHref(data.counters.unassigned.filterLink)}
                 />
                 <MetricCard
-                  label="In prep"
+                  label="В подготовке"
                   value={data.counters.inPreparation.count}
                   href={filterHref(data.counters.inPreparation.filterLink)}
                 />
                 <MetricCard
-                  label="Ready"
+                  label="Готовы"
                   value={data.counters.ready.count}
                   href={filterHref(data.counters.ready.filterLink)}
                   tone="success"
                 />
                 <MetricCard
-                  label="Today"
+                  label="Сегодня"
                   value={data.counters.today.count}
                   href={filterHref(data.counters.today.filterLink)}
                 />
                 <MetricCard
-                  label="Shortage"
+                  label="Нехватка"
                   value={data.counters.partiallyReserved.count}
                   href={filterHref(data.counters.partiallyReserved.filterLink)}
                   tone="warning"
@@ -246,7 +246,7 @@ export default function TodayWorkspacePage() {
 
             {data.attentionItems.length > 0 || data.lowStockWarnings.length > 0 ? (
               <Section>
-                <Card title="Attention">
+                <Card title="Требует внимания">
                   <div className="attention-list">
                     {data.attentionItems.slice(0, data.sectionLimit).map((item) => (
                       <AttentionItem
@@ -271,7 +271,7 @@ export default function TodayWorkspacePage() {
                         tone="warning"
                         title={`Low stock: ${warning.itemName}`}
                       >
-                        Operational warning — {warning.itemCode}: available{' '}
+                        Операционное предупреждение — {warning.itemCode}: доступно{' '}
                         {warning.availableQuantity} (threshold {warning.threshold}).{' '}
                         <Link href={`${base}/stock`}>View stock</Link>
                       </InlineAlert>
@@ -283,7 +283,7 @@ export default function TodayWorkspacePage() {
 
             {data.quickActions.length > 0 ? (
               <Section>
-                <Card title="Quick actions">
+                <Card title="Быстрые действия">
                   <div className="page-header__actions">
                     {data.quickActions.map((action) => {
                       if (action.code === 'CLAIM_NEXT') {
@@ -342,10 +342,10 @@ export default function TodayWorkspacePage() {
             ) : null}
 
             {sectionCards('Urgent', data.sections.soon)}
-            {sectionCards('In preparation', data.sections.inPreparation)}
+            {sectionCards('В подготовке', data.sections.inPreparation)}
             {sectionCards('Unassigned', data.sections.unassigned)}
-            {sectionCards('Ready', data.sections.ready)}
-            {sectionCards('Overdue', data.sections.overdue)}
+            {sectionCards('Готовы', data.sections.ready)}
+            {sectionCards('Просрочены', data.sections.overdue)}
           </>
         ) : null}
       </PageContainer>

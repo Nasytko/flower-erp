@@ -2,19 +2,19 @@ import type { ButtonHTMLAttributes, InputHTMLAttributes, PropsWithChildren, CSSP
 
 const variantStyles: Record<'primary' | 'secondary' | 'ghost', CSSProperties> = {
   primary: {
-    background: 'var(--color-primary, #1f6b43)',
+    background: 'var(--color-primary, #1a7a45)',
     color: 'var(--color-primary-foreground, #ffffff)',
     border: '1px solid transparent',
   },
   secondary: {
-    background: 'var(--color-surface-muted, #e9eee9)',
-    color: 'var(--color-foreground, #14231a)',
-    border: '1px solid var(--color-border, #d5ded7)',
+    background: 'var(--color-surface-muted, #e4ebe5)',
+    color: 'var(--color-foreground, #0f1f16)',
+    border: '1px solid var(--color-border, #d0dbd3)',
   },
   ghost: {
     background: 'transparent',
-    color: 'var(--color-foreground, #14231a)',
-    border: '1px solid var(--color-border, #d5ded7)',
+    color: 'var(--color-foreground, #0f1f16)',
+    border: '1px solid var(--color-border, #d0dbd3)',
   },
 };
 
@@ -22,22 +22,35 @@ export type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: 'primary' | 'secondary' | 'ghost';
 };
 
-export function Button({ variant = 'primary', style, type = 'button', ...props }: ButtonProps) {
+export function Button({ variant = 'primary', style, type = 'button', onFocus, onBlur, ...props }: ButtonProps) {
   return (
     <button
       type={type}
       {...props}
+      onFocus={(event) => {
+        event.currentTarget.style.outline = '2px solid var(--color-focus-ring, #2d8a56)';
+        event.currentTarget.style.outlineOffset = '2px';
+        onFocus?.(event);
+      }}
+      onBlur={(event) => {
+        event.currentTarget.style.outline = '';
+        event.currentTarget.style.outlineOffset = '';
+        onBlur?.(event);
+      }}
       style={{
         ...variantStyles[variant],
-        borderRadius: 'var(--radius-sm, 6px)',
-        padding: '10px 14px',
-        minHeight: 40,
+        borderRadius: 'var(--radius-sm, 8px)',
+        padding: '10px 16px',
+        minHeight: 42,
         fontWeight: 600,
         fontSize: 'var(--text-sm, 0.875rem)',
+        fontFamily: 'inherit',
+        letterSpacing: '-0.01em',
         cursor: props.disabled ? 'not-allowed' : 'pointer',
         opacity: props.disabled ? 0.65 : 1,
+        boxShadow: variant === 'primary' ? 'var(--shadow-sm, none)' : undefined,
         transition:
-          'background-color var(--motion-fast, 120ms) var(--ease-standard, ease), border-color var(--motion-fast, 120ms) var(--ease-standard, ease)',
+          'background-color var(--motion-fast, 120ms) var(--ease-standard, ease), border-color var(--motion-fast, 120ms) var(--ease-standard, ease), box-shadow var(--motion-fast, 120ms) var(--ease-standard, ease)',
         ...style,
       }}
     />
@@ -46,20 +59,36 @@ export function Button({ variant = 'primary', style, type = 'button', ...props }
 
 export type InputProps = InputHTMLAttributes<HTMLInputElement>;
 
-export function Input(props: InputProps) {
+export function Input({ onFocus, onBlur, style, ...props }: InputProps) {
   return (
     <input
       {...props}
+      onFocus={(event) => {
+        event.currentTarget.style.borderColor = 'var(--color-focus-ring, #2d8a56)';
+        event.currentTarget.style.boxShadow =
+          '0 0 0 3px color-mix(in srgb, var(--color-focus-ring, #2d8a56) 25%, transparent)';
+        event.currentTarget.style.outline = 'none';
+        onFocus?.(event);
+      }}
+      onBlur={(event) => {
+        event.currentTarget.style.borderColor = '';
+        event.currentTarget.style.boxShadow = '';
+        onBlur?.(event);
+      }}
       style={{
         width: '100%',
-        border: '1px solid var(--color-border, #d5ded7)',
-        borderRadius: 'var(--radius-sm, 6px)',
+        boxSizing: 'border-box',
+        border: '1px solid var(--color-border, #d0dbd3)',
+        borderRadius: 'var(--radius-sm, 8px)',
         padding: '10px 12px',
-        minHeight: 40,
+        minHeight: 42,
         fontSize: 'var(--text-sm, 0.875rem)',
+        fontFamily: 'inherit',
         background: 'var(--color-surface, #ffffff)',
-        color: 'var(--color-foreground, #14231a)',
-        ...props.style,
+        color: 'var(--color-foreground, #0f1f16)',
+        transition:
+          'border-color var(--motion-fast, 120ms) var(--ease-standard, ease), box-shadow var(--motion-fast, 120ms) var(--ease-standard, ease)',
+        ...style,
       }}
     />
   );
@@ -73,9 +102,9 @@ export function Card({ title, children }: CardProps) {
   return (
     <section
       style={{
-        border: '1px solid var(--color-border, #d5ded7)',
-        borderRadius: 'var(--radius-md, 10px)',
-        padding: 'var(--space-4, 16px)',
+        border: '1px solid var(--color-border, #d0dbd3)',
+        borderRadius: 'var(--radius-md, 12px)',
+        padding: 'var(--space-5, 1.25rem)',
         background: 'var(--color-surface, #ffffff)',
         boxShadow: 'var(--shadow-sm, none)',
         minWidth: 0,
@@ -87,6 +116,7 @@ export function Card({ title, children }: CardProps) {
             margin: '0 0 12px',
             fontSize: 'var(--text-md, 1rem)',
             fontWeight: 650,
+            letterSpacing: '-0.015em',
           }}
         >
           {title}

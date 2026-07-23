@@ -14,6 +14,6 @@ test.describe('auth smoke', () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/login');
     await expect(page.getByRole('heading', { name: 'Flower ERP' })).toBeVisible();
-    await expect(page.getByRole('button', { name: /Sign in/i })).toBeVisible();
+    await expect(page.getByRole('button', { name: /Войти/i })).toBeVisible();
   });
 });

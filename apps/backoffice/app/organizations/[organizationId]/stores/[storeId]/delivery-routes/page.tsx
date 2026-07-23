@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import Link from 'next/link';
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
@@ -50,7 +50,7 @@ export default function DeliveryRoutesPage() {
       setRoutes(list);
       setCouriers(courierList);
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Failed to load routes');
+      setError(err instanceof ApiClientError ? err.message : 'Не удалось загрузить маршруты');
     } finally {
       setLoading(false);
     }
@@ -75,7 +75,7 @@ export default function DeliveryRoutesPage() {
       setName('');
       window.location.href = `${base}/delivery-routes/${route.id}`;
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Create failed');
+      setError(err instanceof ApiClientError ? err.message : 'Не удалось создать');
       setBusy(false);
     }
   }
@@ -84,7 +84,7 @@ export default function DeliveryRoutesPage() {
     return (
       <main>
         <PageContainer>
-          <ErrorState message="Access denied: delivery:read required." />
+          <ErrorState message="Доступ запрещён: требуется delivery:read." />
         </PageContainer>
       </main>
     );

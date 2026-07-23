@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -54,7 +54,7 @@ export default function DeliveriesBoardPage() {
       const data = await getApiClient().getDeliveryBoard(organizationId, storeId, date);
       setBoard(data);
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Failed to load board');
+      setError(err instanceof ApiClientError ? err.message : 'Не удалось загрузить доску');
     } finally {
       setLoading(false);
     }
@@ -79,7 +79,7 @@ export default function DeliveriesBoardPage() {
     return (
       <main>
         <PageContainer>
-          <ErrorState message="Access denied: delivery:read required." />
+          <ErrorState message="Доступ запрещён: требуется delivery:read." />
         </PageContainer>
       </main>
     );
@@ -92,7 +92,7 @@ export default function DeliveriesBoardPage() {
           title="Доставка"
           description="Операционная доска доставок на день."
           breadcrumbs={[
-            { label: 'Store', href: base },
+            { label: 'Магазин', href: base },
             { label: 'Доставка' },
           ]}
           actions={
@@ -118,7 +118,7 @@ export default function DeliveriesBoardPage() {
           }
         />
 
-        <nav className="delivery-tabs" aria-label="Delivery views">
+        <nav className="delivery-tabs" aria-label="Виды доставки">
           <Link href={`${base}/deliveries`} aria-current="page">
             Доска
           </Link>

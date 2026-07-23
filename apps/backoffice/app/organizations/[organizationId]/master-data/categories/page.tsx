@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useState, type FormEvent } from 'react';
 import { useParams } from 'next/navigation';
@@ -39,7 +39,7 @@ export default function CategoriesPage() {
       const res = await getApiClient().listCategories(organizationId, 1, 100);
       setItems(res.items);
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Failed to load');
+      setError(err instanceof ApiClientError ? err.message : 'Не удалось загрузить');
     } finally {
       setLoading(false);
     }
@@ -65,7 +65,7 @@ export default function CategoriesPage() {
       setParentId('');
       await load();
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Create failed');
+      setError(err instanceof ApiClientError ? err.message : 'Не удалось создать');
     } finally {
       setCreating(false);
     }
@@ -77,7 +77,7 @@ export default function CategoriesPage() {
       await getApiClient().archiveCategory(organizationId, categoryId);
       await load();
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Archive failed');
+      setError(err instanceof ApiClientError ? err.message : 'Не удалось архивировать');
     }
   }
 
@@ -88,8 +88,8 @@ export default function CategoriesPage() {
           title="Категории"
           description="Дерево категорий. Архивация запрещена при детях или активных товарах."
           breadcrumbs={[
-            { label: 'Organizations', href: '/organizations' },
-            { label: 'Organization', href: `/organizations/${organizationId}` },
+            { label: 'Организации', href: '/organizations' },
+            { label: 'Организация', href: `/organizations/${organizationId}` },
             { label: 'Справочники', href: base },
             { label: 'Категории' },
           ]}
@@ -146,19 +146,19 @@ export default function CategoriesPage() {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
-                aria-label="Category name"
+                aria-label="Название категории"
               />
               <Input
                 placeholder="Код"
                 value={code}
                 onChange={(e) => setCode(e.target.value)}
                 required
-                aria-label="Category code"
+                aria-label="Код категории"
               />
               <select
                 value={parentId}
                 onChange={(e) => setParentId(e.target.value)}
-                aria-label="Parent category"
+                aria-label="Родительская категория"
                 style={{ minHeight: 40, borderRadius: 6, border: '1px solid var(--color-border)', padding: 8 }}
               >
                 <option value="">Без родителя</option>

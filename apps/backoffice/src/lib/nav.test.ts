@@ -33,7 +33,7 @@ test('parseStoreRoute extracts org and store ids', () => {
 test('PRIMARY_NAV includes today, operations, stock, supplies, delivery', () => {
   const labels = PRIMARY_NAV.map((item) => item.label);
   assert.ok(labels.includes('Сегодня'));
-  assert.ok(labels.includes('Operations'));
+  assert.ok(labels.includes('Операции'));
   assert.ok(labels.includes('Остатки'));
   assert.ok(labels.includes('Поставки'));
   assert.ok(labels.includes('Заказы'));

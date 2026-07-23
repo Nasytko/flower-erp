@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
@@ -48,7 +48,7 @@ export default function DeliveryRouteDetailPage() {
       });
       setJobs(deliveries);
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Failed to load route');
+      setError(err instanceof ApiClientError ? err.message : 'Не удалось загрузить маршрут');
     } finally {
       setLoading(false);
     }
@@ -66,7 +66,7 @@ export default function DeliveryRouteDetailPage() {
       const next = await action();
       setRoute(next);
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Action failed');
+      setError(err instanceof ApiClientError ? err.message : 'Действие не выполнено');
     } finally {
       setBusy(false);
     }
@@ -102,7 +102,7 @@ export default function DeliveryRouteDetailPage() {
     return (
       <main>
         <PageContainer>
-          <ErrorState message="Access denied." />
+          <ErrorState message="Доступ запрещён." />
         </PageContainer>
       </main>
     );

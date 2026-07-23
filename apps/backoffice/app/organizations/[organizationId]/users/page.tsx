@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { FormEvent, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
@@ -37,7 +37,7 @@ export default function UsersPage() {
       const rows = await getApiClient().listUsers(params.organizationId);
       setUsers(rows);
     } catch {
-      setError('Failed to load users');
+      setError('Не удалось загрузить пользователей');
     } finally {
       setLoading(false);
     }
@@ -60,14 +60,14 @@ export default function UsersPage() {
       setDisplayName('');
       await load();
     } catch {
-      setError('Failed to create user');
+      setError('Не удалось создать пользователя');
     } finally {
       setCreating(false);
     }
   }
 
   if (!auth.hasPermission('users:read')) {
-    return <p className="page-state">Access denied</p>;
+    return <p className="page-state">Доступ запрещён</p>;
   }
 
   const client = getApiClient();
@@ -76,12 +76,12 @@ export default function UsersPage() {
     <main>
       <PageContainer>
         <PageHeader
-          title="Users"
-          description="Organization members and access"
+          title="Пользователи"
+          description="Участники организации и их доступ"
           breadcrumbs={[
-            { label: 'Organizations', href: '/organizations' },
-            { label: 'Organization', href: `/organizations/${params.organizationId}` },
-            { label: 'Users' },
+            { label: 'Организации', href: '/organizations' },
+            { label: 'Организация', href: `/organizations/${params.organizationId}` },
+            { label: 'Пользователи' },
           ]}
         />
         {loading ? <LoadingState /> : null}
@@ -89,22 +89,22 @@ export default function UsersPage() {
 
         {auth.hasPermission('users:manage') ? (
           <Section>
-            <Card title="Create user">
+            <Card title="Создать пользователя">
               <form onSubmit={onCreate} className="stack-form">
-                <Input value={login} onChange={(e) => setLogin(e.target.value)} placeholder="Login" />
+                <Input value={login} onChange={(e) => setLogin(e.target.value)} placeholder="Логин" />
                 <Input
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Password (min 10)"
+                  placeholder="Пароль (мин. 10 символов)"
                 />
                 <Input
                   value={displayName}
                   onChange={(e) => setDisplayName(e.target.value)}
-                  placeholder="Display name"
+                  placeholder="Отображаемое имя"
                 />
                 <Button type="submit" disabled={creating}>
-                  Create
+                  {creating ? 'Создание…' : 'Создать'}
                 </Button>
               </form>
             </Card>
@@ -112,7 +112,7 @@ export default function UsersPage() {
         ) : null}
 
         <Section>
-          <Card title="Members">
+          <Card title="Участники">
             <ul className="list-stack">
               {users.map((user) => (
                 <li key={user.id}>
@@ -133,7 +133,7 @@ export default function UsersPage() {
                             .then(() => load())
                         }
                       >
-                        Block
+                        Заблокировать
                       </Button>
                     ) : null}
                     {auth.hasPermission('users:manage') && user.status === 'BLOCKED' ? (
@@ -147,7 +147,7 @@ export default function UsersPage() {
                             .then(() => load())
                         }
                       >
-                        Unblock
+                        Разблокировать
                       </Button>
                     ) : null}
                     {auth.hasPermission('roles:manage') ? (
@@ -164,7 +164,7 @@ export default function UsersPage() {
                             .then(() => load())
                         }
                       >
-                        Assign FLORIST
+                        Назначить FLORIST
                       </Button>
                     ) : null}
                   </div>

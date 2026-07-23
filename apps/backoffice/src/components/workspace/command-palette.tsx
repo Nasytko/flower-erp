@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/components/auth-provider';
+import { t } from '@/i18n/ru';
 import {
   filterNavByPermissions,
   parseStoreRoute,
@@ -37,13 +38,13 @@ export function CommandPalette() {
       id: `nav:${item.href}`,
       label: item.label,
       href: item.href,
-      group: 'Navigate' as const,
+      group: t('navigate'),
     }));
     const actionEntries = actionItems.map((item) => ({
       id: `action:${item.id}`,
       label: item.label,
       href: item.href,
-      group: 'Actions' as const,
+      group: t('actions'),
     }));
     const all = [...actionEntries, ...navEntries];
     const q = query.trim().toLowerCase();
@@ -110,20 +111,20 @@ export function CommandPalette() {
 
   return (
     <div className="command-palette" role="presentation">
-      <button type="button" className="command-palette__backdrop" aria-label="Close" onClick={close} />
+      <button type="button" className="command-palette__backdrop" aria-label={t('close')} onClick={close} />
       <div
         ref={panelRef}
         className="command-palette__panel"
         role="dialog"
         aria-modal="true"
-        aria-label="Command palette"
+        aria-label={t('commandPalette')}
       >
         <input
           ref={inputRef}
           className="command-palette__input"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder="Search navigation and actions…"
+          placeholder={t('commandPlaceholder')}
           aria-controls={listId}
           aria-autocomplete="list"
           onKeyDown={(event) => {
@@ -142,7 +143,7 @@ export function CommandPalette() {
         />
         <ul id={listId} className="command-palette__list" role="listbox">
           {entries.length === 0 ? (
-            <li className="command-palette__empty">No matches</li>
+            <li className="command-palette__empty">{t('commandEmpty')}</li>
           ) : (
             entries.map((entry, index) => (
               <li key={entry.id} role="option" aria-selected={index === activeIndex}>
@@ -163,7 +164,7 @@ export function CommandPalette() {
             ))
           )}
         </ul>
-        <p className="command-palette__hint">Esc to close · ↑↓ to move · Enter to open</p>
+        <p className="command-palette__hint">{t('commandHint')}</p>
       </div>
     </div>
   );

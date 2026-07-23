@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -61,7 +61,7 @@ export default function WriteOffsPage() {
       setDocs(nextDocs);
       setWarehouses(nextWarehouses);
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Failed to load write-offs');
+      setError(err instanceof ApiClientError ? err.message : 'Не удалось загрузить списания');
     } finally {
       setLoading(false);
     }
@@ -84,14 +84,14 @@ export default function WriteOffsPage() {
       });
       window.location.href = `${base}/write-offs/${doc.id}`;
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Failed to create write-off');
+      setError(err instanceof ApiClientError ? err.message : 'Не удалось создать списание');
     } finally {
       setCreating(false);
     }
   }
 
   if (!auth.hasPermission('write-offs:read')) {
-    return <main><PageContainer><ErrorState message="Access denied: write-offs:read required." /></PageContainer></main>;
+    return <main><PageContainer><ErrorState message="Доступ запрещён: требуется write-offs:read." /></PageContainer></main>;
   }
 
   return (
@@ -99,16 +99,16 @@ export default function WriteOffsPage() {
       <PageContainer>
         <PageHeader
           title="Списания"
-          description="Draft, post, and reverse inventory write-offs."
-          breadcrumbs={[{ label: 'Store', href: base }, { label: 'Списания' }]}
+          description="Черновик, проведение и сторнирование списаний."
+          breadcrumbs={[{ label: 'Магазин', href: base }, { label: 'Списания' }]}
           actions={
             <Button type="button" variant="secondary" onClick={() => void load()}>
-              Refresh
+              Обновить
             </Button>
           }
         />
 
-        {loading ? <LoadingState message="Loading write-offs…" /> : null}
+        {loading ? <LoadingState message="Загрузка списаний…" /> : null}
         {error ? <ErrorState message={error} /> : null}
 
         {!loading && !error ? (
@@ -119,10 +119,10 @@ export default function WriteOffsPage() {
                   <div className="stock-filters">
                     <label>
                       <div>Warehouse</div>
-                      <Input value={defaultWarehouse ? `${defaultWarehouse.name} (${defaultWarehouse.code})` : 'No warehouse'} readOnly />
+                      <Input value={defaultWarehouse ? `${defaultWarehouse.name} (${defaultWarehouse.code})` : 'Склад не найден'} readOnly />
                     </label>
                     <label>
-                      <div>Reason</div>
+                      <div>Причина</div>
                       <select value={reason} onChange={(e) => setReason(e.target.value as WriteOffReason)}>
                         {REASONS.map((value) => (
                           <option key={value} value={value}>
@@ -132,11 +132,11 @@ export default function WriteOffsPage() {
                       </select>
                     </label>
                     <label style={{ minWidth: 260 }}>
-                      <div>Comment</div>
-                      <Input value={comment} onChange={(e) => setComment(e.target.value)} placeholder="Optional comment" />
+                      <div>Комментарий</div>
+                      <Input value={comment} onChange={(e) => setComment(e.target.value)} placeholder="Комментарий (необязательно)" />
                     </label>
                     <Button type="button" onClick={() => void createDraft()} disabled={!defaultWarehouse || creating}>
-                      {creating ? 'Creating…' : 'Create draft'}
+                      {creating ? 'Создание…' : 'Создать черновик'}
                     </Button>
                   </div>
                 </Card>
@@ -146,7 +146,7 @@ export default function WriteOffsPage() {
             <Section>
               <Card title={`Документы (${docs.length})`}>
                 {docs.length === 0 ? (
-                  <EmptyState message="No write-offs yet." />
+                  <EmptyState message="Списаний пока нет." />
                 ) : (
                   <ul className="stock-list">
                     {docs.map((doc) => (

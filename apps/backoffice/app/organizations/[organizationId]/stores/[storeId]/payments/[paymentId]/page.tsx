@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import Link from 'next/link';
 import { useEffect, useState, type FormEvent } from 'react';
@@ -63,7 +63,7 @@ export default function PaymentDetailPage() {
         setRefundMethodId(methodList[0].id);
       }
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Failed to load');
+      setError(err instanceof ApiClientError ? err.message : 'Не удалось загрузить');
     } finally {
       setLoading(false);
     }
@@ -82,7 +82,7 @@ export default function PaymentDetailPage() {
       await action();
       await load();
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Action failed');
+      setError(err instanceof ApiClientError ? err.message : 'Действие не выполнено');
     } finally {
       setBusy(false);
     }
@@ -131,7 +131,7 @@ export default function PaymentDetailPage() {
   }
 
   if (!auth.hasPermission('payments:read')) {
-    return <p className="page-state">Access denied</p>;
+    return <p className="page-state">Доступ запрещён</p>;
   }
 
   return (
@@ -141,9 +141,9 @@ export default function PaymentDetailPage() {
           title={payment ? `Платёж ${payment.number}` : 'Платёж'}
           description="DRAFT → COMPLETED → ANNULLED. Возвраты отдельно."
           breadcrumbs={[
-            { label: 'Organizations', href: '/organizations' },
-            { label: 'Organization', href: `/organizations/${organizationId}` },
-            { label: 'Store', href: base },
+            { label: 'Организации', href: '/organizations' },
+            { label: 'Организация', href: `/organizations/${organizationId}` },
+            { label: 'Магазин', href: base },
             { label: 'Платежи', href: `${base}/payments` },
             { label: payment?.number ?? 'Payment' },
           ]}

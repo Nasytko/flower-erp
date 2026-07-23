@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -44,7 +44,7 @@ export default function InventoryCountsPage() {
       setDocs(nextDocs);
       setWarehouses(nextWarehouses);
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Failed to load inventory counts');
+      setError(err instanceof ApiClientError ? err.message : 'Не удалось загрузить инвентаризации');
     } finally {
       setLoading(false);
     }
@@ -66,14 +66,14 @@ export default function InventoryCountsPage() {
       });
       window.location.href = `${base}/inventory-counts/${doc.id}`;
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Failed to create count');
+      setError(err instanceof ApiClientError ? err.message : 'Не удалось создать инвентаризацию');
     } finally {
       setCreating(false);
     }
   }
 
   if (!auth.hasPermission('inventory-counts:read')) {
-    return <main><PageContainer><ErrorState message="Access denied: inventory-counts:read required." /></PageContainer></main>;
+    return <main><PageContainer><ErrorState message="Доступ запрещён: требуется inventory-counts:read." /></PageContainer></main>;
   }
 
   return (
@@ -81,12 +81,12 @@ export default function InventoryCountsPage() {
       <PageContainer>
         <PageHeader
           title="Инвентаризации"
-          description="Snapshot, count, and post inventory differences."
-          breadcrumbs={[{ label: 'Store', href: base }, { label: 'Инвентаризации' }]}
-          actions={<Button type="button" variant="secondary" onClick={() => void load()}>Refresh</Button>}
+          description="Снимок, подсчёт и проведение расхождений."
+          breadcrumbs={[{ label: 'Магазин', href: base }, { label: 'Инвентаризации' }]}
+          actions={<Button type="button" variant="secondary" onClick={() => void load()}>Обновить</Button>}
         />
 
-        {loading ? <LoadingState message="Loading inventory counts…" /> : null}
+        {loading ? <LoadingState message="Загрузка инвентаризаций…" /> : null}
         {error ? <ErrorState message={error} /> : null}
 
         {!loading && !error ? (
@@ -95,10 +95,10 @@ export default function InventoryCountsPage() {
               <Section>
                 <Card title="Создать инвентаризацию">
                   <div className="stock-filters">
-                    <Input value={defaultWarehouse ? `${defaultWarehouse.name} (${defaultWarehouse.code})` : 'No warehouse'} readOnly />
-                    <Input value={comment} onChange={(e) => setComment(e.target.value)} placeholder="Optional comment" />
+                    <Input value={defaultWarehouse ? `${defaultWarehouse.name} (${defaultWarehouse.code})` : 'Склад не найден'} readOnly />
+                    <Input value={comment} onChange={(e) => setComment(e.target.value)} placeholder="Комментарий (необязательно)" />
                     <Button type="button" onClick={() => void createDraft()} disabled={!defaultWarehouse || creating}>
-                      {creating ? 'Creating…' : 'Create snapshot'}
+                      {creating ? 'Создание…' : 'Создать снимок'}
                     </Button>
                   </div>
                 </Card>
@@ -108,7 +108,7 @@ export default function InventoryCountsPage() {
             <Section>
               <Card title={`Документы (${docs.length})`}>
                 {docs.length === 0 ? (
-                  <EmptyState message="No inventory counts yet." />
+                  <EmptyState message="Инвентаризаций пока нет." />
                 ) : (
                   <ul className="stock-list">
                     {docs.map((doc) => (
@@ -118,7 +118,7 @@ export default function InventoryCountsPage() {
                           <div className="meta-row">
                             <StatusBadge status={doc.status} />
                             <span>Items {doc.items.length}</span>
-                            <span>Version {doc.version}</span>
+                            <span>Версия {doc.version}</span>
                           </div>
                         </div>
                       </li>

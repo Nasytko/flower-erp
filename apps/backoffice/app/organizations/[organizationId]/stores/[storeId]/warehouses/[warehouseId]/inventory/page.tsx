@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
@@ -49,7 +49,7 @@ export default function WarehouseInventoryPage() {
         setMovements(m);
       })
       .catch((err: unknown) => {
-        if (!cancelled) setError(err instanceof ApiClientError ? err.message : 'Failed to load');
+        if (!cancelled) setError(err instanceof ApiClientError ? err.message : 'Не удалось загрузить');
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -66,8 +66,8 @@ export default function WarehouseInventoryPage() {
           title="Складские остатки"
           description="Только чтение. Изменение остатков — только через posting документов."
           breadcrumbs={[
-            { label: 'Store', href: base },
-            { label: 'Inventory' },
+            { label: 'Магазин', href: base },
+            { label: 'Остатки' },
           ]}
         />
         {loading ? <LoadingState /> : null}
@@ -75,7 +75,7 @@ export default function WarehouseInventoryPage() {
         {!loading && !error ? (
           <>
             <Section>
-              <Card title="Balances">
+              <Card title="Остатки">
                 {balances.length === 0 ? <EmptyState message="Нет остатков." /> : null}
                 <ul className="list-stack">
                   {balances.map((row) => (
@@ -84,8 +84,8 @@ export default function WarehouseInventoryPage() {
                         <strong>
                           {row.item?.name ?? row.itemId} ({row.item?.code})
                         </strong>
-                        <span>on hand {row.onHandQuantity}</span>
-                        <span>available {row.availableQuantity}</span>
+                        <span>на складе {row.onHandQuantity}</span>
+                        <span>доступно {row.availableQuantity}</span>
                       </div>
                     </li>
                   ))}
@@ -93,13 +93,13 @@ export default function WarehouseInventoryPage() {
               </Card>
             </Section>
             <Section>
-              <Card title="Batches">
+              <Card title="Партии">
                 <ul className="list-stack">
                   {batches.map((batch) => (
                     <li key={batch.id}>
                       <div className="meta-row">
                         <span>{batch.item?.name ?? batch.id}</span>
-                        <span>qty {batch.remainingQuantity}</span>
+                        <span>кол-во {batch.remainingQuantity}</span>
                         <StatusBadge status={batch.status} />
                       </div>
                     </li>
@@ -108,7 +108,7 @@ export default function WarehouseInventoryPage() {
               </Card>
             </Section>
             <Section>
-              <Card title="Movements">
+              <Card title="Движения">
                 <ul className="list-stack">
                   {movements.map((m) => (
                     <li key={m.id}>

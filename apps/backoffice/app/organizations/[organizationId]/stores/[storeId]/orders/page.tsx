@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import Link from 'next/link';
 import { useEffect, useState, type FormEvent } from 'react';
@@ -77,7 +77,7 @@ export default function OrdersPage() {
       const wh = warehouses.find((w) => w.isDefault) ?? warehouses[0];
       if (wh) setWarehouseId(wh.id);
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Failed to load');
+      setError(err instanceof ApiClientError ? err.message : 'Не удалось загрузить');
     } finally {
       setLoading(false);
     }
@@ -108,7 +108,7 @@ export default function OrdersPage() {
       });
       router.push(`${base}/orders/${created.id}`);
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Create failed');
+      setError(err instanceof ApiClientError ? err.message : 'Не удалось создать');
       setCreating(false);
     }
   }
@@ -137,7 +137,7 @@ export default function OrdersPage() {
   }
 
   if (!auth.hasPermission('orders:read')) {
-    return <p className="page-state">Access denied</p>;
+    return <p className="page-state">Доступ запрещён</p>;
   }
 
   const canCreate = auth.hasPermission('orders:create');
@@ -149,9 +149,9 @@ export default function OrdersPage() {
           title="Заказы"
           description="Очередь флориста: сегодня, просрочка, назначение, частичный резерв."
           breadcrumbs={[
-            { label: 'Organizations', href: '/organizations' },
-            { label: 'Organization', href: `/organizations/${organizationId}` },
-            { label: 'Store', href: base },
+            { label: 'Организации', href: '/organizations' },
+            { label: 'Организация', href: `/organizations/${organizationId}` },
+            { label: 'Магазин', href: base },
             { label: 'Заказы' },
           ]}
         />
@@ -212,12 +212,12 @@ export default function OrdersPage() {
                   onChange={(e) => setReadyAt(e.target.value)}
                 />
                 <Input
-                  placeholder="Reference URL"
+                  placeholder="URL референса"
                   value={referenceUrl}
                   onChange={(e) => setReferenceUrl(e.target.value)}
                 />
                 <Input
-                  placeholder="Reference comment"
+                  placeholder="Комментарий к референсу"
                   value={referenceComment}
                   onChange={(e) => setReferenceComment(e.target.value)}
                 />

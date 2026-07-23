@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
@@ -29,24 +29,24 @@ export default function AuditPage() {
     void getApiClient()
       .listAudit(params.organizationId, { limit: 100 })
       .then(setRows)
-      .catch(() => setError('Failed to load audit log'))
+      .catch(() => setError('Не удалось загрузить журнал аудита'))
       .finally(() => setLoading(false));
   }, [auth, params.organizationId]);
 
   if (!auth.hasPermission('audit:read')) {
-    return <p className="page-state">Access denied</p>;
+    return <p className="page-state">Доступ запрещён</p>;
   }
 
   return (
     <main>
       <PageContainer>
         <PageHeader
-          title="Audit log"
-          description="Append-only security and business events"
+          title="Журнал аудита"
+          description="Только добавление: события безопасности и бизнеса"
           breadcrumbs={[
-            { label: 'Organizations', href: '/organizations' },
-            { label: 'Organization', href: `/organizations/${params.organizationId}` },
-            { label: 'Audit' },
+            { label: 'Организации', href: '/organizations' },
+            { label: 'Организация', href: `/organizations/${params.organizationId}` },
+            { label: 'Аудит' },
           ]}
         />
         {loading ? <LoadingState /> : null}

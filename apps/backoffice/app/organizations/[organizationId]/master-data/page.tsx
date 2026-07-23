@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
@@ -25,10 +25,10 @@ export default function MasterDataHubPage() {
       <PageContainer>
         <PageHeader
           title="Справочники"
-          description="Master Data foundation. Без поставок, остатков и цен."
+          description="Справочники. Без поставок, остатков и цен."
           breadcrumbs={[
-            { label: 'Organizations', href: '/organizations' },
-            { label: 'Organization', href: `/organizations/${organizationId}` },
+            { label: 'Организации', href: '/organizations' },
+            { label: 'Организация', href: `/organizations/${organizationId}` },
             { label: 'Справочники' },
           ]}
         />

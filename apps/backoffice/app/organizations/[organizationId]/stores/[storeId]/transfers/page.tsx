@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -41,7 +41,7 @@ export default function TransfersPage() {
       setDocs(nextDocs);
       setWarehouses(nextWarehouses);
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Failed to load transfers');
+      setError(err instanceof ApiClientError ? err.message : 'Не удалось загрузить перемещения');
     } finally {
       setLoading(false);
     }
@@ -63,14 +63,14 @@ export default function TransfersPage() {
       });
       window.location.href = `${base}/transfers/${doc.id}`;
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Failed to create transfer');
+      setError(err instanceof ApiClientError ? err.message : 'Не удалось создать перемещение');
     } finally {
       setCreating(false);
     }
   }
 
   if (!auth.hasPermission('transfers:read')) {
-    return <main><PageContainer><ErrorState message="Access denied: transfers:read required." /></PageContainer></main>;
+    return <main><PageContainer><ErrorState message="Доступ запрещён: требуется transfers:read." /></PageContainer></main>;
   }
 
   return (
@@ -78,12 +78,12 @@ export default function TransfersPage() {
       <PageContainer>
         <PageHeader
           title="Перемещения"
-          description="Dispatch and receive inventory between warehouses."
-          breadcrumbs={[{ label: 'Store', href: base }, { label: 'Перемещения' }]}
-          actions={<Button type="button" variant="secondary" onClick={() => void load()}>Refresh</Button>}
+          description="Отправка и приём товаров между складами."
+          breadcrumbs={[{ label: 'Магазин', href: base }, { label: 'Перемещения' }]}
+          actions={<Button type="button" variant="secondary" onClick={() => void load()}>Обновить</Button>}
         />
 
-        {loading ? <LoadingState message="Loading transfers…" /> : null}
+        {loading ? <LoadingState message="Загрузка перемещений…" /> : null}
         {error ? <ErrorState message={error} /> : null}
 
         {!loading && !error ? (
@@ -95,7 +95,7 @@ export default function TransfersPage() {
                     <span>From: {fromWarehouse ? `${fromWarehouse.name} (${fromWarehouse.code})` : '—'}</span>
                     <span>To: {toWarehouse ? `${toWarehouse.name} (${toWarehouse.code})` : '—'}</span>
                     <Button type="button" onClick={() => void createDraft()} disabled={!fromWarehouse || !toWarehouse || creating}>
-                      {creating ? 'Creating…' : 'Create draft'}
+                      {creating ? 'Создание…' : 'Создать черновик'}
                     </Button>
                   </div>
                 </Card>
@@ -105,7 +105,7 @@ export default function TransfersPage() {
             <Section>
               <Card title={`Документы (${docs.length})`}>
                 {docs.length === 0 ? (
-                  <EmptyState message="No transfers yet." />
+                  <EmptyState message="Перемещений пока нет." />
                 ) : (
                   <ul className="stock-list">
                     {docs.map((doc) => (

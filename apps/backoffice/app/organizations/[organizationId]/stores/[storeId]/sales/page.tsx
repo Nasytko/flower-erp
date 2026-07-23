@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
@@ -52,7 +52,7 @@ export default function SalesPage() {
       setSales(list);
       setReadyOrders(ready);
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Failed to load');
+      setError(err instanceof ApiClientError ? err.message : 'Не удалось загрузить');
     } finally {
       setLoading(false);
     }
@@ -65,7 +65,7 @@ export default function SalesPage() {
   }, [organizationId, storeId, auth]);
 
   if (!auth.hasPermission('sales:read')) {
-    return <p className="page-state">Access denied</p>;
+    return <p className="page-state">Доступ запрещён</p>;
   }
 
   const canCreate = auth.hasPermission('sales:create');
@@ -77,9 +77,9 @@ export default function SalesPage() {
           title="Продажи"
           description="Коммерческая реализация: из готовых заказов или прямая продажа."
           breadcrumbs={[
-            { label: 'Organizations', href: '/organizations' },
-            { label: 'Organization', href: `/organizations/${organizationId}` },
-            { label: 'Store', href: base },
+            { label: 'Организации', href: '/organizations' },
+            { label: 'Организация', href: `/organizations/${organizationId}` },
+            { label: 'Магазин', href: base },
             { label: 'Продажи' },
           ]}
           actions={

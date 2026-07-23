@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useState, type FormEvent } from 'react';
 import { useParams } from 'next/navigation';
@@ -61,7 +61,7 @@ export default function GoodsReceiptPage() {
       setReceipt(r);
       if (s.items[0]) setSupplyItemId(s.items[0].id);
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Failed to load');
+      setError(err instanceof ApiClientError ? err.message : 'Не удалось загрузить');
     } finally {
       setLoading(false);
     }
@@ -95,7 +95,7 @@ export default function GoodsReceiptPage() {
       });
       await load();
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Add line failed');
+      setError(err instanceof ApiClientError ? err.message : 'Не удалось добавить строку');
     } finally {
       setBusy(false);
     }
@@ -112,7 +112,7 @@ export default function GoodsReceiptPage() {
       setSummary(`Проведено: ${posted.status}. Партии и остатки обновлены.`);
       await load();
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Post failed');
+      setError(err instanceof ApiClientError ? err.message : 'Не удалось провести');
     } finally {
       setBusy(false);
     }
@@ -125,11 +125,11 @@ export default function GoodsReceiptPage() {
       <PageContainer>
         <PageHeader
           title={receipt?.number ?? 'Приёмка'}
-          description="GoodsReceipt: received / accepted / defective / price"
+          description="Приёмка: получено / принято / брак / цена"
           breadcrumbs={[
-            { label: 'Store', href: base },
+            { label: 'Магазин', href: base },
             { label: 'Поставки', href: `${base}/supplies` },
-            { label: 'Supply', href: `${base}/supplies/${supplyId}` },
+            { label: 'Поставка', href: `${base}/supplies/${supplyId}` },
             { label: receipt?.number ?? 'Receipt' },
           ]}
           actions={receipt ? <StatusBadge status={receipt.status} /> : undefined}
@@ -166,7 +166,7 @@ export default function GoodsReceiptPage() {
                     <select
                       value={supplyItemId}
                       onChange={(e) => setSupplyItemId(e.target.value)}
-                      aria-label="Supply item"
+                      aria-label="Позиция поставки"
                       style={{ minHeight: 40, borderRadius: 6, border: '1px solid var(--color-border)', padding: 8 }}
                     >
                       {supply?.items.map((line) => (
@@ -175,14 +175,14 @@ export default function GoodsReceiptPage() {
                         </option>
                       ))}
                     </select>
-                    <Input value={received} onChange={(e) => setReceived(e.target.value)} aria-label="Received now" />
-                    <Input value={accepted} onChange={(e) => setAccepted(e.target.value)} aria-label="Accepted" />
-                    <Input value={defective} onChange={(e) => setDefective(e.target.value)} aria-label="Defective" />
-                    <Input value={price} onChange={(e) => setPrice(e.target.value)} aria-label="Actual unit price" />
+                    <Input value={received} onChange={(e) => setReceived(e.target.value)} aria-label="Получено сейчас" />
+                    <Input value={accepted} onChange={(e) => setAccepted(e.target.value)} aria-label="Принято" />
+                    <Input value={defective} onChange={(e) => setDefective(e.target.value)} aria-label="Брак" />
+                    <Input value={price} onChange={(e) => setPrice(e.target.value)} aria-label="Фактическая цена за единицу" />
                     <Input
                       value={defectReason}
                       onChange={(e) => setDefectReason(e.target.value)}
-                      aria-label="Defect reason"
+                      aria-label="Причина брака"
                       placeholder="Причина брака"
                     />
                     <Button type="button" variant="secondary" onClick={fillFull}>
