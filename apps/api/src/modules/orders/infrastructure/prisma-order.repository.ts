@@ -13,6 +13,7 @@ import type {
   OrderCompositionReplacement as PrismaReplacement,
   OrderTimelineEvent as PrismaTimeline,
 } from '@prisma/client';
+import { allocateOrgDocumentNumber } from '../../../infrastructure/ids/org-document-number';
 import { PrismaService } from '../../../infrastructure/prisma/prisma.service';
 import { resolvePrismaClient } from '../../../infrastructure/persistence/prisma-transaction-context';
 import type { OrderOccasion, OrderStatus, OrderType } from '../domain/order-rules';
@@ -339,12 +340,24 @@ export class PrismaOrderRepository implements OrderRepository {
   }
 
   async uniqueNumber(prefix: string, organizationId: string): Promise<string> {
-    for (let i = 0; i < 8; i += 1) {
-      const number = `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
-      const exists = await this.client().order.findFirst({ where: { organizationId, number } });
-      if (!exists) return number;
-    }
-    throw new Error('Failed to allocate unique order number');
+    return allocateOrgDocumentNumber({
+      prefix,
+      organizationId,
+      exists: async (number) =>
+        Boolean(
+          await this.client().order.findFirst({
+            where: { organizationId, number },
+            select: { id: true },
+          }),
+        ),
+      listByNumberPrefix: async (dayPrefix) => {
+        const rows = await this.client().order.findMany({
+          where: { organizationId, number: { startsWith: dayPrefix } },
+          select: { number: true },
+        });
+        return rows.map((r) => r.number);
+      },
+    });
   }
 
   async createOrder(input: {

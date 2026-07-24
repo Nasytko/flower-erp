@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
-import { randomUUID } from 'node:crypto';
+import { allocateOrgDocumentNumber } from '../../../infrastructure/ids/org-document-number';
 import { PrismaService } from '../../../infrastructure/prisma/prisma.service';
 import { resolvePrismaClient } from '../../../infrastructure/persistence/prisma-transaction-context';
 import type {
@@ -308,6 +308,80 @@ export class PrismaSupplyRepository implements SupplyRepository {
     return mapReceiptItem(row);
   }
 
+  async updateReceiptItem(input: {
+    id: string;
+    receivedQuantity: string;
+    acceptedQuantity: string;
+    actualUnitPrice: string;
+  }) {
+    const existing = await this.client.goodsReceiptItem.findFirst({
+      where: { id: input.id },
+      include: { item: true, supplyItem: true },
+    });
+    if (!existing) return null;
+    const row = await this.client.goodsReceiptItem.update({
+      where: { id: input.id },
+      data: {
+        receivedQuantity: new Prisma.Decimal(input.receivedQuantity),
+        acceptedQuantity: new Prisma.Decimal(input.acceptedQuantity),
+        actualUnitPrice: new Prisma.Decimal(input.actualUnitPrice),
+      },
+      include: { item: true, supplyItem: true },
+    });
+    return mapReceiptItem(row);
+  }
+
+  async findPostedReceiptItemBySupplyItem(organizationId: string, supplyItemId: string) {
+    const row = await this.client.goodsReceiptItem.findFirst({
+      where: {
+        organizationId,
+        supplyItemId,
+        goodsReceipt: { status: 'POSTED' },
+      },
+      include: { goodsReceipt: true },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (!row) return null;
+    return {
+      goodsReceiptId: row.goodsReceiptId,
+      goodsReceiptItemId: row.id,
+      supplyItemId: row.supplyItemId,
+      itemId: row.itemId,
+      storeId: row.goodsReceipt.storeId,
+      warehouseId: row.goodsReceipt.warehouseId,
+      acceptedQuantity: row.acceptedQuantity.toString(),
+      actualUnitPrice: row.actualUnitPrice.toString(),
+      receivedAt: row.goodsReceipt.receivedAt,
+    };
+  }
+
+  async listSupplyLineCorrections(
+    organizationId: string,
+    storeId: string,
+    supplyId: string,
+    limit = 50,
+  ) {
+    const rows = await this.client.auditLog.findMany({
+      where: {
+        organizationId,
+        storeId,
+        entityType: 'Supply',
+        entityId: supplyId,
+        action: 'supply.line_corrected',
+      },
+      orderBy: { createdAt: 'desc' },
+      take: Math.min(limit, 100),
+    });
+    return rows.map((row) => ({
+      id: row.id,
+      actorId: row.actorId,
+      createdAt: row.createdAt.toISOString(),
+      beforeState: (row.beforeState as Record<string, unknown> | null) ?? null,
+      afterState: (row.afterState as Record<string, unknown> | null) ?? null,
+      reason: row.reason,
+    }));
+  }
+
   async setReceiptPosted(id: string, postedAt: Date) {
     const row = await this.client.goodsReceipt.update({
       where: { id },
@@ -329,9 +403,9 @@ export class PrismaSupplyRepository implements SupplyRepository {
   async sumPostedBySupplyItem(organizationId: string, supplyItemId: string) {
     const result = await this.client.goodsReceiptItem.aggregate({
       where: { organizationId, supplyItemId, goodsReceipt: { status: 'POSTED' } },
-      _sum: { receivedQuantity: true },
+      _sum: { acceptedQuantity: true },
     });
-    return result._sum.receivedQuantity?.toString() ?? '0';
+    return result._sum.acceptedQuantity?.toString() ?? '0';
   }
 
   async sumDraftOtherBySupplyItem(
@@ -352,20 +426,37 @@ export class PrismaSupplyRepository implements SupplyRepository {
   }
 
   async uniqueNumber(prefix: string, organizationId: string) {
-    for (let attempt = 0; attempt < 5; attempt += 1) {
-      const number = `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
-      const exists =
-        prefix === 'SUP'
-          ? await this.client.supply.findFirst({
-              where: { organizationId, number },
-              select: { id: true },
-            })
-          : await this.client.goodsReceipt.findFirst({
-              where: { organizationId, number },
-              select: { id: true },
-            });
-      if (!exists) return number;
-    }
-    return `${prefix}-${Date.now()}-${randomUUID().slice(0, 8).toUpperCase()}`;
+    const p = prefix === 'SUP' ? 'PRI' : prefix;
+    return allocateOrgDocumentNumber({
+      prefix: p,
+      organizationId,
+      exists: async (number) => {
+        if (p === 'PRI' || prefix === 'SUP') {
+          const row = await this.client.supply.findFirst({
+            where: { organizationId, number },
+            select: { id: true },
+          });
+          if (row) return true;
+        }
+        const gr = await this.client.goodsReceipt.findFirst({
+          where: { organizationId, number },
+          select: { id: true },
+        });
+        return Boolean(gr);
+      },
+      listByNumberPrefix: async (dayPrefix) => {
+        const [supplies, receipts] = await Promise.all([
+          this.client.supply.findMany({
+            where: { organizationId, number: { startsWith: dayPrefix } },
+            select: { number: true },
+          }),
+          this.client.goodsReceipt.findMany({
+            where: { organizationId, number: { startsWith: dayPrefix } },
+            select: { number: true },
+          }),
+        ]);
+        return [...supplies.map((r) => r.number), ...receipts.map((r) => r.number)];
+      },
+    });
   }
 }

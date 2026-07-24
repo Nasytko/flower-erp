@@ -31,15 +31,16 @@ import {
   addQty,
   assertReceiptLine,
   canAnnul,
+  canCorrectPostedSupplyItems,
   canCreateReceipt,
   canEditSupplyItems,
   canSubmit,
   compareQty,
-  recalculateSupplyStatus,
 } from '../domain/supply-rules';
 import {
   SUPPLY_REPOSITORY,
   type ReceiptView,
+  type SupplyLineCorrectionView,
   type SupplyRepository,
   type SupplyView,
 } from './ports/supply.repository';
@@ -59,7 +60,9 @@ export class SupplyUseCases {
     private readonly suppliers: SupplierUseCases,
     private readonly items: ItemUseCases,
     private readonly units: UnitUseCases,
+    @Inject(INVENTORY_POSTING_PORT) private readonly inventoryPosting: InventoryPostingPort,
     @Inject(UNIT_OF_WORK) private readonly uow: UnitOfWork,
+    @Inject(AUDIT_PORT) private readonly audit: AuditPort,
     @Inject(CLOCK_PORT) private readonly clock: ClockPort,
   ) {}
 
@@ -162,7 +165,6 @@ export class SupplyUseCases {
     try {
       return await this.uow.runInTransaction(async () => {
         const supply = await this.requireSupply(input.organizationId, input.storeId, input.supplyId);
-        canEditSupplyItems(supply.status as SupplyStatus);
         const item = await this.items.getItem(input.organizationId, input.itemId);
         assertItemPurchasable(item);
         const unit = await this.units.getUnit(input.organizationId, item.unitId);
@@ -174,6 +176,97 @@ export class SupplyUseCases {
             message: 'Unit cost must be a non-negative decimal',
           });
         }
+        if (compareQty(input.orderedQuantity, '0') <= 0) {
+          throw new BadRequestException({
+            code: 'INVALID_QUANTITY',
+            message: 'Quantity must be greater than zero',
+          });
+        }
+
+        if (supply.status === SupplyStatus.DRAFT) {
+          const updated = await this.supplies.updateSupplyItem({
+            organizationId: input.organizationId,
+            supplyId: supply.id,
+            itemId: item.id,
+            orderedQuantity: input.orderedQuantity,
+            plannedUnitPrice: input.plannedUnitPrice,
+          });
+          if (!updated) {
+            throw new NotFoundException({
+              code: 'SUPPLY_ITEM_NOT_FOUND',
+              message: 'Supply item not found',
+            });
+          }
+          return updated;
+        }
+
+        canCorrectPostedSupplyItems(supply.status as SupplyStatus);
+        const line = supply.items.find((entry) => entry.itemId === item.id);
+        if (!line) {
+          throw new NotFoundException({
+            code: 'SUPPLY_ITEM_NOT_FOUND',
+            message: 'Supply item not found',
+          });
+        }
+
+        const qtyUnchanged = compareQty(line.orderedQuantity, input.orderedQuantity) === 0;
+        const costUnchanged =
+          line.plannedUnitPrice != null &&
+          Number(line.plannedUnitPrice) === Number(input.plannedUnitPrice);
+        if (qtyUnchanged && costUnchanged) {
+          return line;
+        }
+
+        const posted = await this.supplies.findPostedReceiptItemBySupplyItem(
+          input.organizationId,
+          line.id,
+        );
+        if (!posted) {
+          throw new ConflictException({
+            code: 'SUPPLY_LINE_NOT_POSTED',
+            message: 'Posted receipt line was not found for this supply item',
+          });
+        }
+
+        const before = {
+          itemId: item.id,
+          itemName: item.name,
+          itemCode: item.code,
+          quantity: line.orderedQuantity,
+          unitCost: line.plannedUnitPrice,
+          total:
+            line.plannedUnitPrice != null
+              ? (Number(line.orderedQuantity) * Number(line.plannedUnitPrice)).toFixed(2)
+              : null,
+        };
+        const after = {
+          itemId: item.id,
+          itemName: item.name,
+          itemCode: item.code,
+          quantity: input.orderedQuantity,
+          unitCost: input.plannedUnitPrice,
+          total: (Number(input.orderedQuantity) * Number(input.plannedUnitPrice)).toFixed(2),
+        };
+
+        await this.inventoryPosting.adjustGoodsReceiptItem({
+          organizationId: input.organizationId,
+          storeId: posted.storeId,
+          warehouseId: posted.warehouseId,
+          goodsReceiptId: posted.goodsReceiptId,
+          goodsReceiptItemId: posted.goodsReceiptItemId,
+          itemId: item.id,
+          acceptedQuantity: input.orderedQuantity,
+          actualUnitPrice: input.plannedUnitPrice,
+          occurredAt: this.clock.now(),
+        });
+
+        await this.supplies.updateReceiptItem({
+          id: posted.goodsReceiptItemId,
+          receivedQuantity: input.orderedQuantity,
+          acceptedQuantity: input.orderedQuantity,
+          actualUnitPrice: input.plannedUnitPrice,
+        });
+
         const updated = await this.supplies.updateSupplyItem({
           organizationId: input.organizationId,
           supplyId: supply.id,
@@ -187,11 +280,35 @@ export class SupplyUseCases {
             message: 'Supply item not found',
           });
         }
+
+        const ctx = getRequestContext();
+        await this.audit.append({
+          organizationId: input.organizationId,
+          storeId: input.storeId,
+          actorId: ctx?.actorId ?? null,
+          action: 'supply.line_corrected',
+          entityType: 'Supply',
+          entityId: supply.id,
+          beforeState: before,
+          afterState: after,
+          requestId: ctx?.requestId ?? 'unknown',
+          occurredAt: this.clock.now(),
+        });
+
         return updated;
       });
     } catch (error) {
       domain(error);
     }
+  }
+
+  async listSupplyCorrections(
+    organizationId: string,
+    storeId: string,
+    supplyId: string,
+  ): Promise<SupplyLineCorrectionView[]> {
+    await this.requireSupply(organizationId, storeId, supplyId);
+    return this.supplies.listSupplyLineCorrections(organizationId, storeId, supplyId);
   }
 
   async submitSupply(input: {
@@ -546,7 +663,13 @@ export class GoodsReceiptUseCases {
     });
 
     const posted = await this.supplies.setReceiptPosted(receipt.id, this.clock.now());
-    await this.recalculate(supply);
+    // Reload supply so recalculation sees current lines after posting.
+    const freshSupply = await this.requireSupply(
+      receipt.organizationId,
+      receipt.storeId,
+      receipt.supplyId,
+    );
+    await this.recalculate(freshSupply);
     await this.auditAction(
       receipt.organizationId,
       receipt.storeId,
@@ -606,19 +729,34 @@ export class GoodsReceiptUseCases {
   }
 
   private async recalculate(supply: SupplyView) {
-    let received = '0';
-    let ordered = '0';
-    for (const line of supply.items) {
-      ordered = addQty(ordered, line.orderedQuantity);
-      received = addQty(
-        received,
-        await this.supplies.sumPostedBySupplyItem(supply.organizationId, line.id),
-      );
+    if (!supply.items.length) {
+      await this.supplies.updateSupplyStatus(supply.id, 'SUBMITTED_TO_SUPPLIER');
+      return;
     }
-    await this.supplies.updateSupplyStatus(
-      supply.id,
-      recalculateSupplyStatus(ordered, received),
-    );
+
+    let linesWithReceipt = 0;
+    let fullyReceivedLines = 0;
+    for (const line of supply.items) {
+      const received = await this.supplies.sumPostedBySupplyItem(
+        supply.organizationId,
+        line.id,
+      );
+      if (compareQty(received, '0') > 0) {
+        linesWithReceipt += 1;
+      }
+      if (compareQty(received, line.orderedQuantity) >= 0) {
+        fullyReceivedLines += 1;
+      }
+    }
+
+    const nextStatus =
+      linesWithReceipt === 0
+        ? 'SUBMITTED_TO_SUPPLIER'
+        : fullyReceivedLines === supply.items.length
+          ? 'RECEIVED'
+          : 'PARTIALLY_RECEIVED';
+
+    await this.supplies.updateSupplyStatus(supply.id, nextStatus);
   }
 
   private async requireSupply(org: string, store: string, id: string) {

@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
-import { randomUUID } from 'node:crypto';
+import { allocateOrgDocumentNumber } from '../../../infrastructure/ids/org-document-number';
 import { PrismaService } from '../../../infrastructure/prisma/prisma.service';
 import { resolvePrismaClient } from '../../../infrastructure/persistence/prisma-transaction-context';
 import type {
@@ -122,15 +122,24 @@ export class PrismaDeliveryRepository implements DeliveryRepository {
   }
 
   async nextDeliveryNumber(organizationId: string): Promise<string> {
-    for (let i = 0; i < 5; i++) {
-      const number = `DEL-${Date.now()}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
-      const existing = await this.client().deliveryJob.findFirst({
-        where: { organizationId, number },
-        select: { id: true },
-      });
-      if (!existing) return number;
-    }
-    return `DEL-${randomUUID()}`;
+    return allocateOrgDocumentNumber({
+      prefix: 'DEL',
+      organizationId,
+      exists: async (number) =>
+        Boolean(
+          await this.client().deliveryJob.findFirst({
+            where: { organizationId, number },
+            select: { id: true },
+          }),
+        ),
+      listByNumberPrefix: async (dayPrefix) => {
+        const rows = await this.client().deliveryJob.findMany({
+          where: { organizationId, number: { startsWith: dayPrefix } },
+          select: { number: true },
+        });
+        return rows.map((r) => r.number);
+      },
+    });
   }
 
   async createJob(input: CreateDeliveryJobInput): Promise<DeliveryJobView> {

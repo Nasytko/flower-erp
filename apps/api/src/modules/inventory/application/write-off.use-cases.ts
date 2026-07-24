@@ -16,6 +16,7 @@ import {
 } from '../../../infrastructure/persistence/prisma-transaction-context';
 import { UNIT_OF_WORK, type UnitOfWork } from '../../../infrastructure/persistence/unit-of-work.port';
 import { PrismaService } from '../../../infrastructure/prisma/prisma.service';
+import { allocateOrgDocumentNumber } from '../../../infrastructure/ids/org-document-number';
 import { ItemUseCases } from '../../master-data/application/item.use-cases';
 import { OrganizationUseCases } from '../../organization/application/organization.use-cases';
 import {
@@ -216,8 +217,24 @@ export class WriteOffUseCases {
 
   private async nextNumber(organizationId: string): Promise<string> {
     const client = resolvePrismaClient(this.prisma);
-    const count = await client.writeOffDocument.count({ where: { organizationId } });
-    return `WOF-${String(count + 1).padStart(5, '0')}`;
+    return allocateOrgDocumentNumber({
+      prefix: 'WOF',
+      organizationId,
+      exists: async (number) =>
+        Boolean(
+          await client.writeOffDocument.findFirst({
+            where: { organizationId, number },
+            select: { id: true },
+          }),
+        ),
+      listByNumberPrefix: async (dayPrefix) => {
+        const rows = await client.writeOffDocument.findMany({
+          where: { organizationId, number: { startsWith: dayPrefix } },
+          select: { number: true },
+        });
+        return rows.map((r) => r.number);
+      },
+    });
   }
 }
 

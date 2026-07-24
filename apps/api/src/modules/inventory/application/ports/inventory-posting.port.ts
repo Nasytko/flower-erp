@@ -29,7 +29,21 @@ export type ReverseGoodsReceiptCommand = {
   idempotencyKey?: string;
 };
 
+export type AdjustGoodsReceiptItemCommand = {
+  organizationId: string;
+  storeId: string;
+  warehouseId: string;
+  goodsReceiptId: string;
+  goodsReceiptItemId: string;
+  itemId: string;
+  /** New accepted quantity on the receipt line (absolute, not delta). */
+  acceptedQuantity: string;
+  actualUnitPrice: string;
+  occurredAt: Date;
+};
+
 export interface InventoryPostingPort {
   postGoodsReceipt(command: PostGoodsReceiptCommand): Promise<void>;
   reverseGoodsReceipt(command: ReverseGoodsReceiptCommand): Promise<void>;
+  adjustGoodsReceiptItem(command: AdjustGoodsReceiptItemCommand): Promise<void>;
 }

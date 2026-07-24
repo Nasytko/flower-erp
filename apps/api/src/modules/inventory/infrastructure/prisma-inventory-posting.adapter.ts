@@ -7,6 +7,7 @@ import {
   type PrismaTransactionClient,
 } from '../../../infrastructure/persistence/prisma-transaction-context';
 import type {
+  AdjustGoodsReceiptItemCommand,
   InventoryPostingPort,
   PostGoodsReceiptCommand,
   ReverseGoodsReceiptCommand,
@@ -117,6 +118,92 @@ export class PrismaInventoryPostingAdapter implements InventoryPostingPort {
         });
         await client.inventoryBatch.update({ where: { id: batch.id }, data: { remainingQuantity: new Prisma.Decimal(0), status: 'REVERSED' } });
       }
+    };
+    const active = getActivePrismaTx();
+    if (active) return work(active);
+    return this.prisma.$transaction(work);
+  }
+
+  async adjustGoodsReceiptItem(command: AdjustGoodsReceiptItemCommand): Promise<void> {
+    const work = async (client: Client) => {
+      const batch = await client.inventoryBatch.findFirst({
+        where: {
+          organizationId: command.organizationId,
+          storeId: command.storeId,
+          warehouseId: command.warehouseId,
+          goodsReceiptItemId: command.goodsReceiptItemId,
+        },
+      });
+      if (!batch) {
+        throw new ConflictException({
+          code: 'BATCH_NOT_FOUND',
+          message: 'Inventory batch for receipt item was not found',
+        });
+      }
+      if (batch.status === 'REVERSED') {
+        throw new ConflictException({
+          code: 'BATCH_REVERSED',
+          message: 'Cannot adjust a reversed receipt batch',
+        });
+      }
+
+      const nextQty = new Prisma.Decimal(command.acceptedQuantity);
+      const nextCost = new Prisma.Decimal(command.actualUnitPrice);
+      if (nextQty.lte(0)) {
+        throw new ConflictException({
+          code: 'INVALID_RECEIPT_QUANTITY',
+          message: 'Corrected quantity must be greater than zero',
+        });
+      }
+      if (nextCost.lt(0)) {
+        throw new ConflictException({
+          code: 'INVALID_UNIT_PRICE',
+          message: 'Unit cost must be a non-negative decimal',
+        });
+      }
+
+      const delta = nextQty.minus(batch.initialQuantity);
+      const nextRemaining = batch.remainingQuantity.plus(delta);
+      if (nextRemaining.lt(0)) {
+        throw new ConflictException({
+          code: 'BATCH_ALREADY_USED',
+          message:
+            'Cannot reduce quantity below what was already issued from this batch',
+        });
+      }
+
+      if (!delta.equals(0)) {
+        const movementType = delta.gt(0) ? 'COUNT_ADJUSTMENT_IN' : 'COUNT_ADJUSTMENT_OUT';
+        const movementQty = delta.abs();
+        await client.inventoryMovement.create({
+          data: {
+            id: randomUUID(),
+            organizationId: command.organizationId,
+            storeId: command.storeId,
+            warehouseId: command.warehouseId,
+            itemId: command.itemId,
+            batchId: batch.id,
+            type: movementType,
+            quantity: movementQty,
+            unitCost: nextCost,
+            sourceDocumentType: 'GOODS_RECEIPT_ITEM',
+            sourceDocumentId: command.goodsReceiptId,
+            sourceDocumentItemId: command.goodsReceiptItemId,
+            occurredAt: command.occurredAt,
+          },
+        });
+        await this.adjustBalance(client, command, command.itemId, delta);
+      }
+
+      await client.inventoryBatch.update({
+        where: { id: batch.id },
+        data: {
+          initialQuantity: nextQty,
+          remainingQuantity: nextRemaining,
+          unitCost: nextCost,
+          status: nextRemaining.gt(0) ? 'ACTIVE' : 'DEPLETED',
+        },
+      });
     };
     const active = getActivePrismaTx();
     if (active) return work(active);

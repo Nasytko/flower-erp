@@ -618,6 +618,29 @@ export function createApiClient(options: ApiClientOptions) {
           item?: { name: string; code: string };
         }>;
       }>(`/organizations/${organizationId}/stores/${storeId}/supplies/${supplyId}`),
+    listSupplyCorrections: (organizationId: string, storeId: string, supplyId: string) =>
+      request<
+        Array<{
+          id: string;
+          actorId: string | null;
+          createdAt: string;
+          beforeState: {
+            itemName?: string;
+            itemCode?: string;
+            quantity?: string;
+            unitCost?: string | null;
+            total?: string | null;
+          } | null;
+          afterState: {
+            itemName?: string;
+            itemCode?: string;
+            quantity?: string;
+            unitCost?: string | null;
+            total?: string | null;
+          } | null;
+          reason: string | null;
+        }>
+      >(`/organizations/${organizationId}/stores/${storeId}/supplies/${supplyId}/corrections`),
     addSupplyItem: (
       organizationId: string,
       storeId: string,

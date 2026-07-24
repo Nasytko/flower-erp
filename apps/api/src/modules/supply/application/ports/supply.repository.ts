@@ -67,6 +67,27 @@ export type ReceiptView = {
   items: ReceiptItemView[];
 };
 
+export type PostedReceiptItemLink = {
+  goodsReceiptId: string;
+  goodsReceiptItemId: string;
+  supplyItemId: string;
+  itemId: string;
+  storeId: string;
+  warehouseId: string;
+  acceptedQuantity: string;
+  actualUnitPrice: string;
+  receivedAt: Date;
+};
+
+export type SupplyLineCorrectionView = {
+  id: string;
+  actorId: string | null;
+  createdAt: string;
+  beforeState: Record<string, unknown> | null;
+  afterState: Record<string, unknown> | null;
+  reason: string | null;
+};
+
 export interface SupplyRepository {
   createSupply(input: {
     id: string;
@@ -138,6 +159,22 @@ export interface SupplyRepository {
     actualUnitPrice: string;
     defectReason: string | null;
   }): Promise<ReceiptItemView>;
+  updateReceiptItem(input: {
+    id: string;
+    receivedQuantity: string;
+    acceptedQuantity: string;
+    actualUnitPrice: string;
+  }): Promise<ReceiptItemView | null>;
+  findPostedReceiptItemBySupplyItem(
+    organizationId: string,
+    supplyItemId: string,
+  ): Promise<PostedReceiptItemLink | null>;
+  listSupplyLineCorrections(
+    organizationId: string,
+    storeId: string,
+    supplyId: string,
+    limit?: number,
+  ): Promise<SupplyLineCorrectionView[]>;
   setReceiptPosted(id: string, postedAt: Date): Promise<ReceiptView>;
   setReceiptReversed(id: string): Promise<ReceiptView>;
   sumPostedBySupplyItem(organizationId: string, supplyItemId: string): Promise<string>;

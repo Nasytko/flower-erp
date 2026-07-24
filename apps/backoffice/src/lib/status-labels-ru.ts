@@ -16,8 +16,8 @@ export const STATUS_LABELS_RU: Record<string, string> = {
   COMPLETED: 'Завершено',
   ANNULLED: 'Аннулировано',
   CONFIRMED: 'Подтверждено',
-  SUBMITTED_TO_SUPPLIER: 'В работе',
-  PARTIALLY_RECEIVED: 'Частично оприходовано',
+  SUBMITTED_TO_SUPPLIER: 'К оприходованию',
+  PARTIALLY_RECEIVED: 'Оприходовано',
   RECEIVED: 'Оприходовано',
 
   // Orders / workspace

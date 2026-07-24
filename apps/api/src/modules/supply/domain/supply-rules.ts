@@ -18,6 +18,19 @@ export function canEditSupplyItems(status: SupplyStatus): void {
   if (status !== SupplyStatus.DRAFT) throw new DomainError('SUPPLY_NOT_EDITABLE', 'Supply items can be edited only in DRAFT');
 }
 
+/** Posted reception can still correct qty/cost; inventory is adjusted by delta. */
+export function canCorrectPostedSupplyItems(status: SupplyStatus): void {
+  if (
+    status !== SupplyStatus.RECEIVED &&
+    status !== SupplyStatus.PARTIALLY_RECEIVED
+  ) {
+    throw new DomainError(
+      'SUPPLY_NOT_CORRECTABLE',
+      'Posted supply lines can be corrected only after goods are received',
+    );
+  }
+}
+
 export function canSubmit(status: SupplyStatus, itemCount: number): void {
   if (status !== SupplyStatus.DRAFT) throw new DomainError('SUPPLY_NOT_DRAFT', 'Only DRAFT supplies can be submitted');
   if (itemCount < 1) throw new DomainError('SUPPLY_HAS_NO_ITEMS', 'Supply must have at least one item');
@@ -52,8 +65,8 @@ export function recalculateSupplyStatus(ordered: string, cumulativeReceived: str
 
 /** Compare decimal strings (up to 3 fractional digits). Returns -1 / 0 / 1. */
 export function compareQty(a: string, b: string): number {
-  const left = Number(a);
-  const right = Number(b);
+  const left = Math.round(Number(a) * 1000);
+  const right = Math.round(Number(b) * 1000);
   if (!Number.isFinite(left) || !Number.isFinite(right)) {
     throw new DomainError('INVALID_QUANTITY', 'Quantity comparison requires finite decimals');
   }
@@ -63,6 +76,7 @@ export function compareQty(a: string, b: string): number {
 }
 
 export function addQty(a: string, b: string): string {
-  return (Number(a) + Number(b)).toString();
+  const sum = Math.round((Number(a) + Number(b)) * 1000) / 1000;
+  return String(sum);
 }
 

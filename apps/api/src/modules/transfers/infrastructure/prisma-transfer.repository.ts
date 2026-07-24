@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { allocateOrgDocumentNumber } from '../../../infrastructure/ids/org-document-number';
 import { resolvePrismaClient } from '../../../infrastructure/persistence/prisma-transaction-context';
 import { PrismaService } from '../../../infrastructure/prisma/prisma.service';
 import type {
@@ -19,8 +20,24 @@ export class PrismaTransferRepository implements TransferRepository {
   }
 
   async nextNumber(organizationId: string): Promise<string> {
-    const count = await this.client.transferDocument.count({ where: { organizationId } });
-    return `TRF-${String(count + 1).padStart(5, '0')}`;
+    return allocateOrgDocumentNumber({
+      prefix: 'TRF',
+      organizationId,
+      exists: async (number) =>
+        Boolean(
+          await this.client.transferDocument.findFirst({
+            where: { organizationId, number },
+            select: { id: true },
+          }),
+        ),
+      listByNumberPrefix: async (dayPrefix) => {
+        const rows = await this.client.transferDocument.findMany({
+          where: { organizationId, number: { startsWith: dayPrefix } },
+          select: { number: true },
+        });
+        return rows.map((r) => r.number);
+      },
+    });
   }
 
   async createDocument(input: {

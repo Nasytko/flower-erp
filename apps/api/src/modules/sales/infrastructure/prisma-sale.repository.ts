@@ -9,6 +9,7 @@ import type {
   SaleLine as PrismaSaleLine,
   SaleTimelineEvent as PrismaTimeline,
 } from '@prisma/client';
+import { allocateOrgDocumentNumber } from '../../../infrastructure/ids/org-document-number';
 import { PrismaService } from '../../../infrastructure/prisma/prisma.service';
 import { resolvePrismaClient } from '../../../infrastructure/persistence/prisma-transaction-context';
 import type {
@@ -168,12 +169,24 @@ export class PrismaSaleRepository implements SaleRepository {
   }
 
   async uniqueNumber(prefix: string, organizationId: string): Promise<string> {
-    for (let i = 0; i < 8; i += 1) {
-      const number = `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
-      const exists = await this.client().sale.findFirst({ where: { organizationId, number } });
-      if (!exists) return number;
-    }
-    throw new Error('Failed to allocate unique sale number');
+    return allocateOrgDocumentNumber({
+      prefix,
+      organizationId,
+      exists: async (number) =>
+        Boolean(
+          await this.client().sale.findFirst({
+            where: { organizationId, number },
+            select: { id: true },
+          }),
+        ),
+      listByNumberPrefix: async (dayPrefix) => {
+        const rows = await this.client().sale.findMany({
+          where: { organizationId, number: { startsWith: dayPrefix } },
+          select: { number: true },
+        });
+        return rows.map((r) => r.number);
+      },
+    });
   }
 
   async createSale(input: CreateSaleInput): Promise<SaleView> {

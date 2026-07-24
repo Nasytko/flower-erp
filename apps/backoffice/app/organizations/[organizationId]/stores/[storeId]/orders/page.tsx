@@ -29,17 +29,6 @@ type OrderRow = {
 
 type CustomerOption = { id: string; name: string; phone: string; status: string };
 
-const OCCASIONS = [
-  { value: 'BIRTHDAY', label: 'День рождения' },
-  { value: 'WEDDING', label: 'Свадьба' },
-  { value: 'ROMANTIC', label: 'Романтика' },
-  { value: 'CORPORATE', label: 'Корпоратив' },
-  { value: 'FUNERAL', label: 'Траур' },
-  { value: 'MOTHER_DAY', label: 'День матери' },
-  { value: 'NEW_YEAR', label: 'Новый год' },
-  { value: 'OTHER', label: 'Другое' },
-] as const;
-
 export default function OrdersPage() {
   const params = useParams<{ organizationId: string; storeId: string }>();
   const router = useRouter();
@@ -52,7 +41,6 @@ export default function OrdersPage() {
   const [warehouseId, setWarehouseId] = useState('');
   const [orderType, setOrderType] = useState<'PICKUP' | 'DELIVERY'>('PICKUP');
   const [customerId, setCustomerId] = useState('');
-  const [occasion, setOccasion] = useState<string>('OTHER');
   const [recipientName, setRecipientName] = useState('');
   const [recipientPhone, setRecipientPhone] = useState('');
   const [readyAt, setReadyAt] = useState('');
@@ -136,7 +124,7 @@ export default function OrdersPage() {
       const created = await getApiClient().createOrder(organizationId, storeId, {
         warehouseId,
         type: orderType,
-        occasion,
+        occasion: 'OTHER',
         customerId: customerId || undefined,
         recipientName: recipientName.trim(),
         recipientPhone: recipientPhone.trim() || undefined,
@@ -242,15 +230,6 @@ export default function OrdersPage() {
                     />
                   </Field>
                 ) : null}
-
-                <Field label="Повод">
-                  <FancySelect
-                    value={occasion}
-                    onChange={setOccasion}
-                    options={OCCASIONS.map((o) => ({ value: o.value, label: o.label }))}
-                    searchable={false}
-                  />
-                </Field>
 
                 <div className="sale-custom-meta">
                   <Field label="Получатель" required>

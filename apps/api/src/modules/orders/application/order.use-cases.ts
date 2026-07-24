@@ -337,6 +337,27 @@ export class OrderUseCases {
                 : (updated.readyAt ?? input.readyAt),
           });
         }
+      } else if (
+        (input.type ?? updated.type) === 'DELIVERY' &&
+        input.deliveryAddressLine?.trim()
+      ) {
+        // Already DELIVERY but job missing (e.g. switched earlier without address).
+        const fulfillment = this.deliveryFulfillment();
+        if (fulfillment) {
+          await fulfillment.ensureDeliveryForOrder({
+            organizationId: input.organizationId,
+            storeId: input.storeId,
+            orderId: input.orderId,
+            addressLine: input.deliveryAddressLine.trim(),
+            city: input.deliveryCity,
+            recipientName: updated.recipientName,
+            recipientPhone: updated.recipientPhone,
+            readyAt:
+              updated.readyAt instanceof Date
+                ? updated.readyAt.toISOString()
+                : (updated.readyAt ?? input.readyAt),
+          });
+        }
       }
       await this.appendTimeline(updated, 'REFERENCE_UPDATED', 'Draft updated', null);
       await this.auditOrder(updated, 'ORDER_UPDATED', existing, updated);

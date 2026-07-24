@@ -73,18 +73,40 @@ export default function SupplyDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [corrections, setCorrections] = useState<
+    Array<{
+      id: string;
+      createdAt: string;
+      beforeState: {
+        itemName?: string;
+        itemCode?: string;
+        quantity?: string;
+        unitCost?: string | null;
+        total?: string | null;
+      } | null;
+      afterState: {
+        itemName?: string;
+        itemCode?: string;
+        quantity?: string;
+        unitCost?: string | null;
+        total?: string | null;
+      } | null;
+    }>
+  >([]);
 
   async function load(selectItemId?: string) {
     setLoading(true);
     setError(null);
     try {
       const client = getApiClient();
-      const [s, items, unts] = await Promise.all([
+      const [s, items, unts, history] = await Promise.all([
         client.getSupply(organizationId, storeId, supplyId),
         client.listItems(organizationId, { pageSize: 100, status: 'ACTIVE' }),
         client.listUnits(organizationId, 1, 100),
+        client.listSupplyCorrections(organizationId, storeId, supplyId).catch(() => []),
       ]);
       setSupply(s);
+      setCorrections(history);
       const purchasable = items.items.filter((item) => item.isPurchasable !== false);
       setCatalog(purchasable);
       setItemId((current) => {
@@ -137,6 +159,18 @@ export default function SupplyDetailPage() {
         setError('Укажите себестоимость за единицу (BYN)');
         setBusy(false);
         return;
+      }
+      if (
+        supply?.status === 'RECEIVED' ||
+        supply?.status === 'PARTIALLY_RECEIVED'
+      ) {
+        const ok = window.confirm(
+          'Сохранить правку? Остатки на складе обновятся, а изменение появится в истории «было → стало».',
+        );
+        if (!ok) {
+          setBusy(false);
+          return;
+        }
       }
       await getApiClient().updateSupplyItem(organizationId, storeId, supplyId, line.itemId, {
         orderedQuantity: editQty,
@@ -241,7 +275,7 @@ export default function SupplyDetailPage() {
   async function onReceive() {
     if (
       !window.confirm(
-        'Оприходовать все позиции на склад? После проведения изменить документ нельзя.',
+        'Оприходовать все позиции на склад? После проведения можно будет исправить количество и себестоимость.',
       )
     ) {
       return;
@@ -280,6 +314,7 @@ export default function SupplyDetailPage() {
 
   const draft = supply?.status === 'DRAFT';
   const posted = supply?.status === 'RECEIVED' || supply?.status === 'PARTIALLY_RECEIVED';
+  const canEditLines = Boolean(draft || posted);
   const draftTotal = lineTotal(qty, unitCost);
   const supplyTotal =
     supply?.items.reduce((sum, line) => {
@@ -296,6 +331,35 @@ export default function SupplyDetailPage() {
         Number(line.orderedQuantity) > 0,
     );
 
+  function formatWhen(iso: string): string {
+    try {
+      return new Date(iso).toLocaleString('ru-RU', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+    } catch {
+      return iso;
+    }
+  }
+
+  function formatCorrectionSide(
+    state: {
+      itemName?: string;
+      quantity?: string;
+      unitCost?: string | null;
+      total?: string | null;
+    } | null,
+  ): string {
+    if (!state) return '—';
+    const qty = state.quantity ?? '—';
+    const cost = state.unitCost != null && state.unitCost !== '' ? `${state.unitCost} BYN` : '—';
+    const total = state.total != null && state.total !== '' ? `${state.total} BYN` : null;
+    return `${qty} × ${cost}${total ? ` = ${total}` : ''}`;
+  }
+
   return (
     <main>
       <PageContainer>
@@ -305,8 +369,10 @@ export default function SupplyDetailPage() {
             draft
               ? 'Добавьте товары, укажите количество и себестоимость. Когда всё верно — проведите на склад.'
               : posted
-                ? 'Документ проведён: остатки на складе обновлены.'
-                : 'Документ приёмки.'
+                ? 'Документ проведён. Можно исправить количество или себестоимость — изменения появятся в истории ниже.'
+                : supply?.status === 'SUBMITTED_TO_SUPPLIER'
+                  ? 'Документ отправлен — ожидает оприходования на склад.'
+                  : 'Документ приёмки.'
           }
           breadcrumbs={[
             { label: 'Организации', href: '/organizations' },
@@ -336,6 +402,11 @@ export default function SupplyDetailPage() {
                         {' '}
                         · можно править до проведения
                       </span>
+                    ) : posted ? (
+                      <span style={{ fontWeight: 400, color: 'var(--color-muted)' }}>
+                        {' '}
+                        · можно исправить количество и себестоимость
+                      </span>
                     ) : null}
                   </p>
                 ) : (
@@ -354,7 +425,7 @@ export default function SupplyDetailPage() {
                   </div>
 
                   {supply.items.map((line) => {
-                    const isEditing = draft && editingItemId === line.itemId;
+                    const isEditing = canEditLines && editingItemId === line.itemId;
                     const total = lineTotal(
                       isEditing ? editQty : line.orderedQuantity,
                       isEditing ? editCost : line.plannedUnitPrice,
@@ -410,7 +481,7 @@ export default function SupplyDetailPage() {
                           </div>
                         </div>
                         <div className="supply-lines__actions">
-                          {draft && !isEditing ? (
+                          {canEditLines && !isEditing ? (
                             <>
                               <Button
                                 type="button"
@@ -420,14 +491,16 @@ export default function SupplyDetailPage() {
                               >
                                 Изменить
                               </Button>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                disabled={busy || editingItemId != null}
-                                onClick={() => void onRemoveLine(line)}
-                              >
-                                Убрать
-                              </Button>
+                              {draft ? (
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  disabled={busy || editingItemId != null}
+                                  onClick={() => void onRemoveLine(line)}
+                                >
+                                  Убрать
+                                </Button>
+                              ) : null}
                             </>
                           ) : null}
                           {isEditing ? (
@@ -628,6 +701,69 @@ export default function SupplyDetailPage() {
                 </p>
               ) : null}
             </Section>
+
+            {posted || corrections.length > 0 ? (
+              <Section>
+                <Card title="История правок">
+                  {corrections.length === 0 ? (
+                    <p style={{ margin: 0, color: 'var(--color-muted)', fontSize: 'var(--text-sm)' }}>
+                      Пока правок не было. После изменения позиции здесь появится «было → стало».
+                    </p>
+                  ) : (
+                    <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: 12 }}>
+                      {corrections.map((entry) => {
+                        const name =
+                          entry.afterState?.itemName ??
+                          entry.beforeState?.itemName ??
+                          'Позиция';
+                        return (
+                          <li
+                            key={entry.id}
+                            style={{
+                              padding: '12px 14px',
+                              border: '1px solid var(--color-border)',
+                              borderRadius: 10,
+                              background: 'var(--color-surface)',
+                            }}
+                          >
+                            <div
+                              style={{
+                                display: 'flex',
+                                flexWrap: 'wrap',
+                                gap: '8px 16px',
+                                justifyContent: 'space-between',
+                                marginBottom: 8,
+                              }}
+                            >
+                              <strong>{name}</strong>
+                              <span style={{ color: 'var(--color-muted)', fontSize: 'var(--text-sm)' }}>
+                                {formatWhen(entry.createdAt)}
+                              </span>
+                            </div>
+                            <div
+                              style={{
+                                display: 'grid',
+                                gap: 6,
+                                fontSize: 'var(--text-sm)',
+                              }}
+                            >
+                              <div>
+                                <span style={{ color: 'var(--color-muted)' }}>Было: </span>
+                                {formatCorrectionSide(entry.beforeState)}
+                              </div>
+                              <div>
+                                <span style={{ color: 'var(--color-muted)' }}>Стало: </span>
+                                {formatCorrectionSide(entry.afterState)}
+                              </div>
+                            </div>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                </Card>
+              </Section>
+            ) : null}
           </>
         ) : null}
       </PageContainer>

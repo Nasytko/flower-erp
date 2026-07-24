@@ -50,6 +50,15 @@ export class SupplyController {
     return this.supplies.getSupply(params.organizationId, params.storeId, params.supplyId);
   }
 
+  @Get('supplies/:supplyId/corrections')
+  listCorrections(@Param() params: SupplyParamsDto) {
+    return this.supplies.listSupplyCorrections(
+      params.organizationId,
+      params.storeId,
+      params.supplyId,
+    );
+  }
+
   @Post('supplies/:supplyId/items')
   @RequirePermissions('supply:create')
   addSupplyItem(@Param() params: SupplyParamsDto, @Body() body: SupplyItemDto) {

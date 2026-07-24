@@ -36,17 +36,6 @@ function newIdempotencyKey(prefix = 'ord') {
   return `${prefix}_${Date.now()}_${Math.random().toString(16).slice(2)}`;
 }
 
-const OCCASIONS = [
-  { value: 'BIRTHDAY', label: 'День рождения' },
-  { value: 'WEDDING', label: 'Свадьба' },
-  { value: 'ROMANTIC', label: 'Романтика' },
-  { value: 'CORPORATE', label: 'Корпоратив' },
-  { value: 'FUNERAL', label: 'Траур' },
-  { value: 'MOTHER_DAY', label: 'День матери' },
-  { value: 'NEW_YEAR', label: 'Новый год' },
-  { value: 'OTHER', label: 'Другое' },
-] as const;
-
 const LIFECYCLE_LABELS: Record<LifecycleStep, string> = {
   DRAFT: 'Черновик',
   ASSEMBLING: 'Собирается',
@@ -91,6 +80,9 @@ export default function OrderDetailPage() {
   const [paymentSummary, setPaymentSummary] = useState<PaymentSummary | null>(null);
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
   const [paymentLines, setPaymentLines] = useState<PaymentSplitLine[]>([createEmptyPaymentLine()]);
+  const [editType, setEditType] = useState<'PICKUP' | 'DELIVERY'>('PICKUP');
+  const [editAddress, setEditAddress] = useState('');
+  const [editCity, setEditCity] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -119,6 +111,7 @@ export default function OrderDetailPage() {
           : Promise.resolve([]),
       ]);
       setOrder(detail);
+      setEditType(detail.type === 'DELIVERY' ? 'DELIVERY' : 'PICKUP');
       setItems(catalog.items);
       setPaymentSummary(summary);
       setPaymentMethods(methods);
@@ -140,8 +133,12 @@ export default function OrderDetailPage() {
       if (linked) {
         const full = await client.getDelivery(organizationId, storeId, linked.id);
         setDelivery(full);
+        setEditAddress(full.addressLine || '');
+        setEditCity(full.city || '');
       } else {
         setDelivery(null);
+        setEditAddress('');
+        setEditCity('');
       }
     } catch (err) {
       setError(err instanceof ApiClientError ? err.message : 'Не удалось загрузить');
@@ -304,7 +301,7 @@ export default function OrderDetailPage() {
       if (status === 'DRAFT') {
         await client.confirmOrder(organizationId, storeId, orderId);
       }
-      const fresh = await client.getOrder(organizationId, storeId, orderId);
+      let fresh = await client.getOrder(organizationId, storeId, orderId);
       if (
         fresh.status === 'CONFIRMED' ||
         fresh.status === 'PARTIALLY_RESERVED' ||
@@ -312,16 +309,34 @@ export default function OrderDetailPage() {
       ) {
         if (auth.hasPermission('orders:reserve') && fresh.status === 'CONFIRMED') {
           await client.reserveOrder(organizationId, storeId, orderId);
+          fresh = await client.getOrder(organizationId, storeId, orderId);
         }
-        const afterReserve = await client.getOrder(organizationId, storeId, orderId);
-        if (
-          (afterReserve.status === 'RESERVED' ||
-            afterReserve.status === 'PARTIALLY_RESERVED') &&
-          auth.hasPermission('orders:prepare')
-        ) {
-          await client.startOrderPreparation(organizationId, storeId, orderId);
+      }
+
+      if (
+        !fresh.activeAssignment &&
+        auth.hasPermission('orders:assign') &&
+        fresh.status !== 'DRAFT' &&
+        fresh.status !== 'COMPLETED' &&
+        fresh.status !== 'CANCELLED'
+      ) {
+        const users = await client.listUsers(organizationId);
+        const me = users.find((u) => u.login === auth.user?.login);
+        if (!me?.membershipId) {
+          throw new ApiClientError({
+            message: 'Не найден участник текущего пользователя',
+            code: 'NOT_FOUND',
+            status: 404,
+            requestId: 'local',
+          });
         }
-      } else if (
+        await client.assignFlorist(organizationId, storeId, orderId, {
+          membershipId: me.membershipId,
+        });
+        fresh = await client.getOrder(organizationId, storeId, orderId);
+      }
+
+      if (
         (fresh.status === 'RESERVED' || fresh.status === 'PARTIALLY_RESERVED') &&
         auth.hasPermission('orders:prepare')
       ) {
@@ -482,7 +497,11 @@ export default function OrderDetailPage() {
                       Отменить заказ
                     </Button>
                   ) : null}
-                  {auth.hasPermission('orders:assign') && !order.activeAssignment ? (
+                  {auth.hasPermission('orders:assign') &&
+                  !order.activeAssignment &&
+                  order.status !== 'DRAFT' &&
+                  order.status !== 'COMPLETED' &&
+                  order.status !== 'CANCELLED' ? (
                     <Button
                       type="button"
                       variant="secondary"
@@ -527,36 +546,37 @@ export default function OrderDetailPage() {
                     onSubmit={(event) => {
                       event.preventDefault();
                       const form = new FormData(event.currentTarget);
+                      const nextType = editType;
+                      if (nextType === 'DELIVERY' && !editAddress.trim()) {
+                        setError('Для доставки укажите адрес');
+                        return;
+                      }
                       void run(() =>
                         client.updateOrder(organizationId, storeId, orderId, {
                           recipientName: String(form.get('recipientName') || '') || null,
                           recipientPhone: String(form.get('recipientPhone') || '') || null,
                           comment: String(form.get('comment') || '') || null,
                           readyAt: String(form.get('readyAt') || '') || null,
-                          type: String(form.get('type') || order.type),
-                          occasion: String(form.get('occasion') || order.occasion),
+                          type: nextType,
                           plannedPrice: String(form.get('plannedPrice') || '') || null,
+                          deliveryAddressLine:
+                            nextType === 'DELIVERY' ? editAddress.trim() : null,
+                          deliveryCity:
+                            nextType === 'DELIVERY' ? editCity.trim() || null : null,
                         }),
                       );
                     }}
                   >
                     <Field label="Способ получения" required>
-                      <select name="type" className="field-control" defaultValue={order.type}>
+                      <select
+                        className="field-control"
+                        value={editType}
+                        onChange={(e) =>
+                          setEditType(e.target.value === 'DELIVERY' ? 'DELIVERY' : 'PICKUP')
+                        }
+                      >
                         <option value="PICKUP">Самовывоз</option>
                         <option value="DELIVERY">Доставка</option>
-                      </select>
-                    </Field>
-                    <Field label="Повод">
-                      <select
-                        name="occasion"
-                        className="field-control"
-                        defaultValue={order.occasion}
-                      >
-                        {OCCASIONS.map((o) => (
-                          <option key={o.value} value={o.value}>
-                            {o.label}
-                          </option>
-                        ))}
                       </select>
                     </Field>
                     <Field label="Получатель">
@@ -569,7 +589,9 @@ export default function OrderDetailPage() {
                         inputMode="tel"
                       />
                     </Field>
-                    <Field label={order.type === 'DELIVERY' ? 'Время доставки' : 'Время готовности'}>
+                    <Field
+                      label={editType === 'DELIVERY' ? 'Время доставки' : 'Время готовности'}
+                    >
                       <Input
                         name="readyAt"
                         type="datetime-local"
@@ -580,6 +602,25 @@ export default function OrderDetailPage() {
                         }
                       />
                     </Field>
+                    {editType === 'DELIVERY' ? (
+                      <>
+                        <Field label="Адрес доставки" required>
+                          <Input
+                            value={editAddress}
+                            onChange={(e) => setEditAddress(e.target.value)}
+                            placeholder="ул. Независимости, 10, кв. 5"
+                            required
+                          />
+                        </Field>
+                        <Field label="Город">
+                          <Input
+                            value={editCity}
+                            onChange={(e) => setEditCity(e.target.value)}
+                            placeholder="Как у магазина"
+                          />
+                        </Field>
+                      </>
+                    ) : null}
                     <Field label="Плановая цена, BYN">
                       <Input
                         name="plannedPrice"
@@ -709,8 +750,9 @@ export default function OrderDetailPage() {
                     </div>
                   ) : (
                     <p className="field__hint">
-                      Доставка ещё не создана. Обычно она появляется автоматически при создании
-                      заказа с адресом.
+                      {draft
+                        ? 'Выберите «Доставка», укажите адрес и город выше, затем «Сохранить» — доставка создастся.'
+                        : 'Доставка ещё не создана. Вернитесь в черновик или укажите адрес при создании заказа.'}
                     </p>
                   )}
                 </Card>
