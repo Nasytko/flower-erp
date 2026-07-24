@@ -23,8 +23,8 @@ org-structure ←── master-data ←── catalog              │
        │                               │                 │
        ├──────── delivery ←── orders ──┤                 │
        ├──────── payments ←── orders / sales             │
-       ├──────── finance ←── sales / payments / expenses │
-       ├──────── notifications ←── (many; event-driven)  │
+       ├──────── finance ←── sales / payments / expenses │  (deferred BC — no Nest module yet)
+       ├──────── notifications ←── (many; event-driven)  │  (deferred — ADR-026 attention instead)
        ├──────── analytics ←── (read ports only)         │
        └──────── audit ←── (write port from many) ───────┘
 ```
@@ -34,7 +34,8 @@ org-structure ←── master-data ←── catalog              │
 1. Lower-level topology and master data do not depend on documents.
 2. Document modules may depend on `inventory` **only through posting ports**, never by updating balance tables themselves.
 3. `analytics` depends inward (read); nothing operational depends on `analytics`.
-4. `notifications` and `audit` are sinks; domain modules must not import their ORM models for joins in business queries when avoidable—use ports.
+4. `notifications` (when introduced) and `audit` are sinks; domain modules must not import their ORM models for joins in business queries when avoidable—use ports.
+5. Do not add empty Nest scaffolds for deferred `finance` / `notifications` / `integrations` / `production` modules.
 
 ## Allowed dependency matrix (v1)
 
