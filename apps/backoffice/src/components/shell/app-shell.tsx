@@ -13,6 +13,10 @@ import { WorkspaceSwitcher } from './workspace-switcher';
 import { WorkspaceContextSync } from './workspace-context-sync';
 import { CommandPalette } from '@/components/workspace/command-palette';
 
+function openCommandPalette() {
+  window.dispatchEvent(new CustomEvent('flower:command-palette'));
+}
+
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const auth = useAuth();
@@ -28,6 +32,13 @@ export function AppShell({ children }: { children: ReactNode }) {
     workspace.organizationId && workspace.storeId
       ? resolveStoreHomePath(workspace.organizationId, workspace.storeId, auth.hasPermission)
       : '/';
+
+  const initials = (auth.user?.displayName ?? '?')
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? '')
+    .join('');
 
   if (pathname === '/login') {
     return <>{children}</>;
@@ -57,10 +68,22 @@ export function AppShell({ children }: { children: ReactNode }) {
           <WorkspaceSwitcher />
         </div>
         <div className="shell__header-right">
+          <button
+            type="button"
+            className="shell__search"
+            onClick={openCommandPalette}
+            aria-label={t('commandPalette')}
+          >
+            <span className="shell__search-placeholder">{t('commandPlaceholder')}</span>
+            <kbd className="shell__search-kbd">Ctrl K</kbd>
+          </button>
           {auth.user ? (
             <div className="shell__user-menu">
-              <span>{auth.user.displayName}</span>
-              <button type="button" onClick={() => void auth.logout()}>
+              <span className="shell__avatar" aria-hidden="true">
+                {initials || '•'}
+              </span>
+              <span className="shell__user-name">{auth.user.displayName}</span>
+              <button type="button" className="shell__logout" onClick={() => void auth.logout()}>
                 {t('logout')}
               </button>
             </div>

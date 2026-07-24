@@ -3,15 +3,18 @@
 import Link from 'next/link';
 import { Suspense, useEffect, useState, type FormEvent } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
-import { Button, Card, Input } from '@flower/ui';
+import { Button, Card } from '@flower/ui';
 import { ApiClientError } from '@flower/api-client';
 import { getApiClient } from '@/lib/api-client';
 import { useAuth } from '@/components/auth-provider';
+import { Field } from '@/components/layout/field';
+import { MoneyBynInput, parseBynToApi } from '@/components/layout/money-byn-input';
 import { PageContainer } from '@/components/layout/page-container';
 import { PageHeader } from '@/components/layout/page-header';
 import { Section } from '@/components/layout/section';
 import { ErrorState, LoadingState } from '@/components/layout/states';
 import { StatusBadge } from '@/components/layout/status-badge';
+import { statusLabelRu, timelineMessageRu } from '@/lib/status-labels-ru';
 
 type SaleDetail = Awaited<ReturnType<ReturnType<typeof getApiClient>['getSale']>>;
 type TimelineEvent = Awaited<ReturnType<ReturnType<typeof getApiClient>['getSaleTimeline']>>[number];
@@ -28,7 +31,13 @@ function newIdempotencyKey() {
 
 export default function SaleDetailPage() {
   return (
-    <Suspense fallback={<main><LoadingState message="Загрузка…" /></main>}>
+    <Suspense
+      fallback={
+        <main>
+          <LoadingState message="Загрузка…" />
+        </main>
+      }
+    >
       <SaleDetailPageInner />
     </Suspense>
   );
@@ -53,7 +62,7 @@ function SaleDetailPageInner() {
   const [busy, setBusy] = useState(false);
   const [annulReason, setAnnulReason] = useState('');
   const [infoMessage, setInfoMessage] = useState<string | null>(
-    searchParams.get('completed') === '1' ? 'Продажа завершена.' : null,
+    searchParams.get('completed') === '1' ? 'Продажа завершена, состав списан со склада.' : null,
   );
 
   const canViewCost = auth.hasPermission('sales:view-cost');
@@ -113,13 +122,8 @@ function SaleDetailPageInner() {
 
   async function onComplete() {
     await run(async () => {
-      await getApiClient().completeSale(
-        organizationId,
-        storeId,
-        saleId,
-        newIdempotencyKey(),
-      );
-      setInfoMessage('Продажа завершена.');
+      await getApiClient().completeSale(organizationId, storeId, saleId, newIdempotencyKey());
+      setInfoMessage('Продажа завершена, состав списан со склада.');
     });
   }
 
@@ -141,20 +145,16 @@ function SaleDetailPageInner() {
 
   async function onAddPayment(event: FormEvent) {
     event.preventDefault();
-    if (!payMethodId || !payAmount.trim()) return;
+    const amount = parseBynToApi(payAmount);
+    if (!payMethodId || !amount) return;
     await run(async () => {
       const client = getApiClient();
       const payment = await client.createSalePayment(organizationId, storeId, saleId, {
         methodId: payMethodId,
-        amount: payAmount.trim(),
+        amount,
       });
       if (auth.hasPermission('payments:complete') && payment.status === 'DRAFT') {
-        await client.completePayment(
-          organizationId,
-          storeId,
-          payment.id,
-          newIdempotencyKey(),
-        );
+        await client.completePayment(organizationId, storeId, payment.id, newIdempotencyKey());
       }
       setPayAmount('');
     });
@@ -178,27 +178,27 @@ function SaleDetailPageInner() {
     return <p className="page-state">Доступ запрещён</p>;
   }
 
+  const currency = sale?.currencyCode === 'BYN' || !sale?.currencyCode ? 'BYN' : sale.currencyCode;
+
   return (
     <main>
       <PageContainer>
         <PageHeader
           title={sale ? `Продажа ${sale.number}` : 'Продажа'}
-          description="DRAFT → COMPLETED → ANNULLED. Списание остатков при завершении."
+          description="Черновик → завершена → при необходимости аннулирование. Списание со склада — при завершении."
           breadcrumbs={[
-            { label: 'Организации', href: '/organizations' },
-            { label: 'Организация', href: `/organizations/${organizationId}` },
             { label: 'Магазин', href: base },
             { label: 'Продажи', href: `${base}/sales` },
-            { label: sale?.number ?? 'Sale' },
+            { label: sale?.number ?? 'Карточка' },
           ]}
           actions={sale ? <StatusBadge status={sale.status} /> : undefined}
         />
 
-        {loading ? <LoadingState /> : null}
+        {loading ? <LoadingState message="Загрузка продажи…" /> : null}
         {error ? <ErrorState message={error} /> : null}
         {infoMessage ? (
           <Section>
-            <Card title="Статус">
+            <Card title="Сообщение">
               <p style={{ margin: 0 }}>{infoMessage}</p>
             </Card>
           </Section>
@@ -213,36 +213,36 @@ function SaleDetailPageInner() {
                     <StatusBadge status={sale.type} />
                     <StatusBadge status={sale.salesChannel} />
                     <span>
-                      {sale.netAmount} {sale.currencyCode}
+                      {sale.netAmount} {currency}
                     </span>
                   </div>
                   <div className="meta-row">
-                    <span>Gross: {sale.grossAmount}</span>
-                    <span>Discount: {sale.discountAmount}</span>
-                    <span>Net: {sale.netAmount}</span>
+                    <span>Сумма до скидки: {sale.grossAmount} {currency}</span>
+                    <span>Скидка: {sale.discountAmount} {currency}</span>
+                    <span>К оплате: {sale.netAmount} {currency}</span>
                   </div>
                   {canViewCost && sale.costAmount != null ? (
                     <div className="meta-row">
-                      <span>Cost: {sale.costAmount}</span>
+                      <span>Себестоимость: {sale.costAmount} {currency}</span>
                     </div>
                   ) : null}
                   {canViewMargin && sale.grossProfitAmount != null ? (
                     <div className="meta-row">
-                      <span>Profit: {sale.grossProfitAmount}</span>
+                      <span>Прибыль: {sale.grossProfitAmount} {currency}</span>
                       {sale.marginPercent != null ? (
-                        <span>Margin: {sale.marginPercent}%</span>
+                        <span>Маржа: {sale.marginPercent}%</span>
                       ) : null}
                     </div>
                   ) : null}
                   {sale.orderId ? (
                     <p style={{ margin: 0 }}>
                       Заказ:{' '}
-                      <Link href={`${base}/orders/${sale.orderId}`}>{sale.orderId.slice(0, 8)}…</Link>
+                      <Link href={`${base}/orders/${sale.orderId}`}>открыть заказ</Link>
                     </p>
                   ) : null}
-                  {sale.comment ? <p style={{ margin: 0 }}>{sale.comment}</p> : null}
+                  {sale.comment ? <p style={{ margin: 0 }}>Комментарий: {sale.comment}</p> : null}
                   {sale.annulment ? (
-                    <p style={{ margin: 0, color: 'var(--color-danger, #b42318)' }}>
+                    <p style={{ margin: 0, color: 'var(--color-destructive)' }}>
                       Аннулирование: {sale.annulment.reason}
                     </p>
                   ) : null}
@@ -251,7 +251,7 @@ function SaleDetailPageInner() {
             </Section>
 
             <Section>
-              <Card title="Коммерческие линии">
+              <Card title="Состав продажи">
                 <ul className="list-stack">
                   {sale.lines.map((line) => (
                     <li key={line.id}>
@@ -260,7 +260,7 @@ function SaleDetailPageInner() {
                           {line.descriptionSnapshot} × {line.quantity}
                         </strong>
                         <span>
-                          {line.unitPrice} → {line.netAmount}
+                          {line.unitPrice} → {line.netAmount} {currency}
                         </span>
                       </div>
                     </li>
@@ -268,7 +268,10 @@ function SaleDetailPageInner() {
                 </ul>
                 {sale.discount && sale.discount.type !== 'NONE' ? (
                   <p style={{ marginTop: 12, color: 'var(--color-muted)' }}>
-                    Скидка {sale.discount.type} {sale.discount.value} ({sale.discount.reason})
+                    Скидка: {statusLabelRu(sale.discount.type)} {sale.discount.value}
+                    {sale.discount.reason
+                      ? ` (${statusLabelRu(sale.discount.reason)})`
+                      : null}
                   </p>
                 ) : null}
               </Card>
@@ -281,14 +284,14 @@ function SaleDetailPageInner() {
                     <div className="stack-form">
                       <div className="meta-row">
                         <StatusBadge status={paymentSummary.status} />
-                        <span>Итого: {paymentSummary.totalAmount}</span>
-                        <span>Оплачено: {paymentSummary.paidAmount}</span>
-                        <span>Возврат: {paymentSummary.refundedAmount}</span>
-                        <span>К доплате: {paymentSummary.balanceDue}</span>
+                        <span>Итого: {paymentSummary.totalAmount} {currency}</span>
+                        <span>Оплачено: {paymentSummary.paidAmount} {currency}</span>
+                        <span>Возврат: {paymentSummary.refundedAmount} {currency}</span>
+                        <span>К доплате: {paymentSummary.balanceDue} {currency}</span>
                       </div>
                     </div>
                   ) : (
-                    <p style={{ margin: 0, color: 'var(--color-muted)' }}>Сводка недоступна.</p>
+                    <p style={{ margin: 0, color: 'var(--color-muted)' }}>Сводка оплаты недоступна.</p>
                   )}
                   {sale.orderId &&
                   auth.hasPermission('payments:complete') &&
@@ -308,43 +311,51 @@ function SaleDetailPageInner() {
                   auth.hasPermission('payments:complete') &&
                   sale.status === 'COMPLETED' ? (
                     <form onSubmit={onAddPayment} className="stack-form" style={{ marginTop: 16 }}>
-                      <select
-                        value={payMethodId}
-                        onChange={(e) => setPayMethodId(e.target.value)}
+                      <Field
+                        label="Способ оплаты"
+                        tooltip="Выберите, как покупатель оплачивает букет"
                         required
                       >
-                        {paymentMethods.map((method) => (
-                          <option key={method.id} value={method.id}>
-                            {method.name} ({method.code})
-                          </option>
-                        ))}
-                      </select>
-                      <Input
-                        placeholder="Сумма оплаты"
-                        value={payAmount}
-                        onChange={(e) => setPayAmount(e.target.value)}
+                        <select
+                          className="field-control"
+                          value={payMethodId}
+                          onChange={(e) => setPayMethodId(e.target.value)}
+                          required
+                        >
+                          {paymentMethods.map((method) => (
+                            <option key={method.id} value={method.id}>
+                              {method.name}
+                            </option>
+                          ))}
+                        </select>
+                      </Field>
+                      <Field
+                        label="Сумма оплаты"
+                        tooltip="Сумма в белорусских рублях и копейках"
                         required
-                      />
+                      >
+                        <MoneyBynInput value={payAmount} onChange={setPayAmount} required />
+                      </Field>
                       <Button
                         type="submit"
-                        disabled={busy || !payMethodId || !payAmount.trim()}
+                        disabled={busy || !payMethodId || !parseBynToApi(payAmount)}
                       >
                         Добавить оплату
                       </Button>
                     </form>
                   ) : null}
                   <p style={{ margin: '12px 0 0' }}>
-                    <Link href={`${base}/payments`}>Все платежи магазина</Link>
+                    <Link href={`${base}/payments`}>Все оплаты магазина</Link>
                   </p>
                 </Card>
               </Section>
             ) : null}
 
             <Section>
-              <Card title="Списание (consumption)">
+              <Card title="Списание со склада">
                 {!consumption ? (
                   <p style={{ margin: 0, color: 'var(--color-muted)' }}>
-                    Ещё нет — появится после завершения продажи.
+                    Появится после завершения продажи.
                   </p>
                 ) : (
                   <>
@@ -355,12 +366,12 @@ function SaleDetailPageInner() {
                       {consumption.lines.map((line) => (
                         <li key={line.id}>
                           <div className="meta-row">
-                            <strong>{line.itemId.slice(0, 8)}…</strong>
+                            <strong>Позиция</strong>
                             <span>
-                              req {line.requestedQuantity} / issued {line.issuedQuantity}
+                              запрошено {line.requestedQuantity} / списано {line.issuedQuantity}
                             </span>
                             {canViewCost && line.costAmount != null ? (
-                              <span>cost {line.costAmount}</span>
+                              <span>себестоимость {line.costAmount} {currency}</span>
                             ) : null}
                           </div>
                         </li>
@@ -376,20 +387,27 @@ function SaleDetailPageInner() {
                 <div className="page-header__actions">
                   {sale.status === 'DRAFT' && auth.hasPermission('sales:complete') ? (
                     <Button type="button" disabled={busy} onClick={() => void onComplete()}>
-                      Завершить продажу
+                      Завершить и списать со склада
                     </Button>
                   ) : null}
                 </div>
                 {sale.status === 'COMPLETED' && auth.hasPermission('sales:annul') ? (
                   <form onSubmit={onAnnul} className="stack-form" style={{ marginTop: 16 }}>
-                    <Input
-                      placeholder="Причина аннулирования"
-                      value={annulReason}
-                      onChange={(e) => setAnnulReason(e.target.value)}
+                    <Field
+                      label="Причина аннулирования"
+                      tooltip="Укажите, почему продажа отменяется — это сохранится в истории"
                       required
-                    />
+                    >
+                      <input
+                        className="field-control"
+                        value={annulReason}
+                        onChange={(e) => setAnnulReason(e.target.value)}
+                        required
+                        placeholder="Например: ошибка состава"
+                      />
+                    </Field>
                     <Button type="submit" variant="secondary" disabled={busy || !annulReason.trim()}>
-                      Аннулировать
+                      Аннулировать продажу
                     </Button>
                   </form>
                 ) : null}
@@ -397,17 +415,20 @@ function SaleDetailPageInner() {
             </Section>
 
             <Section>
-              <Card title="Таймлайн">
+              <Card title="История">
                 <ul className="list-stack">
-                  {timeline.map((event) => (
-                    <li key={event.id}>
-                      <div className="meta-row">
-                        <StatusBadge status={event.type} />
-                        <span>{new Date(event.occurredAt).toLocaleString()}</span>
-                      </div>
-                      {event.message ? <p style={{ margin: '4px 0 0' }}>{event.message}</p> : null}
-                    </li>
-                  ))}
+                  {timeline.map((event) => {
+                    const message = timelineMessageRu(event.message);
+                    return (
+                      <li key={event.id}>
+                        <div className="meta-row">
+                          <StatusBadge status={event.type} />
+                          <span>{new Date(event.occurredAt).toLocaleString('ru-RU')}</span>
+                        </div>
+                        {message ? <p style={{ margin: '4px 0 0' }}>{message}</p> : null}
+                      </li>
+                    );
+                  })}
                 </ul>
               </Card>
             </Section>

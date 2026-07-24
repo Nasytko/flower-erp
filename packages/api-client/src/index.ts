@@ -499,6 +499,8 @@ export function createApiClient(options: ApiClientOptions) {
           categoryId: string;
           unitId: string;
           inventoryPolicyId: string;
+          isSellable?: boolean;
+          isPurchasable?: boolean;
         }>;
         page: number;
         pageSize: number;

@@ -1,3 +1,5 @@
+import { statusLabelRu } from '@/lib/status-labels-ru';
+
 type StatusTone = 'success' | 'warning' | 'danger' | 'neutral' | 'info' | 'accent';
 
 const toneByStatus: Record<string, StatusTone> = {
@@ -39,9 +41,22 @@ const toneByStatus: Record<string, StatusTone> = {
   DELIVERED: 'success',
   PROBLEM: 'danger',
   PLANNED: 'warning',
+
+  DIRECT: 'accent',
+  ORDER_BASED: 'info',
+  UNPAID: 'warning',
+  PARTIALLY_PAID: 'warning',
+  PAID: 'success',
+  OVERPAID: 'info',
+  REFUNDED: 'danger',
+  DIRECT_COMPOSITION: 'neutral',
+  ORDER_ACTUAL_COMPOSITION: 'neutral',
+  SALE_CREATED: 'info',
+  SALE_COMPLETED: 'success',
+  SALE_ANNULLED: 'danger',
 };
 
 export function StatusBadge({ status }: { status: string }) {
   const tone = toneByStatus[status] ?? 'neutral';
-  return <span className={`status-badge status-badge--${tone}`}>{status}</span>;
+  return <span className={`status-badge status-badge--${tone}`}>{statusLabelRu(status)}</span>;
 }

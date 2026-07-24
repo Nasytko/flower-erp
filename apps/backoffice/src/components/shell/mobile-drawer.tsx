@@ -92,9 +92,12 @@ export function MobileDrawer({ open, onClose }: MobileDrawerProps) {
           {t('close')}
         </button>
         <div id={titleId} className="shell__brand">
-          {t('brand')}
+          <span className="shell__brand-mark" aria-hidden="true">
+            F
+          </span>
+          <span className="shell__brand-text">{t('brand')}</span>
         </div>
-        <SidebarNav onNavigate={onClose} />
+        <SidebarNav variant="drawer" onNavigate={onClose} />
       </div>
     </>
   );

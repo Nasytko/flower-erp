@@ -262,12 +262,8 @@ export class SaleUseCases {
       } catch (error) {
         mapDomain(error);
       }
-      if (!item.isSellable) {
-        throw new BadRequestException({
-          code: 'ITEM_NOT_SELLABLE',
-          message: `Item ${item.name} is not sellable`,
-        });
-      }
+      // Direct bouquet composition writes off stock items (flowers/materials),
+      // which may not be marked as standalone POS sellable SKUs.
       const gross = lineGross(line.quantity, line.unitPrice);
       preparedLines.push({
         id: randomUUID(),

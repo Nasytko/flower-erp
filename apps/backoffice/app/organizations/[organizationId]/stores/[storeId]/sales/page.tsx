@@ -75,17 +75,15 @@ export default function SalesPage() {
       <PageContainer>
         <PageHeader
           title="Продажи"
-          description="Коммерческая реализация: из готовых заказов или прямая продажа."
+          description="Сборные букеты магазина и продажи из готовых заказов. Цены в BYN."
           breadcrumbs={[
-            { label: 'Организации', href: '/organizations' },
-            { label: 'Организация', href: `/organizations/${organizationId}` },
             { label: 'Магазин', href: base },
             { label: 'Продажи' },
           ]}
           actions={
             canCreate ? (
               <Button type="button" onClick={() => router.push(`${base}/sales/new`)}>
-                Новая продажа
+                Сборный букет
               </Button>
             ) : undefined
           }
@@ -96,21 +94,49 @@ export default function SalesPage() {
           {error ? <ErrorState message={error} /> : null}
         </Section>
 
+        {canCreate ? (
+          <Section>
+            <Card title="Сборные готовые букеты">
+              <p className="form-lead">
+                Соберите букет из цветов текущего магазина, укажите цену в BYN и продайте одним
+                действием — состав спишется со склада автоматически.
+              </p>
+              <div className="page-header__actions">
+                <Button type="button" onClick={() => router.push(`${base}/sales/new`)}>
+                  Продать сборный букет
+                </Button>
+              </div>
+            </Card>
+          </Section>
+        ) : null}
+
         {readyOrders.length > 0 ? (
           <Section>
             <Card title="Готовые заказы без продажи">
-              <p style={{ margin: '0 0 12px', color: 'var(--color-muted)', fontSize: 'var(--text-sm)' }}>
-                Создайте продажу из заказа со статусом READY на карточке заказа («Создать продажу»).
+              <p className="form-lead">
+                Заказы READY можно быстро превратить в продажу — остатки спишутся по фактическому
+                составу.
               </p>
               <ul className="list-stack">
                 {readyOrders.map((order) => (
                   <li key={order.id}>
-                    <Link href={`${base}/orders/${order.id}`}>
-                      <div className="meta-row">
+                    <div className="meta-row">
+                      <Link href={`${base}/orders/${order.id}`}>
                         <strong>{order.number}</strong>
-                        <StatusBadge status={order.status} />
-                      </div>
-                    </Link>
+                      </Link>
+                      <StatusBadge status={order.status} />
+                      {canCreate ? (
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          onClick={() =>
+                            router.push(`${base}/sales/new?fromOrder=${order.id}`)
+                          }
+                        >
+                          Продать
+                        </Button>
+                      ) : null}
+                    </div>
                   </li>
                 ))}
               </ul>
@@ -119,8 +145,10 @@ export default function SalesPage() {
         ) : null}
 
         <Section>
-          <Card title="Список продаж">
-            {!loading && sales.length === 0 ? <EmptyState message="Продаж пока нет." /> : null}
+          <Card title="История продаж">
+            {!loading && sales.length === 0 ? (
+              <EmptyState message="Продаж пока нет. Начните со сборного букета." />
+            ) : null}
             <ul className="list-stack">
               {sales.map((sale) => (
                 <li key={sale.id}>
@@ -130,7 +158,7 @@ export default function SalesPage() {
                       <StatusBadge status={sale.status} />
                       <StatusBadge status={sale.type} />
                       <span>
-                        {sale.netAmount} {sale.currencyCode}
+                        {sale.netAmount} {sale.currencyCode === 'BYN' || !sale.currencyCode ? 'BYN' : sale.currencyCode}
                       </span>
                     </div>
                   </Link>
