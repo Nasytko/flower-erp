@@ -243,7 +243,10 @@ type InlineAlertProps = {
 
 export function InlineAlert({ tone = 'info', title, children }: InlineAlertProps) {
   return (
-    <div className={`inline-alert inline-alert--${tone}`} role="status">
+    <div
+      className={`inline-alert inline-alert--${tone}`}
+      role={tone === 'danger' || tone === 'warning' ? 'alert' : 'status'}
+    >
       {title ? <strong className="inline-alert__title">{title}</strong> : null}
       <div className="inline-alert__body">{children}</div>
     </div>

@@ -136,6 +136,14 @@ export class OrganizationController {
     return this.useCases.listWarehouses(params.organizationId, params.storeId);
   }
 
+  @Post(':organizationId/stores/:storeId/warehouses/ensure-default')
+  @RequirePermissions('stores:create')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Ensure store has a default warehouse' })
+  ensureDefaultWarehouse(@Param() params: StoreIdParamDto) {
+    return this.useCases.ensureDefaultWarehouse(params.organizationId, params.storeId);
+  }
+
   @Get(':organizationId/stores/:storeId/warehouses/:warehouseId')
   @RequirePermissions('stores:read')
   @ApiOperation({ summary: 'Get warehouse (tenant-scoped)' })

@@ -1,8 +1,10 @@
 import { t } from '@/i18n/ru';
+import { formatApiError } from '@/lib/format-api-error';
 
 type StateProps = {
   title?: string;
   message: string;
+  details?: string[];
 };
 
 export function EmptyState({ title = t('nothingHere'), message }: StateProps) {
@@ -16,12 +18,37 @@ export function EmptyState({ title = t('nothingHere'), message }: StateProps) {
   );
 }
 
-export function ErrorState({ title = t('somethingWrong'), message }: StateProps) {
+export function ErrorState({ title = t('somethingWrong'), message, details }: StateProps) {
   return (
     <div className="state-block state-block--error" role="alert">
       <strong style={{ display: 'block', marginBottom: 4 }}>{title}</strong>
-      {message}
+      <div>{message}</div>
+      {details && details.length > 0 ? (
+        <ul className="state-block__details">
+          {details.map((row) => (
+            <li key={row}>{row}</li>
+          ))}
+        </ul>
+      ) : null}
     </div>
+  );
+}
+
+/** Convenience: pass a caught error directly. */
+export function ApiErrorState({
+  error,
+  fallback = 'Не удалось выполнить действие',
+}: {
+  error: unknown;
+  fallback?: string;
+}) {
+  const formatted = formatApiError(error, fallback);
+  return (
+    <ErrorState
+      title={formatted.title}
+      message={formatted.message}
+      details={formatted.details}
+    />
   );
 }
 

@@ -287,6 +287,61 @@ export class OrganizationUseCases {
     return this.warehouses.listByStore(organizationId, storeId);
   }
 
+  /** Idempotent: returns existing warehouses or creates a default one. */
+  async ensureDefaultWarehouse(
+    organizationId: string,
+    storeId: string,
+  ): Promise<WarehouseProps[]> {
+    const store = await this.getStore(organizationId, storeId);
+    const existing = await this.warehouses.listByStore(organizationId, storeId);
+    if (existing.length > 0) return existing;
+
+    const ctx = getRequestContext();
+    try {
+      return await this.uow.runInTransaction(async () => {
+        const again = await this.warehouses.listByStore(organizationId, storeId);
+        if (again.length > 0) return again;
+
+        const warehouse = await this.warehouses.create({
+          id: randomUUID(),
+          organizationId,
+          storeId: store.id,
+          name: defaultWarehouseName(store.name),
+          code: defaultWarehouseCode(),
+          isDefault: true,
+        });
+
+        await this.audit.append({
+          organizationId,
+          storeId: store.id,
+          actorId: ctx?.actorId ?? null,
+          action: 'warehouse.created',
+          entityType: 'Warehouse',
+          entityId: warehouse.id,
+          afterState: {
+            name: warehouse.name,
+            code: warehouse.code,
+            isDefault: warehouse.isDefault,
+            type: warehouse.type,
+          },
+          requestId: ctx?.requestId ?? 'unknown',
+          occurredAt: this.clock.now(),
+        });
+
+        return [warehouse];
+      });
+    } catch (error) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof ConflictException ||
+        error instanceof BadRequestException
+      ) {
+        throw error;
+      }
+      mapDomainError(error);
+    }
+  }
+
   async archiveOrganization(input: ArchiveInput): Promise<OrganizationProps> {
     try {
       const ctx = getRequestContext();

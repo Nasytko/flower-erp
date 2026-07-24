@@ -20,6 +20,8 @@ import { PageContainer } from '@/components/layout/page-container';
 import { PageHeader } from '@/components/layout/page-header';
 import { Section } from '@/components/layout/section';
 import { ErrorState, LoadingState } from '@/components/layout/states';
+import { InlineAlert } from '@/components/workspace/workspace-ui';
+import { formatApiError, type FormattedError } from '@/lib/format-api-error';
 
 type CatalogItem = {
   id: string;
@@ -127,7 +129,7 @@ function NewSalePageInner() {
   const [orderBalanceDue, setOrderBalanceDue] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<FormattedError | null>(null);
 
   const canPay =
     auth.hasPermission('payments:create') && auth.hasPermission('payments:complete');
@@ -273,7 +275,13 @@ function NewSalePageInner() {
     }
 
     Promise.all([
-      client.listWarehouses(organizationId, storeId),
+      (async () => {
+        let warehouses = await client.listWarehouses(organizationId, storeId);
+        if (warehouses.length === 0 && auth.hasPermission('stores:create')) {
+          warehouses = await client.ensureDefaultWarehouse(organizationId, storeId);
+        }
+        return warehouses;
+      })(),
       fromOrderId
         ? Promise.resolve({ items: [] as CatalogItem[] })
         : client.listItems(organizationId, { pageSize: 200, status: 'ACTIVE' }),
@@ -308,7 +316,7 @@ function NewSalePageInner() {
       })
       .catch((err: unknown) => {
         if (cancelled) return;
-        setError(err instanceof ApiClientError ? err.message : 'Не удалось загрузить');
+        setError(formatApiError(err, 'Не удалось загрузить данные для продажи'));
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -427,36 +435,113 @@ function NewSalePageInner() {
     return apiLines;
   }
 
+  const canComplete = auth.hasPermission('sales:complete');
+  const expectedPay =
+    fromOrderId && orderBalanceDue != null ? orderBalanceDue : netAmount;
+  const paymentRequired =
+    canPay &&
+    canComplete &&
+    (!fromOrderId ||
+      orderBalanceDue == null ||
+      Number.isNaN(Number(orderBalanceDue)) ||
+      Number(orderBalanceDue) > 0.0001);
+
+  function collectBlockers(): string[] {
+    const issues: string[] = [];
+    if (!fromOrderId && !warehouseId) {
+      issues.push(
+        'У магазина нет склада. Без склада продажу оформить нельзя — создайте склад при создании магазина или обратитесь к администратору.',
+      );
+    }
+    if (fromOrderId) {
+      if (!orderTitle.trim()) issues.push('Укажите название продажи');
+      if (!parseBynToApi(orderPrice)) issues.push('Укажите цену продажи');
+    } else {
+      if (positions.length === 0) issues.push('Добавьте хотя бы одну позицию');
+      positions.forEach((pos, index) => {
+        const n = index + 1;
+        if (pos.kind === 'CUSTOM') {
+          if (!pos.name.trim()) issues.push(`Позиция ${n}: укажите название букета`);
+          if (!parseBynToApi(pos.price)) issues.push(`Позиция ${n}: укажите цену`);
+          const hasParts = pos.composition.some((line) => line.itemId && line.quantity.trim());
+          if (!hasParts) issues.push(`Позиция ${n}: выберите состав (цветы/материалы)`);
+        } else {
+          if (!pos.itemId) issues.push(`Позиция ${n}: выберите готовый букет из справочника`);
+          if (!parseBynToApi(pos.unitPrice)) issues.push(`Позиция ${n}: укажите цену`);
+          if (!pos.quantity.trim() || Number(pos.quantity) <= 0) {
+            issues.push(`Позиция ${n}: укажите количество`);
+          }
+        }
+      });
+    }
+    if (paymentRequired) {
+      if (paymentMethods.length === 0) {
+        issues.push('Нет способов оплаты. Откройте настройки оплат или обновите страницу.');
+      } else if (parsePaymentSplit(paymentLines).length === 0) {
+        issues.push('Укажите способ оплаты и сумму (можно несколько способов).');
+      }
+    }
+    return issues;
+  }
+
+  const blockers = useMemo(() => {
+    // Recompute when form fields change — mirrors collectBlockers for live warnings.
+    const issues: string[] = [];
+    if (!fromOrderId && !warehouseId) {
+      issues.push('Нет склада магазина — продажу оформить нельзя.');
+    }
+    if (!fromOrderId) {
+      const incomplete = positions.some((pos) => {
+        if (pos.kind === 'CUSTOM') {
+          return (
+            !pos.name.trim() ||
+            !parseBynToApi(pos.price) ||
+            !pos.composition.some((line) => line.itemId && line.quantity.trim())
+          );
+        }
+        return !pos.itemId || !parseBynToApi(pos.unitPrice) || !(Number(pos.quantity) > 0);
+      });
+      if (positions.length === 0 || incomplete) {
+        issues.push('Заполните все позиции: название/букет, цену и состав или количество.');
+      }
+    } else if (!orderTitle.trim() || !parseBynToApi(orderPrice)) {
+      issues.push('Укажите название и цену продажи из заказа.');
+    }
+    if (paymentRequired && paymentMethods.length === 0) {
+      issues.push('Не загружены способы оплаты.');
+    } else if (paymentRequired && parsePaymentSplit(paymentLines).length === 0) {
+      issues.push('Укажите оплату перед оформлением.');
+    }
+    return issues;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    fromOrderId,
+    warehouseId,
+    positions,
+    orderTitle,
+    orderPrice,
+    paymentRequired,
+    paymentMethods,
+    paymentLines,
+  ]);
+
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
     setBusy(true);
     setError(null);
     try {
-      if (!fromOrderId && !warehouseId) {
-        throw new ApiClientError({
-          message: 'Не найден склад магазина. Обратитесь к директору.',
-          code: 'VALIDATION',
-          status: 400,
-          requestId: 'local',
+      const blockersNow = collectBlockers();
+      if (blockersNow.length > 0) {
+        setError({
+          title: 'Сначала исправьте форму',
+          message: blockersNow[0]!,
+          details: blockersNow.slice(1),
         });
+        setBusy(false);
+        return;
       }
 
       const payments = canPay ? parsePaymentSplit(paymentLines) : [];
-      const balanceLeft = orderBalanceDue != null ? Number(orderBalanceDue) : null;
-      const needsPaymentNow =
-        canPay &&
-        (!fromOrderId || balanceLeft == null || Number.isNaN(balanceLeft) || balanceLeft > 0.0001);
-      if (needsPaymentNow && payments.length === 0) {
-        throw new ApiClientError({
-          message: fromOrderId
-            ? 'Укажите доплату (способ и сумму). Если всё оплачено предоплатой — обновите страницу.'
-            : 'Укажите способ оплаты и сумму. Можно добавить несколько способов.',
-          code: 'VALIDATION',
-          status: 400,
-          requestId: 'local',
-        });
-      }
-
       const client = getApiClient();
       let saleId: string;
       if (fromOrderId) {
@@ -502,7 +587,7 @@ function NewSalePageInner() {
       }
       router.push(`${base}/sales/${saleId}`);
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Не удалось создать');
+      setError(formatApiError(err, 'Не удалось оформить продажу'));
       setBusy(false);
     }
   }
@@ -510,17 +595,6 @@ function NewSalePageInner() {
   if (!auth.hasPermission('sales:create')) {
     return <p className="page-state">Доступ запрещён</p>;
   }
-
-  const canComplete = auth.hasPermission('sales:complete');
-  const expectedPay =
-    fromOrderId && orderBalanceDue != null ? orderBalanceDue : netAmount;
-  const paymentRequired =
-    canPay &&
-    canComplete &&
-    (!fromOrderId ||
-      orderBalanceDue == null ||
-      Number.isNaN(Number(orderBalanceDue)) ||
-      Number(orderBalanceDue) > 0.0001);
 
   function updatePosition(key: string, patch: Partial<SalePosition>) {
     setPositions((prev) =>
@@ -549,11 +623,35 @@ function NewSalePageInner() {
         />
 
         {loading ? <LoadingState message="Загрузка каталога и склада…" /> : null}
-        {error ? <ErrorState message={error} /> : null}
+        {error ? (
+          <ErrorState title={error.title} message={error.message} details={error.details} />
+        ) : null}
 
         {!loading ? (
           <Section>
-            <form onSubmit={onSubmit} className="sale-form">
+            {!warehouseId && !fromOrderId ? (
+              <InlineAlert tone="danger" title="Нет склада магазина">
+                Без склада нельзя списать остатки и оформить продажу.
+                {auth.hasPermission('stores:create')
+                  ? ' Обновите страницу — система попробует создать склад автоматически.'
+                  : ' Попросите администратора с правом stores:create создать склад для магазина.'}
+              </InlineAlert>
+            ) : null}
+            {blockers.length > 0 ? (
+              <InlineAlert tone="warning" title="Чтобы оформить продажу">
+                <ul className="form-checklist">
+                  {blockers.map((row) => (
+                    <li key={row}>{row}</li>
+                  ))}
+                </ul>
+              </InlineAlert>
+            ) : (
+              <InlineAlert tone="success" title="Форма готова">
+                Можно оформлять продажу — итог справа обновится по мере заполнения.
+              </InlineAlert>
+            )}
+
+            <form onSubmit={onSubmit} className="sale-form" noValidate>
               <div className="sale-form__main">
                 <Card title={fromOrderId ? 'Из заказа' : 'Позиции продажи'}>
                   {!fromOrderId ? (
@@ -905,20 +1003,23 @@ function NewSalePageInner() {
                       </p>
                     ) : null}
 
-                    <Button
-                      type="submit"
-                      disabled={
-                        busy ||
-                        (!fromOrderId && !warehouseId) ||
-                        (paymentRequired && paymentMethods.length === 0)
-                      }
-                    >
+                    <Button type="submit" disabled={busy || blockers.length > 0}>
                       {busy
                         ? 'Оформляем…'
                         : canComplete
                           ? 'Оформить продажу'
                           : 'Создать черновик продажи'}
                     </Button>
+                    {blockers.length > 0 ? (
+                      <p className="field__hint">
+                        Кнопка станет активной, когда будут заполнены обязательные поля.
+                      </p>
+                    ) : canComplete ? (
+                      <p className="field__hint">
+                        Продажа завершится, состав спишется со склада
+                        {canPay ? ', оплата зафиксируется' : ''}.
+                      </p>
+                    ) : null}
                   </div>
                 </Card>
               </div>

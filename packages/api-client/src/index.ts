@@ -280,6 +280,19 @@ export function createApiClient(options: ApiClientOptions) {
           status: string;
         }>
       >(`/organizations/${organizationId}/stores/${storeId}/warehouses`),
+    ensureDefaultWarehouse: (organizationId: string, storeId: string) =>
+      request<
+        Array<{
+          id: string;
+          name: string;
+          code: string;
+          isDefault: boolean;
+          type: string;
+          status: string;
+        }>
+      >(`/organizations/${organizationId}/stores/${storeId}/warehouses/ensure-default`, {
+        method: 'POST',
+      }),
 
     // ─── Master data ────────────────────────────────────────────────────────
     listSuppliers: (

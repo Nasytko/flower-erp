@@ -4,7 +4,6 @@ import Link from 'next/link';
 import { Suspense, useEffect, useState, type FormEvent } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import { Button, Card } from '@flower/ui';
-import { ApiClientError } from '@flower/api-client';
 import { getApiClient } from '@/lib/api-client';
 import { useAuth } from '@/components/auth-provider';
 import { AutoNumberNote, Field } from '@/components/layout/field';
@@ -19,6 +18,7 @@ import { PageHeader } from '@/components/layout/page-header';
 import { Section } from '@/components/layout/section';
 import { ErrorState, LoadingState } from '@/components/layout/states';
 import { StatusBadge } from '@/components/layout/status-badge';
+import { formatApiError } from '@/lib/format-api-error';
 import { statusLabelRu, timelineMessageRu } from '@/lib/status-labels-ru';
 
 type SaleDetail = Awaited<ReturnType<ReturnType<typeof getApiClient>['getSale']>>;
@@ -63,6 +63,7 @@ function SaleDetailPageInner() {
   const [paymentLines, setPaymentLines] = useState<PaymentSplitLine[]>([createEmptyPaymentLine()]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [errorDetails, setErrorDetails] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [annulReason, setAnnulReason] = useState('');
   const [infoMessage, setInfoMessage] = useState<string | null>(
@@ -76,6 +77,7 @@ function SaleDetailPageInner() {
   async function load() {
     setLoading(true);
     setError(null);
+    setErrorDetails([]);
     try {
       const client = getApiClient();
       const [detail, events, cons, summary, methods] = await Promise.all([
@@ -114,7 +116,9 @@ function SaleDetailPageInner() {
         );
       }
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Не удалось загрузить');
+      const formatted = formatApiError(err, 'Не удалось загрузить продажу');
+      setError(formatted.message);
+      setErrorDetails(formatted.details);
     } finally {
       setLoading(false);
     }
@@ -129,11 +133,14 @@ function SaleDetailPageInner() {
   async function run(action: () => Promise<unknown>) {
     setBusy(true);
     setError(null);
+    setErrorDetails([]);
     try {
       await action();
       await load();
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Действие не выполнено');
+      const formatted = formatApiError(err, 'Действие не выполнено');
+      setError(formatted.message);
+      setErrorDetails(formatted.details);
     } finally {
       setBusy(false);
     }
@@ -217,7 +224,7 @@ function SaleDetailPageInner() {
         />
 
         {loading ? <LoadingState message="Загрузка продажи…" /> : null}
-        {error ? <ErrorState message={error} /> : null}
+        {error ? <ErrorState message={error} details={errorDetails} /> : null}
         {infoMessage ? (
           <Section>
             <Card title="Сообщение">

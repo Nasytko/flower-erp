@@ -1098,6 +1098,15 @@ input {
   color: var(--color-destructive);
 }
 
+.state-block__details {
+  margin: var(--space-2) 0 0;
+  padding-left: 1.2rem;
+  display: grid;
+  gap: 4px;
+  font-size: var(--text-sm);
+  color: inherit;
+}
+
 .state-block--empty {
   background: var(--color-surface-muted);
 }
@@ -2138,9 +2147,13 @@ a.attention-item:hover {
   margin-bottom: var(--space-4);
 }
 
-.inline-alert__title {
-  display: block;
-  margin-bottom: var(--space-1);
+.form-checklist {
+  margin: 0;
+  padding-left: 1.2rem;
+  display: grid;
+  gap: 4px;
+  font-size: var(--text-sm);
+  line-height: 1.4;
 }
 
 .inline-alert--info {
