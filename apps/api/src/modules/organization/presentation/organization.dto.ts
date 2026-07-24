@@ -38,6 +38,12 @@ export class CreateStoreDto {
   @MaxLength(500)
   address?: string;
 
+  @ApiPropertyOptional({ example: 'Минск' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  city?: string;
+
   @ApiPropertyOptional({ example: 'Europe/Moscow' })
   @IsOptional()
   @IsString()

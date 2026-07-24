@@ -34,6 +34,7 @@ export type StoreProps = {
   name: string;
   code: string;
   address: string | null;
+  city: string | null;
   timezone: string;
   status: StoreStatus;
   createdAt: Date;

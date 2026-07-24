@@ -54,6 +54,7 @@ export type CreateStoreInput = {
   name: string;
   code: string;
   address?: string | null;
+  city?: string | null;
   timezone?: string;
 };
 
@@ -164,6 +165,7 @@ export class OrganizationUseCases {
           name,
           code,
           address: input.address?.trim() || null,
+          city: input.city?.trim() || null,
           timezone,
           status: StoreStatus.ACTIVE,
         });

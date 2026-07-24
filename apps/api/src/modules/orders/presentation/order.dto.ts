@@ -122,6 +122,16 @@ export class CreateOrderDto {
   @IsOptional()
   @IsString()
   plannedPrice?: string;
+
+  /** Street address — required for DELIVERY (validated in use-case). */
+  @IsOptional()
+  @IsString()
+  deliveryAddressLine?: string;
+
+  /** Optional city; empty → store city. */
+  @IsOptional()
+  @IsString()
+  deliveryCity?: string;
 }
 
 export class UpdateOrderDto {
@@ -168,6 +178,14 @@ export class UpdateOrderDto {
   @IsOptional()
   @IsString()
   plannedPrice?: string | null;
+
+  @IsOptional()
+  @IsString()
+  deliveryAddressLine?: string | null;
+
+  @IsOptional()
+  @IsString()
+  deliveryCity?: string | null;
 }
 
 export class CompositionItemDto {

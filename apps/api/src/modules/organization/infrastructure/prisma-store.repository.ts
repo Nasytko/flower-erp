@@ -16,6 +16,7 @@ function mapStore(row: PrismaStore): StoreProps {
     name: row.name,
     code: row.code,
     address: row.address,
+    city: row.city,
     timezone: row.timezone,
     status: row.status as StoreStatus,
     createdAt: row.createdAt,
@@ -37,6 +38,7 @@ export class PrismaStoreRepository implements StoreRepository {
     name: string;
     code: string;
     address: string | null;
+    city: string | null;
     timezone: string;
     status: StoreStatus;
   }): Promise<StoreProps> {
@@ -47,6 +49,7 @@ export class PrismaStoreRepository implements StoreRepository {
         name: data.name,
         code: data.code,
         address: data.address,
+        city: data.city,
         timezone: data.timezone,
         status: data.status,
       },

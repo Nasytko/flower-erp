@@ -207,7 +207,7 @@ export class DeliveryUseCases implements DeliveryReadinessPort, DeliveryFulfillm
     recipientName?: string | null;
     recipientPhone?: string | null;
     addressLine: string;
-    city: string;
+    city?: string | null;
     postalCode?: string | null;
     entrance?: string | null;
     floor?: string | null;
@@ -218,7 +218,7 @@ export class DeliveryUseCases implements DeliveryReadinessPort, DeliveryFulfillm
     externalReference?: string | null;
     providerName?: string | null;
   }) {
-    await this.organizations.getStore(input.organizationId, input.storeId);
+    const store = await this.organizations.getStore(input.organizationId, input.storeId);
     const order = await this.orders.getOrderForDelivery(
       input.organizationId,
       input.storeId,
@@ -244,6 +244,15 @@ export class DeliveryUseCases implements DeliveryReadinessPort, DeliveryFulfillm
       });
     }
 
+    const addressLine = input.addressLine.trim();
+    if (!addressLine) {
+      throw new BadRequestException({
+        code: 'ADDRESS_REQUIRED',
+        message: 'Delivery address is required',
+      });
+    }
+    const city = resolveDeliveryCity(input.city, store);
+
     const windowStart = new Date(input.windowStart);
     const windowEnd = new Date(input.windowEnd);
     try {
@@ -258,8 +267,8 @@ export class DeliveryUseCases implements DeliveryReadinessPort, DeliveryFulfillm
       ? new Date(input.requiredDispatchAt)
       : computeRequiredDispatchAt(windowStart, this.bufferMinutes);
     const displayAddress = buildDisplayAddress({
-      addressLine: input.addressLine,
-      city: input.city,
+      addressLine,
+      city,
       postalCode: input.postalCode,
       entrance: input.entrance,
       floor: input.floor,
@@ -282,8 +291,8 @@ export class DeliveryUseCases implements DeliveryReadinessPort, DeliveryFulfillm
         recipientName: input.recipientName ?? order.recipientName ?? 'Recipient',
         recipientPhone: input.recipientPhone ?? order.recipientPhone ?? '',
         displayAddress,
-        addressLine: input.addressLine,
-        city: input.city,
+        addressLine,
+        city,
         postalCode: input.postalCode ?? null,
         entrance: input.entrance ?? null,
         floor: input.floor ?? null,
@@ -386,7 +395,7 @@ export class DeliveryUseCases implements DeliveryReadinessPort, DeliveryFulfillm
     storeId: string;
     deliveryId: string;
     addressLine: string;
-    city: string;
+    city?: string | null;
     postalCode?: string | null;
     entrance?: string | null;
     floor?: string | null;
@@ -408,12 +417,21 @@ export class DeliveryUseCases implements DeliveryReadinessPort, DeliveryFulfillm
           message: 'Cannot update address on terminal delivery',
         });
       }
-      const displayAddress = buildDisplayAddress(input);
+      const store = await this.organizations.getStore(input.organizationId, input.storeId);
+      const city = resolveDeliveryCity(input.city, store);
+      const displayAddress = buildDisplayAddress({
+        addressLine: input.addressLine,
+        city,
+        postalCode: input.postalCode,
+        entrance: input.entrance,
+        floor: input.floor,
+        apartment: input.apartment,
+      });
       const updated = await this.bump(
         job,
         {
           addressLine: input.addressLine,
-          city: input.city,
+          city,
           postalCode: input.postalCode ?? null,
           entrance: input.entrance ?? null,
           floor: input.floor ?? null,
@@ -1348,6 +1366,9 @@ export class DeliveryUseCases implements DeliveryReadinessPort, DeliveryFulfillm
     nextType: 'PICKUP' | 'DELIVERY';
     recipientName?: string | null;
     recipientPhone?: string | null;
+    addressLine?: string | null;
+    city?: string | null;
+    readyAt?: string | null;
   }): Promise<void> {
     if (input.previousType === input.nextType) return;
 
@@ -1376,29 +1397,77 @@ export class DeliveryUseCases implements DeliveryReadinessPort, DeliveryFulfillm
       return;
     }
 
-    // PICKUP → DELIVERY: ensure job exists (minimal draft placeholder — caller should plan)
+    if (!input.addressLine?.trim()) {
+      throw new BadRequestException({
+        code: 'ADDRESS_REQUIRED',
+        message: 'Укажите адрес доставки при смене на доставку',
+      });
+    }
+
+    await this.ensureDeliveryForOrder({
+      organizationId: input.organizationId,
+      storeId: input.storeId,
+      orderId: input.orderId,
+      addressLine: input.addressLine,
+      city: input.city,
+      recipientName: input.recipientName,
+      recipientPhone: input.recipientPhone,
+      readyAt: input.readyAt,
+    });
+  }
+
+  async ensureDeliveryForOrder(input: {
+    organizationId: string;
+    storeId: string;
+    orderId: string;
+    addressLine: string;
+    city?: string | null;
+    recipientName?: string | null;
+    recipientPhone?: string | null;
+    readyAt?: string | null;
+  }): Promise<void> {
     const existing = await this.deliveries.findActiveByOrderId(
       input.organizationId,
       input.orderId,
     );
     if (existing) return;
 
-    const now = this.clock.now();
-    const windowStart = now;
-    const windowEnd = new Date(now.getTime() + 2 * 60 * 60 * 1000);
+    const ready = input.readyAt ? new Date(input.readyAt) : this.clock.now();
+    const windowStart = ready;
+    const windowEnd = new Date(ready.getTime() + 2 * 60 * 60 * 1000);
+
     await this.createDeliveryFromOrder({
       organizationId: input.organizationId,
       storeId: input.storeId,
       orderId: input.orderId,
       method: DeliveryMethod.OWN_COURIER,
-      deliveryDate: now.toISOString().slice(0, 10),
+      deliveryDate: ready.toISOString().slice(0, 10),
       windowStart: windowStart.toISOString(),
       windowEnd: windowEnd.toISOString(),
       recipientName: input.recipientName,
       recipientPhone: input.recipientPhone,
-      addressLine: 'TBD',
-      city: 'TBD',
+      addressLine: input.addressLine,
+      city: input.city,
       deliveryFee: '0',
     });
   }
+}
+
+/** Empty city → store.city → last segment of store.address → Минск. */
+function resolveDeliveryCity(
+  inputCity: string | null | undefined,
+  store: { city?: string | null; address?: string | null },
+): string {
+  const explicit = inputCity?.trim();
+  if (explicit) return explicit;
+  if (store.city?.trim()) return store.city.trim();
+  const address = store.address?.trim();
+  if (address) {
+    const parts = address
+      .split(',')
+      .map((part) => part.trim())
+      .filter(Boolean);
+    if (parts.length >= 2) return parts[parts.length - 1]!;
+  }
+  return 'Минск';
 }

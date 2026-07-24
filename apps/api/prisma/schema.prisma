@@ -127,6 +127,7 @@ model Store {
   name           String
   code           String
   address        String?
+  city           String?
   timezone       String      @default("Europe/Moscow")
   status         StoreStatus @default(ACTIVE)
   createdAt      DateTime    @default(now()) @map("created_at")

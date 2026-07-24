@@ -147,6 +147,7 @@ export class BootstrapOwnerUseCases {
           name: input.storeName.trim(),
           code,
           address: null,
+          city: null,
           timezone: 'Europe/Moscow',
           status: StoreStatus.ACTIVE,
         });

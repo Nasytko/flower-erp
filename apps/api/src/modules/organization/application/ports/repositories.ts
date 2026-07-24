@@ -41,6 +41,7 @@ export interface StoreRepository {
     name: string;
     code: string;
     address: string | null;
+    city: string | null;
     timezone: string;
     status: StoreStatus;
   }): Promise<StoreProps>;

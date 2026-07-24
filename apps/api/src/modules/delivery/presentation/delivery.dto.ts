@@ -87,9 +87,10 @@ export class CreateDeliveryDto {
   @MinLength(1)
   addressLine!: string;
 
+  /** Optional — empty means store city. */
+  @IsOptional()
   @IsString()
-  @MinLength(1)
-  city!: string;
+  city?: string;
 
   @IsOptional()
   @IsString()
@@ -167,9 +168,9 @@ export class UpdateAddressDto extends ExpectedVersionDto {
   @MinLength(1)
   addressLine!: string;
 
+  @IsOptional()
   @IsString()
-  @MinLength(1)
-  city!: string;
+  city?: string;
 
   @IsOptional()
   @IsString()

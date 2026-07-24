@@ -166,8 +166,19 @@ export class OrderUseCases {
     plannedPrice?: string | null;
     customerNameSnapshot?: string | null;
     customerPhoneSnapshot?: string | null;
+    /** Required when type=DELIVERY — creates delivery job immediately. */
+    deliveryAddressLine?: string | null;
+    deliveryCity?: string | null;
   }) {
     await this.organizations.getWarehouse(input.organizationId, input.storeId, input.warehouseId);
+
+    const type = input.type ?? OrderType.PICKUP;
+    if (type === OrderType.DELIVERY && !input.deliveryAddressLine?.trim()) {
+      throw new BadRequestException({
+        code: 'ADDRESS_REQUIRED',
+        message: 'Для доставки укажите адрес',
+      });
+    }
 
     let customerNameSnapshot = input.customerNameSnapshot ?? null;
     let customerPhoneSnapshot = input.customerPhoneSnapshot ?? null;
@@ -183,18 +194,18 @@ export class OrderUseCases {
       customerPhoneSnapshot = customerPhoneSnapshot ?? customer.phone;
     }
 
-    return this.uow.runInTransaction(async () => {
+    const order = await this.uow.runInTransaction(async () => {
       const now = this.clock.now();
       const orderId = randomUUID();
       const compositionId = randomUUID();
-      const order = await this.orders.createOrder({
+      const created = await this.orders.createOrder({
         id: orderId,
         organizationId: input.organizationId,
         storeId: input.storeId,
         warehouseId: input.warehouseId,
         customerId: input.customerId ?? null,
         number: await this.orders.uniqueNumber('ORD', input.organizationId),
-        type: input.type ?? OrderType.PICKUP,
+        type,
         occasion: input.occasion ?? OrderOccasion.OTHER,
         orderDate: now,
         readyAt: input.readyAt ? new Date(input.readyAt) : null,
@@ -210,10 +221,28 @@ export class OrderUseCases {
         compositionId,
       });
 
-      await this.appendTimeline(order, 'ORDER_CREATED', 'Order created', null);
-      await this.auditOrder(order, 'ORDER_CREATED', null, order);
-      return order;
+      await this.appendTimeline(created, 'ORDER_CREATED', 'Order created', null);
+      await this.auditOrder(created, 'ORDER_CREATED', null, created);
+      return created;
     });
+
+    if (type === OrderType.DELIVERY) {
+      const fulfillment = this.deliveryFulfillment();
+      if (fulfillment) {
+        await fulfillment.ensureDeliveryForOrder({
+          organizationId: input.organizationId,
+          storeId: input.storeId,
+          orderId: order.id,
+          addressLine: input.deliveryAddressLine!.trim(),
+          city: input.deliveryCity,
+          recipientName: order.recipientName,
+          recipientPhone: order.recipientPhone,
+          readyAt: input.readyAt,
+        });
+      }
+    }
+
+    return order;
   }
 
   async updateDraft(input: {
@@ -233,6 +262,8 @@ export class OrderUseCases {
     referenceComment?: string | null;
     plannedPrice?: string | null;
     warehouseId?: string;
+    deliveryAddressLine?: string | null;
+    deliveryCity?: string | null;
   }) {
     const existing = await this.requireOrder(input.organizationId, input.storeId, input.orderId);
     try {
@@ -298,6 +329,12 @@ export class OrderUseCases {
             nextType: input.type as 'PICKUP' | 'DELIVERY',
             recipientName: updated.recipientName,
             recipientPhone: updated.recipientPhone,
+            addressLine: input.deliveryAddressLine,
+            city: input.deliveryCity,
+            readyAt:
+              updated.readyAt instanceof Date
+                ? updated.readyAt.toISOString()
+                : (updated.readyAt ?? input.readyAt),
           });
         }
       }

@@ -491,38 +491,17 @@ export default function OrderDetailPage() {
                               });
                             }}
                           >
-                            <select name="method" defaultValue="OWN_COURIER">
-                              <option value="OWN_COURIER">Свой курьер</option>
-                              <option value="TAXI">Такси</option>
-                              <option value="THIRD_PARTY_SERVICE">Сторонний сервис</option>
-                            </select>
-                            <Input
-                              name="deliveryDate"
-                              type="date"
-                              required
-                              defaultValue={new Date().toISOString().slice(0, 10)}
-                            />
-                            <Input
-                              name="windowStart"
-                              type="datetime-local"
-                              required
-                              defaultValue={new Date().toISOString().slice(0, 16)}
-                            />
-                            <Input
-                              name="windowEnd"
-                              type="datetime-local"
-                              required
-                              defaultValue={new Date(Date.now() + 2 * 3600_000)
-                                .toISOString()
-                                .slice(0, 16)}
-                            />
-                            <Input
-                              name="addressLine"
-                              placeholder="Адрес"
-                              required
-                              defaultValue=""
-                            />
-                            <Input name="city" placeholder="Город" required defaultValue="" />
+                            <Field label="Адрес" required>
+                              <Input
+                                name="addressLine"
+                                placeholder="ул. Независимости, 10"
+                                required
+                                defaultValue=""
+                              />
+                            </Field>
+                            <Field label="Город" hint="Пусто = город магазина">
+                              <Input name="city" placeholder="Как у магазина" defaultValue="" />
+                            </Field>
                             <Input
                               name="recipientName"
                               placeholder="Получатель"
@@ -533,9 +512,39 @@ export default function OrderDetailPage() {
                               placeholder="Телефон"
                               defaultValue={order.recipientPhone ?? ''}
                             />
+                            <Input
+                              name="deliveryDate"
+                              type="hidden"
+                              defaultValue={
+                                order.readyAt
+                                  ? new Date(order.readyAt).toISOString().slice(0, 10)
+                                  : new Date().toISOString().slice(0, 10)
+                              }
+                            />
+                            <Input
+                              name="windowStart"
+                              type="hidden"
+                              defaultValue={
+                                order.readyAt
+                                  ? new Date(order.readyAt).toISOString().slice(0, 16)
+                                  : new Date().toISOString().slice(0, 16)
+                              }
+                            />
+                            <Input
+                              name="windowEnd"
+                              type="hidden"
+                              defaultValue={
+                                order.readyAt
+                                  ? new Date(new Date(order.readyAt).getTime() + 2 * 3600_000)
+                                      .toISOString()
+                                      .slice(0, 16)
+                                  : new Date(Date.now() + 2 * 3600_000).toISOString().slice(0, 16)
+                              }
+                            />
+                            <input type="hidden" name="method" value="OWN_COURIER" />
                             <div className="delivery-action-row">
                               <Button type="submit" disabled={busy}>
-                                Создать
+                                Создать доставку
                               </Button>
                               <Button
                                 type="button"

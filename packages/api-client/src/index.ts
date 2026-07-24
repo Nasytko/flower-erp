@@ -245,7 +245,7 @@ export function createApiClient(options: ApiClientOptions) {
       }>(`/organizations/${organizationId}/stores?page=${page}&pageSize=${pageSize}`),
     createStore: (
       organizationId: string,
-      body: { name: string; code: string; address?: string; timezone?: string },
+      body: { name: string; code: string; address?: string; city?: string; timezone?: string },
     ) =>
       request<{
         store: { id: string; name: string; code: string; status: string };
@@ -267,6 +267,7 @@ export function createApiClient(options: ApiClientOptions) {
         code: string;
         status: string;
         address: string | null;
+        city: string | null;
         timezone: string;
       }>(`/organizations/${organizationId}/stores/${storeId}`),
     listWarehouses: (organizationId: string, storeId: string) =>
@@ -817,6 +818,8 @@ export function createApiClient(options: ApiClientOptions) {
         referenceUrl?: string;
         referenceComment?: string;
         plannedPrice?: string;
+        deliveryAddressLine?: string;
+        deliveryCity?: string;
       },
     ) =>
       request<{ id: string; number: string; status: string }>(
@@ -905,6 +908,8 @@ export function createApiClient(options: ApiClientOptions) {
         referenceUrl?: string | null;
         referenceComment?: string | null;
         plannedPrice?: string | null;
+        deliveryAddressLine?: string | null;
+        deliveryCity?: string | null;
       },
     ) =>
       request<{ id: string; status: string }>(
@@ -2799,7 +2804,7 @@ export type CreateDeliveryInput = {
   recipientName?: string | null;
   recipientPhone?: string | null;
   addressLine: string;
-  city: string;
+  city?: string;
   postalCode?: string | null;
   entrance?: string | null;
   floor?: string | null;

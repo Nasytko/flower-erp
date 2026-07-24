@@ -4,16 +4,18 @@ import Link from 'next/link';
 import { useEffect, useState, type FormEvent } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Button, Card, Input } from '@flower/ui';
-import { ApiClientError } from '@flower/api-client';
 import { getApiClient } from '@/lib/api-client';
 import { useAuth } from '@/components/auth-provider';
 import { AutoNumberNote, Field } from '@/components/layout/field';
+import { FancySelect } from '@/components/layout/fancy-select';
 import { MoneyBynInput, parseBynToApi } from '@/components/layout/money-byn-input';
 import { PageContainer } from '@/components/layout/page-container';
 import { PageHeader } from '@/components/layout/page-header';
 import { Section } from '@/components/layout/section';
 import { EmptyState, ErrorState, LoadingState } from '@/components/layout/states';
 import { StatusBadge } from '@/components/layout/status-badge';
+import { InlineAlert } from '@/components/workspace/workspace-ui';
+import { formatApiErrorMessage } from '@/lib/format-api-error';
 
 type DashOrder = { id: string; number: string; status: string; readyAt?: string | null };
 
@@ -54,9 +56,10 @@ export default function OrdersPage() {
   const [recipientName, setRecipientName] = useState('');
   const [recipientPhone, setRecipientPhone] = useState('');
   const [readyAt, setReadyAt] = useState('');
-  const [referenceUrl, setReferenceUrl] = useState('');
-  const [referenceComment, setReferenceComment] = useState('');
   const [plannedPrice, setPlannedPrice] = useState('');
+  const [deliveryAddress, setDeliveryAddress] = useState('');
+  const [deliveryCity, setDeliveryCity] = useState('');
+  const [storeCity, setStoreCity] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
@@ -66,21 +69,30 @@ export default function OrdersPage() {
     setError(null);
     try {
       const client = getApiClient();
-      const [dash, list, warehouses, customerList] = await Promise.all([
+      const [dash, list, warehouses, customerList, store] = await Promise.all([
         client.getOrderDashboard(organizationId, storeId),
         client.listOrders(organizationId, storeId),
-        client.listWarehouses(organizationId, storeId),
+        (async () => {
+          let rows = await client.listWarehouses(organizationId, storeId);
+          if (rows.length === 0 && auth.hasPermission('stores:create')) {
+            rows = await client.ensureDefaultWarehouse(organizationId, storeId);
+          }
+          return rows;
+        })(),
         auth.hasPermission('customers:read')
           ? client.listCustomers(organizationId)
           : Promise.resolve([] as CustomerOption[]),
+        client.getStore(organizationId, storeId),
       ]);
       setDashboard(dash);
       setOrders(list);
       setCustomers(customerList.filter((c) => c.status === 'ACTIVE'));
       const wh = warehouses.find((w) => w.isDefault) ?? warehouses[0];
       if (wh) setWarehouseId(wh.id);
+      const city = store.city?.trim() || '';
+      setStoreCity(city);
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Не удалось загрузить');
+      setError(formatApiErrorMessage(err, 'Не удалось загрузить'));
     } finally {
       setLoading(false);
     }
@@ -98,28 +110,34 @@ export default function OrdersPage() {
     setError(null);
     try {
       if (!warehouseId) {
-        throw new ApiClientError({
-          message: 'Не найден склад магазина. Обратитесь к директору.',
-          code: 'VALIDATION',
-          status: 400,
-          requestId: 'local',
-        });
+        throw new Error('Не найден склад магазина. Обновите страницу или создайте склад.');
+      }
+      if (!recipientName.trim()) {
+        throw new Error('Укажите получателя');
+      }
+      if (!readyAt) {
+        throw new Error('Укажите время готовности / доставки');
+      }
+      if (orderType === 'DELIVERY' && !deliveryAddress.trim()) {
+        throw new Error('Для доставки укажите адрес');
       }
       const created = await getApiClient().createOrder(organizationId, storeId, {
         warehouseId,
         type: orderType,
         occasion,
         customerId: customerId || undefined,
-        recipientName: recipientName || undefined,
-        recipientPhone: recipientPhone || undefined,
-        readyAt: readyAt || undefined,
-        referenceUrl: referenceUrl || undefined,
-        referenceComment: referenceComment || undefined,
+        recipientName: recipientName.trim(),
+        recipientPhone: recipientPhone.trim() || undefined,
+        readyAt: new Date(readyAt).toISOString(),
         plannedPrice: parseBynToApi(plannedPrice) ?? undefined,
+        deliveryAddressLine:
+          orderType === 'DELIVERY' ? deliveryAddress.trim() : undefined,
+        deliveryCity:
+          orderType === 'DELIVERY' ? deliveryCity.trim() || undefined : undefined,
       });
       router.push(`${base}/orders/${created.id}`);
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Не удалось создать');
+      setError(formatApiErrorMessage(err, 'Не удалось создать заказ'));
       setCreating(false);
     }
   }
@@ -156,7 +174,7 @@ export default function OrdersPage() {
       <PageContainer>
         <PageHeader
           title="Заказы"
-          description="Заказ — букет к времени: самовывоз или доставка. Когда заказ готов и передан клиенту, оформляется продажа."
+          description="Простой заказ: кто, когда, самовывоз или доставка с адресом. Пустой город = город магазина."
           breadcrumbs={[
             { label: 'Магазин', href: base },
             { label: 'Заказы' },
@@ -174,12 +192,8 @@ export default function OrdersPage() {
           <div className="concept-callout">
             <strong>Заказ → продажа</strong>
             <p>
-              <strong>Заказ</strong> — готовим к сроку. Можно принять предоплату (карта сейчас,
-              остаток наличными при выдаче).
-            </p>
-            <p>
-              <strong>Продажа</strong> — финальный этап: выдача клиенту, оплата (один или несколько
-              способов) и списание со склада. Оформляется отдельно или из готового заказа.
+              Заказ готовим к сроку. При доставке адрес указываем сразу — доставка создаётся
+              автоматически. Когда букет выдан, оформляем продажу.
             </p>
           </div>
         </Section>
@@ -206,74 +220,56 @@ export default function OrdersPage() {
         {canCreate ? (
           <Section>
             <Card title="Новый заказ">
-              <p className="form-lead">
-                Укажите способ получения и срок готовности. Черновик можно уточнить после создания.
-              </p>
-              <form onSubmit={onCreate} className="stack-form">
+              {!warehouseId ? (
+                <InlineAlert tone="danger" title="Нет склада">
+                  Без склада заказ создать нельзя. Обновите страницу или создайте склад магазина.
+                </InlineAlert>
+              ) : null}
+              <p className="form-lead">Минимум полей: способ, получатель, время. Адрес — сразу, если доставка.</p>
+              <form onSubmit={onCreate} className="stack-form" noValidate>
                 <AutoNumberNote label="Номер заказа" />
 
-                <Field
-                  label="Способ получения"
-                  tooltip="Самовывоз — клиент заберёт в магазине к времени. Доставка — отвезут курьером."
-                  required
-                >
-                  <select
-                    className="field-control"
+                <Field label="Способ получения" required>
+                  <FancySelect
                     value={orderType}
-                    onChange={(e) => setOrderType(e.target.value as 'PICKUP' | 'DELIVERY')}
-                  >
-                    <option value="PICKUP">Самовывоз из магазина к времени</option>
-                    <option value="DELIVERY">Доставка клиенту</option>
-                  </select>
+                    onChange={(v) => setOrderType(v as 'PICKUP' | 'DELIVERY')}
+                    options={[
+                      { value: 'PICKUP', label: 'Самовывоз к времени' },
+                      { value: 'DELIVERY', label: 'Доставка' },
+                    ]}
+                    searchable={false}
+                  />
                 </Field>
 
                 {customers.length > 0 ? (
-                  <Field
-                    label="Клиент"
-                    tooltip="Необязательно: постоянный покупатель из справочника"
-                  >
-                    <select
-                      className="field-control"
+                  <Field label="Клиент">
+                    <FancySelect
                       value={customerId}
-                      onChange={(e) => setCustomerId(e.target.value)}
-                    >
-                      <option value="">Без привязки к клиенту</option>
-                      {customers.map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.name} — {c.phone}
-                        </option>
-                      ))}
-                    </select>
+                      onChange={setCustomerId}
+                      options={[
+                        { value: '', label: 'Без привязки' },
+                        ...customers.map((c) => ({
+                          value: c.id,
+                          label: c.name,
+                          hint: c.phone,
+                        })),
+                      ]}
+                      searchable
+                      placeholder="Без привязки"
+                    />
                   </Field>
                 ) : null}
 
-                <Field
-                  label="Повод"
-                  tooltip="Помогает флористу подобрать стиль букета"
-                  required
-                >
-                  <select
-                    className="field-control"
+                <Field label="Повод">
+                  <FancySelect
                     value={occasion}
-                    onChange={(e) => setOccasion(e.target.value)}
-                  >
-                    {OCCASIONS.map((o) => (
-                      <option key={o.value} value={o.value}>
-                        {o.label}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={setOccasion}
+                    options={OCCASIONS.map((o) => ({ value: o.value, label: o.label }))}
+                    searchable={false}
+                  />
                 </Field>
 
-                <Field
-                  label="Получатель"
-                  tooltip={
-                    orderType === 'DELIVERY'
-                      ? 'Кому доставят букет'
-                      : 'На чьё имя готовим букет к выдаче'
-                  }
-                  required
-                >
+                <Field label="Получатель" required>
                   <Input
                     value={recipientName}
                     onChange={(e) => setRecipientName(e.target.value)}
@@ -282,10 +278,7 @@ export default function OrdersPage() {
                   />
                 </Field>
 
-                <Field
-                  label="Телефон получателя"
-                  tooltip="Для связи магазина или курьера"
-                >
+                <Field label="Телефон">
                   <Input
                     value={recipientPhone}
                     onChange={(e) => setRecipientPhone(e.target.value)}
@@ -295,8 +288,7 @@ export default function OrdersPage() {
                 </Field>
 
                 <Field
-                  label={orderType === 'DELIVERY' ? 'К какому времени доставить' : 'К какому времени готов'}
-                  tooltip="Дата и время, когда букет должен быть готов"
+                  label={orderType === 'DELIVERY' ? 'Время доставки' : 'Время готовности'}
                   required
                 >
                   <Input
@@ -307,32 +299,38 @@ export default function OrdersPage() {
                   />
                 </Field>
 
-                <Field
-                  label="Ссылка на референс"
-                  tooltip="Необязательно: фото или пример букета"
-                >
-                  <Input
-                    value={referenceUrl}
-                    onChange={(e) => setReferenceUrl(e.target.value)}
-                    placeholder="https://…"
-                  />
-                </Field>
+                {orderType === 'DELIVERY' ? (
+                  <>
+                    <Field
+                      label="Адрес доставки"
+                      tooltip="Улица, дом, корпус, квартира"
+                      required
+                    >
+                      <Input
+                        value={deliveryAddress}
+                        onChange={(e) => setDeliveryAddress(e.target.value)}
+                        placeholder="ул. Независимости, 10, кв. 5"
+                        required
+                      />
+                    </Field>
+                    <Field
+                      label="Город"
+                      tooltip={
+                        storeCity
+                          ? `Если пусто — подставим город магазина: ${storeCity}`
+                          : 'Если пусто — город магазина (или Минск по умолчанию)'
+                      }
+                    >
+                      <Input
+                        value={deliveryCity}
+                        onChange={(e) => setDeliveryCity(e.target.value)}
+                        placeholder={storeCity || 'Как у магазина'}
+                      />
+                    </Field>
+                  </>
+                ) : null}
 
-                <Field
-                  label="Комментарий к референсу"
-                  tooltip="Что важно повторить или изменить"
-                >
-                  <Input
-                    value={referenceComment}
-                    onChange={(e) => setReferenceComment(e.target.value)}
-                    placeholder="Больше пионов, без хризантем"
-                  />
-                </Field>
-
-                <Field
-                  label="Плановая цена"
-                  tooltip="Ориентир для клиента в BYN; можно уточнить позже"
-                >
+                <Field label="Плановая цена">
                   <MoneyBynInput value={plannedPrice} onChange={setPlannedPrice} />
                 </Field>
 
