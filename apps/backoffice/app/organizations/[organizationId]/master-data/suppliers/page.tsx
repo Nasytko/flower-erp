@@ -1,16 +1,17 @@
-﻿'use client';
+'use client';
 
 import Link from 'next/link';
 import { useEffect, useState, type FormEvent } from 'react';
 import { useParams } from 'next/navigation';
 import { Button, Card, Input } from '@flower/ui';
-import { ApiClientError } from '@flower/api-client';
 import { getApiClient } from '@/lib/api-client';
 import { PageContainer } from '@/components/layout/page-container';
 import { PageHeader } from '@/components/layout/page-header';
 import { Section } from '@/components/layout/section';
 import { EmptyState, ErrorState, LoadingState } from '@/components/layout/states';
 import { StatusBadge } from '@/components/layout/status-badge';
+import { AutoNumberNote, Field } from '@/components/layout/field';
+import { formatApiErrorMessage } from '@/lib/format-api-error';
 
 type Supplier = {
   id: string;
@@ -18,6 +19,9 @@ type Supplier = {
   code: string;
   status: string;
   country: string | null;
+  phone: string | null;
+  email: string | null;
+  contactPerson: string | null;
 };
 
 export default function SuppliersPage() {
@@ -30,7 +34,11 @@ export default function SuppliersPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [name, setName] = useState('');
-  const [code, setCode] = useState('');
+  const [country, setCountry] = useState('');
+  const [phone, setPhone] = useState('');
+  const [email, setEmail] = useState('');
+  const [contactPerson, setContactPerson] = useState('');
+  const [comment, setComment] = useState('');
   const [creating, setCreating] = useState(false);
 
   async function load() {
@@ -44,7 +52,7 @@ export default function SuppliersPage() {
       });
       setItems(res.items);
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Не удалось загрузить');
+      setError(formatApiErrorMessage(err, 'Не удалось загрузить'));
     } finally {
       setLoading(false);
     }
@@ -60,12 +68,23 @@ export default function SuppliersPage() {
     setCreating(true);
     setError(null);
     try {
-      await getApiClient().createSupplier(organizationId, { name, code });
+      await getApiClient().createSupplier(organizationId, {
+        name,
+        country: country.trim() || undefined,
+        phone: phone.trim() || undefined,
+        email: email.trim() || undefined,
+        contactPerson: contactPerson.trim() || undefined,
+        comment: comment.trim() || undefined,
+      });
       setName('');
-      setCode('');
+      setCountry('');
+      setPhone('');
+      setEmail('');
+      setContactPerson('');
+      setComment('');
       await load();
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Не удалось создать');
+      setError(formatApiErrorMessage(err, 'Не удалось создать'));
     } finally {
       setCreating(false);
     }
@@ -77,7 +96,7 @@ export default function SuppliersPage() {
       await getApiClient().archiveSupplier(organizationId, supplierId);
       await load();
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Не удалось архивировать');
+      setError(formatApiErrorMessage(err, 'Не удалось архивировать'));
     }
   }
 
@@ -86,7 +105,7 @@ export default function SuppliersPage() {
       <PageContainer>
         <PageHeader
           title="Поставщики"
-          description="Справочник поставщиков. Hard delete запрещён."
+          description="Справочник поставщиков для закупок и поставок."
           breadcrumbs={[
             { label: 'Организации', href: '/organizations' },
             { label: 'Организация', href: `/organizations/${organizationId}` },
@@ -103,15 +122,18 @@ export default function SuppliersPage() {
                 void load();
               }}
             >
-              <Input
-                placeholder="Название"
-                value={nameFilter}
-                onChange={(e) => setNameFilter(e.target.value)}
-                aria-label="Фильтр поставщиков по названию"
-              />
-              <Button type="submit" variant="secondary">
-                Найти
-              </Button>
+              <Field label="Название">
+                <Input
+                  value={nameFilter}
+                  onChange={(e) => setNameFilter(e.target.value)}
+                  aria-label="Фильтр поставщиков по названию"
+                />
+              </Field>
+              <div style={{ display: 'flex', alignItems: 'flex-end' }}>
+                <Button type="submit" variant="secondary">
+                  Найти
+                </Button>
+              </div>
             </form>
           </Card>
         </Section>
@@ -144,6 +166,7 @@ export default function SuppliersPage() {
                       <div className="meta-row" style={{ marginTop: 4 }}>
                         <StatusBadge status={item.status} />
                         {item.country ? <span>{item.country}</span> : null}
+                        {item.contactPerson ? <span>{item.contactPerson}</span> : null}
                       </div>
                     </div>
                     {item.status !== 'ARCHIVED' ? (
@@ -160,20 +183,39 @@ export default function SuppliersPage() {
         <Section>
           <Card title="Создать поставщика">
             <form onSubmit={onCreate} className="form-grid">
-              <Input
-                placeholder="Название"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                required
-                aria-label="Название поставщика"
-              />
-              <Input
-                placeholder="Код"
-                value={code}
-                onChange={(e) => setCode(e.target.value)}
-                required
-                aria-label="Код поставщика"
-              />
+              <AutoNumberNote label="Код поставщика" />
+              <Field label="Название" required hint="Юридическое или торговое имя поставщика">
+                <Input
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  required
+                  minLength={2}
+                  aria-label="Название поставщика"
+                />
+              </Field>
+              <Field label="Страна" hint="Необязательно">
+                <Input value={country} onChange={(e) => setCountry(e.target.value)} aria-label="Страна" />
+              </Field>
+              <Field label="Контактное лицо" hint="Необязательно">
+                <Input
+                  value={contactPerson}
+                  onChange={(e) => setContactPerson(e.target.value)}
+                  aria-label="Контактное лицо"
+                />
+              </Field>
+              <Field label="Телефон" hint="Необязательно">
+                <Input value={phone} onChange={(e) => setPhone(e.target.value)} aria-label="Телефон" />
+              </Field>
+              <Field label="Email" hint="Необязательно">
+                <Input value={email} onChange={(e) => setEmail(e.target.value)} aria-label="Email" />
+              </Field>
+              <Field label="Комментарий" hint="Необязательно">
+                <Input
+                  value={comment}
+                  onChange={(e) => setComment(e.target.value)}
+                  aria-label="Комментарий"
+                />
+              </Field>
               <Button type="submit" disabled={creating}>
                 {creating ? 'Создание…' : 'Создать'}
               </Button>

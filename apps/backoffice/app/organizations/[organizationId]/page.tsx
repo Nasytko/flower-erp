@@ -25,7 +25,6 @@ export default function OrganizationDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [name, setName] = useState('');
-  const [code, setCode] = useState('');
   const [creating, setCreating] = useState(false);
 
   async function load() {
@@ -57,9 +56,8 @@ export default function OrganizationDetailPage() {
     setCreating(true);
     setError(null);
     try {
-      await getApiClient().createStore(organizationId, { name, code });
+      await getApiClient().createStore(organizationId, { name });
       setName('');
-      setCode('');
       await load();
     } catch (err) {
       setError(err instanceof ApiClientError ? err.message : 'Не удалось создать магазин');
@@ -132,25 +130,28 @@ export default function OrganizationDetailPage() {
             <Section>
               <Card title="Создать магазин">
                 <p style={{ margin: '0 0 12px', color: 'var(--color-muted)', fontSize: 'var(--text-sm)' }}>
-                  Создаёт магазин со складом по умолчанию.
+                  Создаёт магазин со складом по умолчанию. Код магазина присваивается автоматически.
                 </p>
                 <form onSubmit={onCreateStore} className="form-grid">
-                  <Input
-                    placeholder="Название магазина"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    required
-                    minLength={2}
-                    aria-label="Название магазина"
-                  />
-                  <Input
-                    placeholder="Код (например, MSK-01)"
-                    value={code}
-                    onChange={(e) => setCode(e.target.value)}
-                    required
-                    minLength={2}
-                    aria-label="Код магазина"
-                  />
+                  <div className="field field--readonly">
+                    <div className="field__label-row">
+                      <span className="field__label">Код магазина</span>
+                    </div>
+                    <div className="field__readonly">Присвоится автоматически после сохранения</div>
+                    <p className="field__hint">Код выдаёт система. Изменить его нельзя.</p>
+                  </div>
+                  <label className="field">
+                    <span className="field__label">
+                      Название магазина <span className="field__required">*</span>
+                    </span>
+                    <Input
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      required
+                      minLength={2}
+                      aria-label="Название магазина"
+                    />
+                  </label>
                   <Button type="submit" disabled={creating}>
                     {creating ? 'Создание…' : 'Создать магазин'}
                   </Button>

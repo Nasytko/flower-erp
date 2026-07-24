@@ -26,11 +26,15 @@ export class CreateStoreDto {
   @MaxLength(200)
   name!: string;
 
-  @ApiProperty({ example: 'MSK-01' })
+  @ApiPropertyOptional({
+    example: 'MSK-01',
+    description: 'Optional; auto-generated when omitted',
+  })
+  @IsOptional()
   @IsString()
   @MinLength(2)
   @MaxLength(32)
-  code!: string;
+  code?: string;
 
   @ApiPropertyOptional()
   @IsOptional()

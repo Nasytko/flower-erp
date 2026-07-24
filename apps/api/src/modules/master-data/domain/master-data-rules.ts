@@ -79,6 +79,8 @@ export type ItemProps = {
   isPurchasable: boolean;
   isSellable: boolean;
   status: MasterDataStatus;
+  createdByMembershipId: string | null;
+  createdByDisplayName: string | null;
   createdAt: Date;
   updatedAt: Date;
 };

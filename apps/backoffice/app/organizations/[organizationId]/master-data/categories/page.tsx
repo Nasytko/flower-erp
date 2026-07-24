@@ -1,15 +1,17 @@
-﻿'use client';
+'use client';
 
 import { useEffect, useState, type FormEvent } from 'react';
 import { useParams } from 'next/navigation';
 import { Button, Card, Input } from '@flower/ui';
-import { ApiClientError } from '@flower/api-client';
 import { getApiClient } from '@/lib/api-client';
 import { PageContainer } from '@/components/layout/page-container';
 import { PageHeader } from '@/components/layout/page-header';
 import { Section } from '@/components/layout/section';
 import { EmptyState, ErrorState, LoadingState } from '@/components/layout/states';
 import { StatusBadge } from '@/components/layout/status-badge';
+import { AutoNumberNote, Field } from '@/components/layout/field';
+import { FancySelect } from '@/components/layout/fancy-select';
+import { formatApiErrorMessage } from '@/lib/format-api-error';
 
 type Category = {
   id: string;
@@ -28,7 +30,6 @@ export default function CategoriesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [name, setName] = useState('');
-  const [code, setCode] = useState('');
   const [parentId, setParentId] = useState('');
   const [creating, setCreating] = useState(false);
 
@@ -39,7 +40,7 @@ export default function CategoriesPage() {
       const res = await getApiClient().listCategories(organizationId, 1, 100);
       setItems(res.items);
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Не удалось загрузить');
+      setError(formatApiErrorMessage(err, 'Не удалось загрузить'));
     } finally {
       setLoading(false);
     }
@@ -57,15 +58,13 @@ export default function CategoriesPage() {
     try {
       await getApiClient().createCategory(organizationId, {
         name,
-        code,
         parentId: parentId || undefined,
       });
       setName('');
-      setCode('');
       setParentId('');
       await load();
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Не удалось создать');
+      setError(formatApiErrorMessage(err, 'Не удалось создать'));
     } finally {
       setCreating(false);
     }
@@ -77,16 +76,19 @@ export default function CategoriesPage() {
       await getApiClient().archiveCategory(organizationId, categoryId);
       await load();
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Не удалось архивировать');
+      setError(formatApiErrorMessage(err, 'Не удалось архивировать'));
     }
   }
+
+  const parentName = (id: string | null) =>
+    id ? (items.find((c) => c.id === id)?.name ?? 'родитель') : 'корневая';
 
   return (
     <main>
       <PageContainer>
         <PageHeader
           title="Категории"
-          description="Дерево категорий. Архивация запрещена при детях или активных товарах."
+          description="Дерево категорий товаров. Архивация запрещена, если есть дочерние категории или товары."
           breadcrumbs={[
             { label: 'Организации', href: '/organizations' },
             { label: 'Организация', href: `/organizations/${organizationId}` },
@@ -120,11 +122,7 @@ export default function CategoriesPage() {
                       </strong>
                       <div className="meta-row" style={{ marginTop: 4 }}>
                         <StatusBadge status={item.status} />
-                        {item.parentId ? (
-                          <span style={{ fontSize: 'var(--text-xs)' }}>parent: {item.parentId}</span>
-                        ) : (
-                          <span style={{ fontSize: 'var(--text-xs)' }}>root</span>
-                        )}
+                        <span style={{ fontSize: 'var(--text-xs)' }}>{parentName(item.parentId)}</span>
                       </div>
                     </div>
                     {item.status !== 'ARCHIVED' ? (
@@ -141,35 +139,30 @@ export default function CategoriesPage() {
         <Section>
           <Card title="Создать категорию">
             <form onSubmit={onCreate} className="form-grid">
-              <Input
-                placeholder="Название"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                required
-                aria-label="Название категории"
-              />
-              <Input
-                placeholder="Код"
-                value={code}
-                onChange={(e) => setCode(e.target.value)}
-                required
-                aria-label="Код категории"
-              />
-              <select
-                value={parentId}
-                onChange={(e) => setParentId(e.target.value)}
-                aria-label="Родительская категория"
-                style={{ minHeight: 40, borderRadius: 6, border: '1px solid var(--color-border)', padding: 8 }}
-              >
-                <option value="">Без родителя</option>
-                {items
-                  .filter((c) => c.status === 'ACTIVE')
-                  .map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-              </select>
+              <AutoNumberNote label="Код категории" />
+              <Field label="Название" required hint="Как категория отображается в справочнике товаров">
+                <Input
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  required
+                  minLength={2}
+                  aria-label="Название категории"
+                />
+              </Field>
+              <Field label="Родительская категория" hint="Оставьте пустым для корневой категории">
+                <FancySelect
+                  value={parentId}
+                  onChange={setParentId}
+                  options={[
+                    { value: '', label: 'Без родителя (корневая)' },
+                    ...items
+                      .filter((c) => c.status === 'ACTIVE')
+                      .map((c) => ({ value: c.id, label: c.name })),
+                  ]}
+                  searchable
+                  aria-label="Родительская категория"
+                />
+              </Field>
               <Button type="submit" disabled={creating}>
                 {creating ? 'Создание…' : 'Создать'}
               </Button>

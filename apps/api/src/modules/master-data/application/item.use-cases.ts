@@ -8,6 +8,7 @@ import {
 import { randomUUID } from 'node:crypto';
 import { CLOCK_PORT, type ClockPort } from '@flower/shared-kernel';
 import { AUDIT_PORT, type AuditPort } from '../../../infrastructure/audit/audit.port';
+import { allocateUniqueCode } from '../../../infrastructure/ids/allocate-unique-code';
 import { UNIT_OF_WORK, type UnitOfWork } from '../../../infrastructure/persistence/unit-of-work.port';
 import { getRequestContext } from '../../../infrastructure/context/request-context';
 import { OrganizationUseCases } from '../../organization/application/organization.use-cases';
@@ -35,6 +36,10 @@ import {
 } from '../domain/master-data-rules';
 import { mapDomainError } from './map-domain-error';
 
+function actorMembershipId(): string | null {
+  return getRequestContext()?.auth?.membershipId ?? null;
+}
+
 @Injectable()
 export class ItemUseCases {
   constructor(
@@ -54,7 +59,7 @@ export class ItemUseCases {
     unitId: string;
     inventoryPolicyId: string;
     name: string;
-    code: string;
+    code?: string | null;
     itemType: ItemType;
     description?: string | null;
     isPurchasable?: boolean;
@@ -63,11 +68,17 @@ export class ItemUseCases {
     try {
       await this.organizations.getOrganization(input.organizationId);
       const name = assertEntityName(input.name, 'ITEM');
-      const code = normalizeMasterCode(input.code, 'ITEM');
       const description = assertOptionalText(input.description, 2000);
       const ctx = getRequestContext();
+      const createdByMembershipId = actorMembershipId();
 
       return await this.uow.runInTransaction(async () => {
+        const code = input.code?.trim()
+          ? normalizeMasterCode(input.code, 'ITEM')
+          : await allocateUniqueCode('ITM', (candidate) =>
+              this.items.existsCode(input.organizationId, candidate),
+            );
+
         if (await this.items.existsCode(input.organizationId, code)) {
           throw new ConflictException({
             code: 'ITEM_CODE_TAKEN',
@@ -118,6 +129,7 @@ export class ItemUseCases {
           isPurchasable: input.isPurchasable ?? true,
           isSellable: input.isSellable ?? false,
           status: MasterDataStatus.ACTIVE,
+          createdByMembershipId,
         });
 
         await this.audit.append({
@@ -136,6 +148,7 @@ export class ItemUseCases {
             isPurchasable: item.isPurchasable,
             isSellable: item.isSellable,
             status: item.status,
+            createdByMembershipId: item.createdByMembershipId,
           },
           requestId: ctx?.requestId ?? 'unknown',
           occurredAt: this.clock.now(),

@@ -3,6 +3,7 @@ import { ModuleRef } from '@nestjs/core';
 import { randomUUID } from 'node:crypto';
 import { CLOCK_PORT, type ClockPort } from '@flower/shared-kernel';
 import { AUDIT_PORT, type AuditPort } from '../../../infrastructure/audit/audit.port';
+import { allocateUniqueCode } from '../../../infrastructure/ids/allocate-unique-code';
 import { UNIT_OF_WORK, type UnitOfWork } from '../../../infrastructure/persistence/unit-of-work.port';
 import { getRequestContext } from '../../../infrastructure/context/request-context';
 import {
@@ -52,7 +53,7 @@ export type CreateOrganizationInput = {
 export type CreateStoreInput = {
   organizationId: string;
   name: string;
-  code: string;
+  code?: string | null;
   address?: string | null;
   city?: string | null;
   timezone?: string;
@@ -135,7 +136,6 @@ export class OrganizationUseCases {
   }> {
     try {
       const name = assertStoreName(input.name);
-      const code = normalizeStoreCode(input.code);
       const ctx = getRequestContext();
 
       return await this.uow.runInTransaction(async () => {
@@ -147,6 +147,12 @@ export class OrganizationUseCases {
           });
         }
         canCreateStoreInOrganization(org.status);
+
+        const code = input.code?.trim()
+          ? normalizeStoreCode(input.code)
+          : await allocateUniqueCode('STR', (candidate) =>
+              this.stores.existsCode(input.organizationId, candidate),
+            );
 
         if (await this.stores.existsCode(input.organizationId, code)) {
           throw new ConflictException({

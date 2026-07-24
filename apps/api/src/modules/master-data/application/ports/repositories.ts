@@ -164,6 +164,7 @@ export interface ItemRepository {
     isPurchasable: boolean;
     isSellable: boolean;
     status: MasterDataStatus;
+    createdByMembershipId: string | null;
   }): Promise<ItemProps>;
   findById(organizationId: string, id: string): Promise<ItemProps | null>;
   list(

@@ -1,7 +1,7 @@
 import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
-  transpilePackages: ['@flower/ui', '@flower/api-client', '@flower/contracts', '@flower/config'],
+  transpilePackages: ['@flower/ui', '@flower/api-client', '@flower/config'],
   poweredByHeader: false,
   reactStrictMode: true,
   // Standalone output requires symlinks; enable only in Linux Docker builds.

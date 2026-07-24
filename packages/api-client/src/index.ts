@@ -245,7 +245,7 @@ export function createApiClient(options: ApiClientOptions) {
       }>(`/organizations/${organizationId}/stores?page=${page}&pageSize=${pageSize}`),
     createStore: (
       organizationId: string,
-      body: { name: string; code: string; address?: string; city?: string; timezone?: string },
+      body: { name: string; code?: string; address?: string; city?: string; timezone?: string },
     ) =>
       request<{
         store: { id: string; name: string; code: string; status: string };
@@ -326,7 +326,7 @@ export function createApiClient(options: ApiClientOptions) {
       organizationId: string,
       body: {
         name: string;
-        code: string;
+        code?: string;
         country?: string;
         phone?: string;
         email?: string;
@@ -379,7 +379,7 @@ export function createApiClient(options: ApiClientOptions) {
       }>(`/organizations/${organizationId}/categories?page=${page}&pageSize=${pageSize}`),
     createCategory: (
       organizationId: string,
-      body: { name: string; code: string; parentId?: string },
+      body: { name: string; code?: string; parentId?: string },
     ) =>
       request<{ id: string; name: string; code: string; parentId: string | null; status: string }>(
         `/organizations/${organizationId}/categories`,
@@ -414,7 +414,10 @@ export function createApiClient(options: ApiClientOptions) {
         totalItems: number;
         totalPages: number;
       }>(`/organizations/${organizationId}/units?page=${page}&pageSize=${pageSize}`),
-    createUnit: (organizationId: string, body: { name: string; symbol: string }) =>
+    createUnit: (
+      organizationId: string,
+      body: { name: string; symbol: string; quantityScale?: number },
+    ) =>
       request<{ id: string; name: string; symbol: string; status: string }>(
         `/organizations/${organizationId}/units`,
         {
@@ -515,6 +518,9 @@ export function createApiClient(options: ApiClientOptions) {
           inventoryPolicyId: string;
           isSellable?: boolean;
           isPurchasable?: boolean;
+          createdAt?: string;
+          createdByMembershipId?: string | null;
+          createdByDisplayName?: string | null;
         }>;
         page: number;
         pageSize: number;
@@ -529,7 +535,7 @@ export function createApiClient(options: ApiClientOptions) {
         unitId: string;
         inventoryPolicyId: string;
         name: string;
-        code: string;
+        code?: string;
         itemType: 'FLOWER' | 'MATERIAL';
         description?: string;
         isSellable?: boolean;
@@ -543,6 +549,9 @@ export function createApiClient(options: ApiClientOptions) {
         itemType: string;
         status: string;
         isSellable?: boolean;
+        createdAt?: string;
+        createdByMembershipId?: string | null;
+        createdByDisplayName?: string | null;
       }>(`/organizations/${organizationId}/items`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -561,6 +570,9 @@ export function createApiClient(options: ApiClientOptions) {
         description: string | null;
         isSellable?: boolean;
         isPurchasable?: boolean;
+        createdAt?: string;
+        createdByMembershipId?: string | null;
+        createdByDisplayName?: string | null;
       }>(`/organizations/${organizationId}/items/${itemId}`),
     archiveItem: (organizationId: string, itemId: string, reason?: string) =>
       request<{ id: string; status: string }>(
@@ -1502,7 +1514,7 @@ export function createApiClient(options: ApiClientOptions) {
       organizationId: string,
       storeId: string,
       body: {
-        code: string;
+        code?: string;
         name: string;
         type: string;
         requiresExternalConfirmation?: boolean;

@@ -320,20 +320,21 @@ model InventoryPolicy {
 }
 
 model Item {
-  id                String           @id @default(uuid()) @db.Uuid
-  organizationId    String           @map("organization_id") @db.Uuid
-  categoryId        String           @map("category_id") @db.Uuid
-  unitId            String           @map("unit_id") @db.Uuid
-  inventoryPolicyId String           @map("inventory_policy_id") @db.Uuid
-  name              String
-  code              String
-  itemType          ItemType         @map("item_type")
-  description       String?
-  isPurchasable     Boolean          @default(true) @map("is_purchasable")
-  isSellable        Boolean          @default(false) @map("is_sellable")
-  status            MasterDataStatus @default(ACTIVE)
-  createdAt         DateTime         @default(now()) @map("created_at")
-  updatedAt         DateTime         @updatedAt @map("updated_at")
+  id                      String           @id @default(uuid()) @db.Uuid
+  organizationId          String           @map("organization_id") @db.Uuid
+  categoryId              String           @map("category_id") @db.Uuid
+  unitId                  String           @map("unit_id") @db.Uuid
+  inventoryPolicyId       String           @map("inventory_policy_id") @db.Uuid
+  name                    String
+  code                    String
+  itemType                ItemType         @map("item_type")
+  description             String?
+  isPurchasable           Boolean          @default(true) @map("is_purchasable")
+  isSellable              Boolean          @default(false) @map("is_sellable")
+  status                  MasterDataStatus @default(ACTIVE)
+  createdByMembershipId   String?          @map("created_by_membership_id") @db.Uuid
+  createdAt               DateTime         @default(now()) @map("created_at")
+  updatedAt               DateTime         @updatedAt @map("updated_at")
 
   organization    Organization    @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   category        ItemCategory    @relation(fields: [categoryId], references: [id], onDelete: Restrict)

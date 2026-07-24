@@ -3,13 +3,26 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { Button, Card } from '@flower/ui';
-import { ApiClientError } from '@flower/api-client';
 import { getApiClient } from '@/lib/api-client';
 import { PageContainer } from '@/components/layout/page-container';
 import { PageHeader } from '@/components/layout/page-header';
 import { Section } from '@/components/layout/section';
 import { ErrorState, LoadingState } from '@/components/layout/states';
 import { StatusBadge } from '@/components/layout/status-badge';
+import { formatApiErrorMessage } from '@/lib/format-api-error';
+
+function itemTypeLabel(type: string) {
+  return type === 'MATERIAL' ? 'Материал' : 'Цветок';
+}
+
+function formatWhen(value?: string) {
+  if (!value) return '—';
+  try {
+    return new Date(value).toLocaleString('ru-RU');
+  } catch {
+    return value;
+  }
+}
 
 export default function ItemDetailPage() {
   const params = useParams<{ organizationId: string; itemId: string }>();
@@ -27,21 +40,36 @@ export default function ItemDetailPage() {
     inventoryPolicyId: string;
     description: string | null;
     isSellable?: boolean;
+    isPurchasable?: boolean;
+    createdAt?: string;
+    createdByDisplayName?: string | null;
   } | null>(null);
+  const [categoryName, setCategoryName] = useState<string | null>(null);
+  const [unitName, setUnitName] = useState<string | null>(null);
+  const [policyName, setPolicyName] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    getApiClient()
-      .getItem(organizationId, itemId)
-      .then((data) => {
-        if (!cancelled) setItem(data);
+    const client = getApiClient();
+    Promise.all([
+      client.getItem(organizationId, itemId),
+      client.listCategories(organizationId, 1, 100),
+      client.listUnits(organizationId, 1, 100),
+      client.listPolicies(organizationId, 1, 100),
+    ])
+      .then(([data, cats, units, policies]) => {
+        if (cancelled) return;
+        setItem(data);
+        setCategoryName(cats.items.find((c) => c.id === data.categoryId)?.name ?? null);
+        setUnitName(units.items.find((u) => u.id === data.unitId)?.name ?? null);
+        setPolicyName(policies.items.find((p) => p.id === data.inventoryPolicyId)?.name ?? null);
       })
       .catch((err: unknown) => {
         if (!cancelled) {
-          setError(err instanceof ApiClientError ? err.message : 'Не удалось загрузить');
+          setError(formatApiErrorMessage(err, 'Не удалось загрузить'));
         }
       })
       .finally(() => {
@@ -58,7 +86,7 @@ export default function ItemDetailPage() {
       const updated = await getApiClient().archiveItem(organizationId, itemId);
       setItem((current) => (current ? { ...current, status: updated.status } : current));
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Не удалось архивировать');
+      setError(formatApiErrorMessage(err, 'Не удалось архивировать'));
     }
   }
 
@@ -67,7 +95,7 @@ export default function ItemDetailPage() {
       <PageContainer>
         <PageHeader
           title={item?.name ?? 'Товар'}
-          description={item ? item.code : 'Загрузка…'}
+          description={item ? `Код ${item.code}` : 'Загрузка…'}
           breadcrumbs={[
             { label: 'Организации', href: '/organizations' },
             { label: 'Организация', href: `/organizations/${organizationId}` },
@@ -89,18 +117,45 @@ export default function ItemDetailPage() {
           <Section>
             <Card title="Карточка товара">
               <div className="meta-row">
-                <StatusBadge status={item.itemType} />
+                <StatusBadge status={itemTypeLabel(item.itemType)} />
                 <StatusBadge status={item.status} />
                 {item.isSellable ? <span className="sale-type-pill">Готовый букет</span> : null}
+                {item.isPurchasable === false ? (
+                  <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-muted)' }}>
+                    Не закупается
+                  </span>
+                ) : null}
               </div>
-              <p style={{ marginTop: 12, color: 'var(--color-muted)', fontSize: 'var(--text-sm)' }}>
-                categoryId: {item.categoryId}
-                <br />
-                unitId: {item.unitId}
-                <br />
-                inventoryPolicyId: {item.inventoryPolicyId}
-              </p>
-              {item.description ? <p>{item.description}</p> : null}
+              <dl
+                style={{
+                  marginTop: 16,
+                  display: 'grid',
+                  gap: 10,
+                  fontSize: 'var(--text-sm)',
+                }}
+              >
+                <div>
+                  <dt style={{ color: 'var(--color-muted)' }}>Категория</dt>
+                  <dd style={{ margin: 0 }}>{categoryName ?? item.categoryId}</dd>
+                </div>
+                <div>
+                  <dt style={{ color: 'var(--color-muted)' }}>Единица измерения</dt>
+                  <dd style={{ margin: 0 }}>{unitName ?? item.unitId}</dd>
+                </div>
+                <div>
+                  <dt style={{ color: 'var(--color-muted)' }}>Политика учёта</dt>
+                  <dd style={{ margin: 0 }}>{policyName ?? item.inventoryPolicyId}</dd>
+                </div>
+                <div>
+                  <dt style={{ color: 'var(--color-muted)' }}>Кто добавил</dt>
+                  <dd style={{ margin: 0 }}>{item.createdByDisplayName ?? 'неизвестно'}</dd>
+                </div>
+                <div>
+                  <dt style={{ color: 'var(--color-muted)' }}>Когда добавлен</dt>
+                  <dd style={{ margin: 0 }}>{formatWhen(item.createdAt)}</dd>
+                </div>
+              </dl>
+              {item.description ? <p style={{ marginTop: 16 }}>{item.description}</p> : null}
             </Card>
           </Section>
         ) : null}

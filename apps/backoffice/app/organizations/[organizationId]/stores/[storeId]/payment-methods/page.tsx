@@ -1,9 +1,8 @@
-﻿'use client';
+'use client';
 
 import { useEffect, useState, type FormEvent } from 'react';
 import { useParams } from 'next/navigation';
 import { Button, Card, Input } from '@flower/ui';
-import { ApiClientError } from '@flower/api-client';
 import { getApiClient } from '@/lib/api-client';
 import { useAuth } from '@/components/auth-provider';
 import { PageContainer } from '@/components/layout/page-container';
@@ -11,19 +10,22 @@ import { PageHeader } from '@/components/layout/page-header';
 import { Section } from '@/components/layout/section';
 import { EmptyState, ErrorState, LoadingState } from '@/components/layout/states';
 import { StatusBadge } from '@/components/layout/status-badge';
+import { AutoNumberNote, Field } from '@/components/layout/field';
+import { FancySelect } from '@/components/layout/fancy-select';
+import { formatApiErrorMessage } from '@/lib/format-api-error';
 
 type PaymentMethod = Awaited<
   ReturnType<ReturnType<typeof getApiClient>['listPaymentMethods']>
 >[number];
 
 const METHOD_TYPES = [
-  'CASH',
-  'BANK_CARD',
-  'ONLINE',
-  'QR',
-  'BANK_TRANSFER',
-  'GIFT_CERTIFICATE',
-  'OTHER',
+  { value: 'CASH', label: 'Наличные' },
+  { value: 'BANK_CARD', label: 'Банковская карта' },
+  { value: 'ONLINE', label: 'Онлайн' },
+  { value: 'QR', label: 'QR' },
+  { value: 'BANK_TRANSFER', label: 'Банковский перевод' },
+  { value: 'GIFT_CERTIFICATE', label: 'Подарочный сертификат' },
+  { value: 'OTHER', label: 'Другое' },
 ] as const;
 
 export default function PaymentMethodsPage() {
@@ -36,7 +38,6 @@ export default function PaymentMethodsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [code, setCode] = useState('');
   const [name, setName] = useState('');
   const [type, setType] = useState<string>('CASH');
 
@@ -47,7 +48,7 @@ export default function PaymentMethodsPage() {
       const list = await getApiClient().listPaymentMethods(organizationId, storeId);
       setMethods(list);
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Не удалось загрузить');
+      setError(formatApiErrorMessage(err, 'Не удалось загрузить'));
     } finally {
       setLoading(false);
     }
@@ -66,7 +67,7 @@ export default function PaymentMethodsPage() {
       await action();
       await load();
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Действие не выполнено');
+      setError(formatApiErrorMessage(err, 'Действие не выполнено'));
     } finally {
       setBusy(false);
     }
@@ -78,14 +79,12 @@ export default function PaymentMethodsPage() {
 
   async function onCreate(event: FormEvent) {
     event.preventDefault();
-    if (!code.trim() || !name.trim()) return;
+    if (!name.trim()) return;
     await run(async () => {
       await getApiClient().createPaymentMethod(organizationId, storeId, {
-        code: code.trim(),
         name: name.trim(),
         type,
       });
-      setCode('');
       setName('');
       setType('CASH');
     });
@@ -113,7 +112,7 @@ export default function PaymentMethodsPage() {
           ]}
           actions={
             <Button type="button" disabled={busy} onClick={() => void onEnsureDefaults()}>
-              Создать defaults
+              Создать стандартные
             </Button>
           }
         />
@@ -125,27 +124,29 @@ export default function PaymentMethodsPage() {
 
         <Section>
           <Card title="Новый метод">
-            <form onSubmit={onCreate} className="stack-form">
-              <Input
-                placeholder="Код"
-                value={code}
-                onChange={(e) => setCode(e.target.value)}
-                required
-              />
-              <Input
-                placeholder="Название"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                required
-              />
-              <select value={type} onChange={(e) => setType(e.target.value)}>
-                {METHOD_TYPES.map((value) => (
-                  <option key={value} value={value}>
-                    {value}
-                  </option>
-                ))}
-              </select>
-              <Button type="submit" disabled={busy || !code.trim() || !name.trim()}>
+            <form onSubmit={onCreate} className="form-grid">
+              <AutoNumberNote label="Код метода" />
+              <Field label="Название" required hint="Как способ оплаты виден кассиру">
+                <Input
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  required
+                  aria-label="Название метода оплаты"
+                />
+              </Field>
+              <Field label="Тип" required>
+                <FancySelect
+                  value={type}
+                  onChange={setType}
+                  searchable={false}
+                  options={METHOD_TYPES.map((item) => ({
+                    value: item.value,
+                    label: item.label,
+                  }))}
+                  aria-label="Тип метода оплаты"
+                />
+              </Field>
+              <Button type="submit" disabled={busy || !name.trim()}>
                 Создать
               </Button>
             </form>
@@ -155,7 +156,7 @@ export default function PaymentMethodsPage() {
         <Section>
           <Card title="Список">
             {!loading && methods.length === 0 ? (
-              <EmptyState message="Методов пока нет. Нажмите «Создать defaults»." />
+              <EmptyState message="Методов пока нет. Нажмите «Создать стандартные»." />
             ) : null}
             <ul className="list-stack">
               {methods.map((method) => (

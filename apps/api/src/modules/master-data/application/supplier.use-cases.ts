@@ -8,6 +8,7 @@ import {
 import { randomUUID } from 'node:crypto';
 import { CLOCK_PORT, type ClockPort } from '@flower/shared-kernel';
 import { AUDIT_PORT, type AuditPort } from '../../../infrastructure/audit/audit.port';
+import { allocateUniqueCode } from '../../../infrastructure/ids/allocate-unique-code';
 import { UNIT_OF_WORK, type UnitOfWork } from '../../../infrastructure/persistence/unit-of-work.port';
 import { getRequestContext } from '../../../infrastructure/context/request-context';
 import { OrganizationUseCases } from '../../organization/application/organization.use-cases';
@@ -35,7 +36,7 @@ export class SupplierUseCases {
   async createSupplier(input: {
     organizationId: string;
     name: string;
-    code: string;
+    code?: string | null;
     country?: string | null;
     phone?: string | null;
     email?: string | null;
@@ -45,10 +46,15 @@ export class SupplierUseCases {
     try {
       await this.organizations.getOrganization(input.organizationId);
       const name = assertEntityName(input.name, 'SUPPLIER');
-      const code = normalizeMasterCode(input.code, 'SUPPLIER');
       const ctx = getRequestContext();
 
       return await this.uow.runInTransaction(async () => {
+        const code = input.code?.trim()
+          ? normalizeMasterCode(input.code, 'SUPPLIER')
+          : await allocateUniqueCode('VND', (candidate) =>
+              this.suppliers.existsCode(input.organizationId, candidate),
+            );
+
         if (await this.suppliers.existsCode(input.organizationId, code)) {
           throw new ConflictException({
             code: 'SUPPLIER_CODE_TAKEN',

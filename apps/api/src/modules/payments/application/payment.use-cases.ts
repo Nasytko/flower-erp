@@ -8,6 +8,7 @@ import {
 import { randomUUID } from 'node:crypto';
 import { CLOCK_PORT, Money, type ClockPort } from '@flower/shared-kernel';
 import { AUDIT_PORT, type AuditPort } from '../../../infrastructure/audit/audit.port';
+import { allocateUniqueCode } from '../../../infrastructure/ids/allocate-unique-code';
 import { getRequestContext } from '../../../infrastructure/context/request-context';
 import { UNIT_OF_WORK, type UnitOfWork } from '../../../infrastructure/persistence/unit-of-work.port';
 import { OrganizationUseCases } from '../../organization/application/organization.use-cases';
@@ -176,14 +177,22 @@ export class PaymentUseCases {
 
   async createPaymentMethod(input: {
     organizationId: string;
-    code: string;
+    code?: string | null;
     name: string;
     type: PaymentMethodType;
     requiresExternalConfirmation?: boolean;
     sortOrder?: number;
   }) {
     await this.organizations.getOrganization(input.organizationId);
-    const code = input.code.trim().toUpperCase();
+    const code = input.code?.trim()
+      ? input.code.trim().toUpperCase()
+      : await allocateUniqueCode(input.type.replace(/_/g, '').slice(0, 6) || 'PM', async (candidate) => {
+          const existing = await this.payments.findPaymentMethodByCode(
+            input.organizationId,
+            candidate,
+          );
+          return Boolean(existing);
+        });
     if (!code) {
       throw new BadRequestException({ code: 'METHOD_CODE_REQUIRED', message: 'code is required' });
     }

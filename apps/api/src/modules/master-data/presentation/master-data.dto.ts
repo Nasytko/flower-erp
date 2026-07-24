@@ -88,11 +88,12 @@ export class CreateSupplierDto {
   @MaxLength(200)
   name!: string;
 
-  @ApiProperty({ example: 'SUP-01' })
+  @ApiPropertyOptional({ example: 'VND-01', description: 'Optional; auto-generated when omitted' })
+  @IsOptional()
   @IsString()
   @MinLength(2)
   @MaxLength(32)
-  code!: string;
+  code?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -145,11 +146,12 @@ export class CreateCategoryDto {
   @MaxLength(200)
   name!: string;
 
-  @ApiProperty({ example: 'ROSES' })
+  @ApiPropertyOptional({ example: 'ROSES', description: 'Optional; auto-generated when omitted' })
+  @IsOptional()
   @IsString()
   @MinLength(2)
   @MaxLength(32)
-  code!: string;
+  code?: string;
 
   @ApiPropertyOptional({ format: 'uuid' })
   @IsOptional()
@@ -235,11 +237,15 @@ export class CreateItemDto {
   @MaxLength(200)
   name!: string;
 
-  @ApiProperty({ example: 'ROSE-RED-60' })
+  @ApiPropertyOptional({
+    example: 'ROSE-RED-60',
+    description: 'Optional; auto-generated when omitted',
+  })
+  @IsOptional()
   @IsString()
   @MinLength(2)
   @MaxLength(32)
-  code!: string;
+  code?: string;
 
   @ApiProperty({ enum: ItemType })
   @IsEnum(ItemType)

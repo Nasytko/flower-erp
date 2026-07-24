@@ -14,7 +14,7 @@ import {
   type ItemProps,
 } from '../domain/master-data-rules';
 
-function mapItem(row: PrismaItem): ItemProps {
+function mapItem(row: PrismaItem, createdByDisplayName: string | null): ItemProps {
   return {
     id: row.id,
     organizationId: row.organizationId,
@@ -28,6 +28,8 @@ function mapItem(row: PrismaItem): ItemProps {
     isPurchasable: row.isPurchasable,
     isSellable: row.isSellable,
     status: row.status as MasterDataStatus,
+    createdByMembershipId: row.createdByMembershipId,
+    createdByDisplayName,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
@@ -39,6 +41,25 @@ export class PrismaItemRepository implements ItemRepository {
 
   private client() {
     return resolvePrismaClient(this.prisma);
+  }
+
+  private async resolveDisplayNames(
+    membershipIds: Array<string | null | undefined>,
+  ): Promise<Map<string, string>> {
+    const unique = [
+      ...new Set(membershipIds.filter((id): id is string => Boolean(id))),
+    ];
+    if (unique.length === 0) {
+      return new Map();
+    }
+    const rows = await this.client().organizationMembership.findMany({
+      where: { id: { in: unique } },
+      select: {
+        id: true,
+        user: { select: { displayName: true } },
+      },
+    });
+    return new Map(rows.map((row) => [row.id, row.user.displayName]));
   }
 
   async create(data: {
@@ -54,16 +75,32 @@ export class PrismaItemRepository implements ItemRepository {
     isPurchasable: boolean;
     isSellable: boolean;
     status: MasterDataStatus;
+    createdByMembershipId: string | null;
   }): Promise<ItemProps> {
     const row = await this.client().item.create({ data });
-    return mapItem(row);
+    const names = await this.resolveDisplayNames([row.createdByMembershipId]);
+    return mapItem(
+      row,
+      row.createdByMembershipId
+        ? (names.get(row.createdByMembershipId) ?? null)
+        : null,
+    );
   }
 
   async findById(organizationId: string, id: string): Promise<ItemProps | null> {
     const row = await this.client().item.findFirst({
       where: { id, organizationId },
     });
-    return row ? mapItem(row) : null;
+    if (!row) {
+      return null;
+    }
+    const names = await this.resolveDisplayNames([row.createdByMembershipId]);
+    return mapItem(
+      row,
+      row.createdByMembershipId
+        ? (names.get(row.createdByMembershipId) ?? null)
+        : null,
+    );
   }
 
   async list(
@@ -91,8 +128,16 @@ export class PrismaItemRepository implements ItemRepository {
         take: pagination.pageSize,
       }),
     ]);
+    const names = await this.resolveDisplayNames(rows.map((row) => row.createdByMembershipId));
     return {
-      items: rows.map(mapItem),
+      items: rows.map((row) =>
+        mapItem(
+          row,
+          row.createdByMembershipId
+            ? (names.get(row.createdByMembershipId) ?? null)
+            : null,
+        ),
+      ),
       totalItems,
       page: pagination.page,
       pageSize: pagination.pageSize,

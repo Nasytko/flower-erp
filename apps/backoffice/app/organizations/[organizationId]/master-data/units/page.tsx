@@ -1,15 +1,17 @@
-﻿'use client';
+'use client';
 
 import { useEffect, useState, type FormEvent } from 'react';
 import { useParams } from 'next/navigation';
 import { Button, Card, Input } from '@flower/ui';
-import { ApiClientError } from '@flower/api-client';
 import { getApiClient } from '@/lib/api-client';
 import { PageContainer } from '@/components/layout/page-container';
 import { PageHeader } from '@/components/layout/page-header';
 import { Section } from '@/components/layout/section';
 import { EmptyState, ErrorState, LoadingState } from '@/components/layout/states';
 import { StatusBadge } from '@/components/layout/status-badge';
+import { Field } from '@/components/layout/field';
+import { FancySelect } from '@/components/layout/fancy-select';
+import { formatApiErrorMessage } from '@/lib/format-api-error';
 
 type Unit = { id: string; name: string; symbol: string; status: string };
 
@@ -23,6 +25,7 @@ export default function UnitsPage() {
   const [error, setError] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [symbol, setSymbol] = useState('');
+  const [quantityScale, setQuantityScale] = useState('0');
   const [creating, setCreating] = useState(false);
 
   async function load() {
@@ -32,7 +35,7 @@ export default function UnitsPage() {
       const res = await getApiClient().listUnits(organizationId, 1, 100);
       setItems(res.items);
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Не удалось загрузить');
+      setError(formatApiErrorMessage(err, 'Не удалось загрузить'));
     } finally {
       setLoading(false);
     }
@@ -48,12 +51,17 @@ export default function UnitsPage() {
     setCreating(true);
     setError(null);
     try {
-      await getApiClient().createUnit(organizationId, { name, symbol });
+      await getApiClient().createUnit(organizationId, {
+        name,
+        symbol,
+        quantityScale: Number(quantityScale),
+      });
       setName('');
       setSymbol('');
+      setQuantityScale('0');
       await load();
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Не удалось создать');
+      setError(formatApiErrorMessage(err, 'Не удалось создать'));
     } finally {
       setCreating(false);
     }
@@ -65,7 +73,7 @@ export default function UnitsPage() {
       await getApiClient().archiveUnit(organizationId, unitId);
       await load();
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Не удалось архивировать');
+      setError(formatApiErrorMessage(err, 'Не удалось архивировать'));
     }
   }
 
@@ -74,7 +82,7 @@ export default function UnitsPage() {
       <PageContainer>
         <PageHeader
           title="Единицы измерения"
-          description="Нельзя архивировать единицу, пока она используется активными товарами."
+          description="Нельзя архивировать единицу, пока она используется товарами."
           breadcrumbs={[
             { label: 'Организации', href: '/organizations' },
             { label: 'Организация', href: `/organizations/${organizationId}` },
@@ -122,20 +130,45 @@ export default function UnitsPage() {
         <Section>
           <Card title="Создать единицу">
             <form onSubmit={onCreate} className="form-grid">
-              <Input
-                placeholder="Название"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
+              <Field label="Название" required hint="Полное название, например «Штука» или «Ветка»">
+                <Input
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  required
+                  minLength={2}
+                  aria-label="Название единицы"
+                />
+              </Field>
+              <Field
+                label="Обозначение"
                 required
-                aria-label="Название единицы"
-              />
-              <Input
-                placeholder="Символ (шт, ветка…)"
-                value={symbol}
-                onChange={(e) => setSymbol(e.target.value)}
+                hint="Короткий символ в документах: шт, ветка, м"
+              >
+                <Input
+                  value={symbol}
+                  onChange={(e) => setSymbol(e.target.value)}
+                  required
+                  aria-label="Символ единицы"
+                />
+              </Field>
+              <Field
+                label="Дробность количества"
                 required
-                aria-label="Символ единицы"
-              />
+                hint="Сколько знаков после запятой можно указывать в количестве"
+              >
+                <FancySelect
+                  value={quantityScale}
+                  onChange={setQuantityScale}
+                  searchable={false}
+                  options={[
+                    { value: '0', label: 'Только целые (0)' },
+                    { value: '1', label: '1 знак после запятой' },
+                    { value: '2', label: '2 знака после запятой' },
+                    { value: '3', label: '3 знака после запятой' },
+                  ]}
+                  aria-label="Дробность количества"
+                />
+              </Field>
               <Button type="submit" disabled={creating}>
                 {creating ? 'Создание…' : 'Создать'}
               </Button>

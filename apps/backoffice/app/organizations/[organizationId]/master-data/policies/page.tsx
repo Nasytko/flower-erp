@@ -1,15 +1,17 @@
-﻿'use client';
+'use client';
 
 import { useEffect, useState, type FormEvent } from 'react';
 import { useParams } from 'next/navigation';
 import { Button, Card, Input } from '@flower/ui';
-import { ApiClientError } from '@flower/api-client';
 import { getApiClient } from '@/lib/api-client';
 import { PageContainer } from '@/components/layout/page-container';
 import { PageHeader } from '@/components/layout/page-header';
 import { Section } from '@/components/layout/section';
 import { EmptyState, ErrorState, LoadingState } from '@/components/layout/states';
 import { StatusBadge } from '@/components/layout/status-badge';
+import { Field } from '@/components/layout/field';
+import { FancySelect } from '@/components/layout/fancy-select';
+import { formatApiErrorMessage } from '@/lib/format-api-error';
 
 type Policy = {
   id: string;
@@ -19,6 +21,14 @@ type Policy = {
   expirationTracking: boolean;
   status: string;
 };
+
+function typeLabel(type: string) {
+  return type === 'MATERIAL' ? 'Материал' : 'Цветок';
+}
+
+function trackingLabel(method: string) {
+  return method === 'LOT' ? 'Партии' : 'Без партий';
+}
 
 export default function PoliciesPage() {
   const params = useParams<{ organizationId: string }>();
@@ -39,7 +49,7 @@ export default function PoliciesPage() {
       const res = await getApiClient().listPolicies(organizationId, 1, 100);
       setItems(res.items);
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Не удалось загрузить');
+      setError(formatApiErrorMessage(err, 'Не удалось загрузить'));
     } finally {
       setLoading(false);
     }
@@ -68,7 +78,7 @@ export default function PoliciesPage() {
       setName('');
       await load();
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Не удалось создать');
+      setError(formatApiErrorMessage(err, 'Не удалось создать'));
     } finally {
       setCreating(false);
     }
@@ -80,7 +90,7 @@ export default function PoliciesPage() {
       await getApiClient().archivePolicy(organizationId, policyId);
       await load();
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Не удалось архивировать');
+      setError(formatApiErrorMessage(err, 'Не удалось архивировать'));
     }
   }
 
@@ -88,8 +98,8 @@ export default function PoliciesPage() {
     <main>
       <PageContainer>
         <PageHeader
-          title="Политики учета"
-          description="InventoryPolicy описывает правила учёта, но не хранит остатки."
+          title="Политики учёта"
+          description="Правила учёта остатков: партии и срок годности. Сами остатки здесь не хранятся."
           breadcrumbs={[
             { label: 'Организации', href: '/organizations' },
             { label: 'Организация', href: `/organizations/${organizationId}` },
@@ -120,11 +130,11 @@ export default function PoliciesPage() {
                     <div>
                       <strong>{item.name}</strong>
                       <div className="meta-row" style={{ marginTop: 4 }}>
-                        <StatusBadge status={item.itemType} />
-                        <StatusBadge status={item.trackingMethod} />
+                        <StatusBadge status={typeLabel(item.itemType)} />
+                        <StatusBadge status={trackingLabel(item.trackingMethod)} />
                         <StatusBadge status={item.status} />
                         <span style={{ fontSize: 'var(--text-xs)' }}>
-                          expiry={String(item.expirationTracking)}
+                          {item.expirationTracking ? 'со сроком годности' : 'без срока годности'}
                         </span>
                       </div>
                     </div>
@@ -141,26 +151,36 @@ export default function PoliciesPage() {
         </Section>
         <Section>
           <Card title="Создать политику">
-            <p style={{ margin: '0 0 12px', color: 'var(--color-muted)', fontSize: 'var(--text-sm)' }}>
-              FLOWER → LOT + expiration; MATERIAL → NONE без expiration.
-            </p>
             <form onSubmit={onCreate} className="form-grid">
-              <Input
-                placeholder="Название"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
+              <Field
+                label="Название"
                 required
-                aria-label="Название политики"
-              />
-              <select
-                value={itemType}
-                onChange={(e) => setItemType(e.target.value as 'FLOWER' | 'MATERIAL')}
-                aria-label="Тип позиции политики"
-                style={{ minHeight: 40, borderRadius: 6, border: '1px solid var(--color-border)', padding: 8 }}
+                hint="Например: «Цветы по умолчанию» или «Материалы дробные»"
               >
-                <option value="FLOWER">FLOWER</option>
-                <option value="MATERIAL">MATERIAL</option>
-              </select>
+                <Input
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  required
+                  minLength={2}
+                  aria-label="Название политики"
+                />
+              </Field>
+              <Field
+                label="Для типа товара"
+                required
+                hint="Цветок — партии и срок годности; материал — без партий"
+              >
+                <FancySelect
+                  value={itemType}
+                  onChange={(value) => setItemType(value as 'FLOWER' | 'MATERIAL')}
+                  searchable={false}
+                  options={[
+                    { value: 'FLOWER', label: 'Цветок (партии + срок годности)' },
+                    { value: 'MATERIAL', label: 'Материал (без партий)' },
+                  ]}
+                  aria-label="Тип позиции политики"
+                />
+              </Field>
               <Button type="submit" disabled={creating}>
                 {creating ? 'Создание…' : 'Создать'}
               </Button>

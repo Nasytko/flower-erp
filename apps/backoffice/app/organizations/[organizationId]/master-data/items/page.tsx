@@ -4,13 +4,15 @@ import Link from 'next/link';
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { useParams } from 'next/navigation';
 import { Button, Card, Input } from '@flower/ui';
-import { ApiClientError } from '@flower/api-client';
 import { getApiClient } from '@/lib/api-client';
 import { PageContainer } from '@/components/layout/page-container';
 import { PageHeader } from '@/components/layout/page-header';
 import { Section } from '@/components/layout/section';
 import { EmptyState, ErrorState, LoadingState } from '@/components/layout/states';
 import { StatusBadge } from '@/components/layout/status-badge';
+import { AutoNumberNote, Field } from '@/components/layout/field';
+import { FancySelect } from '@/components/layout/fancy-select';
+import { formatApiErrorMessage } from '@/lib/format-api-error';
 
 type Item = {
   id: string;
@@ -22,9 +24,24 @@ type Item = {
   unitId: string;
   inventoryPolicyId: string;
   isSellable?: boolean;
+  createdAt?: string;
+  createdByDisplayName?: string | null;
 };
 
 type Ref = { id: string; name: string; status?: string; itemType?: string };
+
+function itemTypeLabel(type: string) {
+  return type === 'MATERIAL' ? 'Материал' : 'Цветок';
+}
+
+function formatWhen(value?: string) {
+  if (!value) return null;
+  try {
+    return new Date(value).toLocaleString('ru-RU');
+  } catch {
+    return value;
+  }
+}
 
 export default function ItemsPage() {
   const params = useParams<{ organizationId: string }>();
@@ -45,11 +62,11 @@ export default function ItemsPage() {
   const [policies, setPolicies] = useState<Ref[]>([]);
 
   const [name, setName] = useState('');
-  const [code, setCode] = useState('');
   const [itemType, setItemType] = useState<'FLOWER' | 'MATERIAL'>('FLOWER');
   const [categoryId, setCategoryId] = useState('');
   const [unitId, setUnitId] = useState('');
   const [inventoryPolicyId, setInventoryPolicyId] = useState('');
+  const [description, setDescription] = useState('');
   const [isSellable, setIsSellable] = useState(false);
   const [creating, setCreating] = useState(false);
 
@@ -74,13 +91,13 @@ export default function ItemsPage() {
       ]);
       setItems(list.items);
       setTotalPages(list.totalPages);
-      setCategories(cats.items);
-      setUnits(unts.items);
+      setCategories(cats.items.filter((c) => c.status === 'ACTIVE'));
+      setUnits(unts.items.filter((u) => u.status === 'ACTIVE'));
       setPolicies(pols.items.filter((p) => p.status === 'ACTIVE'));
-      setCategoryId((current) => current || cats.items[0]?.id || '');
-      setUnitId((current) => current || unts.items[0]?.id || '');
+      setCategoryId((current) => current || cats.items.find((c) => c.status === 'ACTIVE')?.id || '');
+      setUnitId((current) => current || unts.items.find((u) => u.status === 'ACTIVE')?.id || '');
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Не удалось загрузить');
+      setError(formatApiErrorMessage(err, 'Не удалось загрузить товары'));
     } finally {
       setLoading(false);
     }
@@ -102,19 +119,20 @@ export default function ItemsPage() {
     try {
       await getApiClient().createItem(organizationId, {
         name,
-        code,
         itemType,
         categoryId,
         unitId,
         inventoryPolicyId,
+        description: description.trim() || undefined,
         isSellable,
+        isPurchasable: true,
       });
       setName('');
-      setCode('');
+      setDescription('');
       setIsSellable(false);
       await load();
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Не удалось создать');
+      setError(formatApiErrorMessage(err, 'Не удалось создать товар'));
     } finally {
       setCreating(false);
     }
@@ -126,7 +144,7 @@ export default function ItemsPage() {
       await getApiClient().archiveItem(organizationId, itemId);
       await load();
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Не удалось архивировать');
+      setError(formatApiErrorMessage(err, 'Не удалось архивировать'));
     }
   }
 
@@ -155,35 +173,42 @@ export default function ItemsPage() {
                 void load();
               }}
             >
-              <Input
-                placeholder="Название"
-                value={nameFilter}
-                onChange={(e) => setNameFilter(e.target.value)}
-                aria-label="Фильтр по названию"
-              />
-              <select
-                value={typeFilter}
-                onChange={(e) => setTypeFilter(e.target.value)}
-                aria-label="Фильтр по типу"
-                style={{ minHeight: 40, borderRadius: 6, border: '1px solid var(--color-border)', padding: 8 }}
-              >
-                <option value="">Все типы</option>
-                <option value="FLOWER">FLOWER</option>
-                <option value="MATERIAL">MATERIAL</option>
-              </select>
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                aria-label="Фильтр по статусу"
-                style={{ minHeight: 40, borderRadius: 6, border: '1px solid var(--color-border)', padding: 8 }}
-              >
-                <option value="">Все статусы</option>
-                <option value="ACTIVE">ACTIVE</option>
-                <option value="ARCHIVED">ARCHIVED</option>
-              </select>
-              <Button type="submit" variant="secondary">
-                Применить
-              </Button>
+              <Field label="Название">
+                <Input
+                  value={nameFilter}
+                  onChange={(e) => setNameFilter(e.target.value)}
+                  aria-label="Фильтр по названию"
+                />
+              </Field>
+              <Field label="Тип">
+                <select
+                  value={typeFilter}
+                  onChange={(e) => setTypeFilter(e.target.value)}
+                  aria-label="Фильтр по типу"
+                  style={{ minHeight: 40, borderRadius: 6, border: '1px solid var(--color-border)', padding: 8, width: '100%' }}
+                >
+                  <option value="">Все типы</option>
+                  <option value="FLOWER">Цветок</option>
+                  <option value="MATERIAL">Материал</option>
+                </select>
+              </Field>
+              <Field label="Статус">
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  aria-label="Фильтр по статусу"
+                  style={{ minHeight: 40, borderRadius: 6, border: '1px solid var(--color-border)', padding: 8, width: '100%' }}
+                >
+                  <option value="">Все статусы</option>
+                  <option value="ACTIVE">Активные</option>
+                  <option value="ARCHIVED">В архиве</option>
+                </select>
+              </Field>
+              <div style={{ display: 'flex', alignItems: 'flex-end' }}>
+                <Button type="submit" variant="secondary">
+                  Применить
+                </Button>
+              </div>
             </form>
           </Card>
         </Section>
@@ -218,11 +243,21 @@ export default function ItemsPage() {
                         </strong>
                       </Link>
                       <div className="meta-row" style={{ marginTop: 4 }}>
-                        <StatusBadge status={item.itemType} />
+                        <StatusBadge status={itemTypeLabel(item.itemType)} />
                         <StatusBadge status={item.status} />
                         {item.isSellable ? (
                           <span className="sale-type-pill">Готовый букет</span>
                         ) : null}
+                      </div>
+                      <div
+                        style={{
+                          marginTop: 6,
+                          fontSize: 'var(--text-xs)',
+                          color: 'var(--color-muted)',
+                        }}
+                      >
+                        Добавил: {item.createdByDisplayName ?? 'неизвестно'}
+                        {formatWhen(item.createdAt) ? ` · ${formatWhen(item.createdAt)}` : null}
                       </div>
                     </div>
                     {item.status !== 'ARCHIVED' ? (
@@ -259,72 +294,76 @@ export default function ItemsPage() {
         <Section>
           <Card title="Создать товар">
             <form onSubmit={onCreate} className="form-grid">
-              <Input
-                placeholder="Название"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
+              <AutoNumberNote label="Код товара" />
+              <Field
+                label="Название"
                 required
-                minLength={2}
-                aria-label="Название товара"
-              />
-              <Input
-                placeholder="Код"
-                value={code}
-                onChange={(e) => setCode(e.target.value)}
-                required
-                minLength={2}
-                aria-label="Код товара"
-              />
-              <select
-                value={itemType}
-                onChange={(e) => setItemType(e.target.value as 'FLOWER' | 'MATERIAL')}
-                aria-label="Тип товара"
-                style={{ minHeight: 40, borderRadius: 6, border: '1px solid var(--color-border)', padding: 8 }}
+                hint="Как товар будет отображаться в поставках и на складе"
               >
-                <option value="FLOWER">FLOWER</option>
-                <option value="MATERIAL">MATERIAL</option>
-              </select>
-              <select
-                value={categoryId}
-                onChange={(e) => setCategoryId(e.target.value)}
+                <Input
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  required
+                  minLength={2}
+                  aria-label="Название товара"
+                />
+              </Field>
+              <Field
+                label="Тип"
                 required
-                aria-label="Категория"
-                style={{ minHeight: 40, borderRadius: 6, border: '1px solid var(--color-border)', padding: 8 }}
+                hint="Цветок — с партиями и сроком годности; материал — без партий"
               >
-                {categories.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-              <select
-                value={unitId}
-                onChange={(e) => setUnitId(e.target.value)}
+                <FancySelect
+                  value={itemType}
+                  onChange={(value) => setItemType(value as 'FLOWER' | 'MATERIAL')}
+                  options={[
+                    { value: 'FLOWER', label: 'Цветок' },
+                    { value: 'MATERIAL', label: 'Материал' },
+                  ]}
+                  searchable={false}
+                  aria-label="Тип товара"
+                />
+              </Field>
+              <Field label="Категория" required hint="Группа в справочнике">
+                <FancySelect
+                  value={categoryId}
+                  onChange={setCategoryId}
+                  options={categories.map((c) => ({ value: c.id, label: c.name }))}
+                  required
+                  aria-label="Категория"
+                />
+              </Field>
+              <Field label="Единица измерения" required hint="Например: штука, ветка, метр">
+                <FancySelect
+                  value={unitId}
+                  onChange={setUnitId}
+                  options={units.map((u) => ({ value: u.id, label: u.name }))}
+                  required
+                  aria-label="Единица"
+                />
+              </Field>
+              <Field
+                label="Политика учёта"
                 required
-                aria-label="Единица"
-                style={{ minHeight: 40, borderRadius: 6, border: '1px solid var(--color-border)', padding: 8 }}
+                hint="Правила партий и срока годности для этого типа"
               >
-                {units.map((u) => (
-                  <option key={u.id} value={u.id}>
-                    {u.name}
-                  </option>
-                ))}
-              </select>
-              <select
-                value={inventoryPolicyId}
-                onChange={(e) => setInventoryPolicyId(e.target.value)}
-                required
-                aria-label="Политика учёта"
-                style={{ minHeight: 40, borderRadius: 6, border: '1px solid var(--color-border)', padding: 8 }}
-              >
-                {policies
-                  .filter((p) => p.itemType === itemType)
-                  .map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
-                    </option>
-                  ))}
-              </select>
+                <FancySelect
+                  value={inventoryPolicyId}
+                  onChange={setInventoryPolicyId}
+                  options={policies
+                    .filter((p) => p.itemType === itemType)
+                    .map((p) => ({ value: p.id, label: p.name }))}
+                  required
+                  aria-label="Политика учёта"
+                />
+              </Field>
+              <Field label="Описание" hint="Необязательно">
+                <Input
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  aria-label="Описание товара"
+                />
+              </Field>
               <label
                 style={{
                   display: 'flex',
@@ -339,7 +378,7 @@ export default function ItemsPage() {
                   checked={isSellable}
                   onChange={(e) => setIsSellable(e.target.checked)}
                 />
-                Готовый букет (продаётся в магазине)
+                Готовый букет (продаётся в магазине как готовая позиция)
               </label>
               <Button type="submit" disabled={creating || !categoryId || !unitId || !inventoryPolicyId}>
                 {creating ? 'Создание…' : 'Создать'}

@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 import { Manrope, Source_Serif_4 } from 'next/font/google';
 import { AuthProvider } from '@/components/auth-provider';
-import { AppShell } from '@/components/app-shell';
+import { AppShell } from '@/components/shell/app-shell';
 import { ErrorBoundary } from '@/components/error-boundary';
 import './globals.css';
 
