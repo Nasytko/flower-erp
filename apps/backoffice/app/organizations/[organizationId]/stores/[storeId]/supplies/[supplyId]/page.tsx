@@ -1,7 +1,7 @@
 ﻿'use client';
 
 import Link from 'next/link';
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useId, useState, type FormEvent } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Button, Card, Input } from '@flower/ui';
 import { getApiClient } from '@/lib/api-client';
@@ -21,41 +21,55 @@ type CatalogItem = {
   isPurchasable?: boolean;
 };
 
-type Ref = { id: string; name: string; status?: string; itemType?: string };
+type Ref = { id: string; name: string; status?: string };
+
+type SupplyLine = {
+  id: string;
+  itemId: string;
+  orderedQuantity: string;
+  plannedUnitPrice: string | null;
+  item?: { name: string; code: string };
+};
+
+function lineTotal(qty: string, price: string | null | undefined): string | null {
+  const q = Number(qty);
+  const p = Number(price);
+  if (!Number.isFinite(q) || !Number.isFinite(p) || q < 0 || p < 0) return null;
+  return (q * p).toFixed(2);
+}
+
+function formatMoney(value: string | null | undefined): string {
+  if (value == null || value === '') return '—';
+  return `${value} BYN`;
+}
 
 export default function SupplyDetailPage() {
   const params = useParams<{ organizationId: string; storeId: string; supplyId: string }>();
   const router = useRouter();
   const { organizationId, storeId, supplyId } = params;
   const base = `/organizations/${organizationId}/stores/${storeId}`;
+  const draftQtyId = useId();
+  const draftCostId = useId();
 
   const [supply, setSupply] = useState<{
     id: string;
     number: string;
     status: string;
     warehouseId: string;
-    items: Array<{
-      id: string;
-      itemId: string;
-      orderedQuantity: string;
-      item?: { name: string; code: string };
-    }>;
+    items: SupplyLine[];
   } | null>(null);
   const [receipts, setReceipts] = useState<Array<{ id: string; number: string; status: string }>>(
     [],
   );
   const [catalog, setCatalog] = useState<CatalogItem[]>([]);
-  const [categories, setCategories] = useState<Ref[]>([]);
   const [units, setUnits] = useState<Ref[]>([]);
-  const [policies, setPolicies] = useState<Ref[]>([]);
   const [itemId, setItemId] = useState('');
   const [qty, setQty] = useState('1');
+  const [unitCost, setUnitCost] = useState('');
   const [showQuickCreate, setShowQuickCreate] = useState(false);
   const [quickName, setQuickName] = useState('');
   const [quickType, setQuickType] = useState<'FLOWER' | 'MATERIAL'>('FLOWER');
-  const [quickCategoryId, setQuickCategoryId] = useState('');
   const [quickUnitId, setQuickUnitId] = useState('');
-  const [quickPolicyId, setQuickPolicyId] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -65,13 +79,11 @@ export default function SupplyDetailPage() {
     setError(null);
     try {
       const client = getApiClient();
-      const [s, r, items, cats, unts, pols] = await Promise.all([
+      const [s, r, items, unts] = await Promise.all([
         client.getSupply(organizationId, storeId, supplyId),
         client.listGoodsReceipts(organizationId, storeId, supplyId),
         client.listItems(organizationId, { pageSize: 100, status: 'ACTIVE' }),
-        client.listCategories(organizationId, 1, 100),
         client.listUnits(organizationId, 1, 100),
-        client.listPolicies(organizationId, 1, 100),
       ]);
       setSupply(s);
       setReceipts(r);
@@ -86,13 +98,8 @@ export default function SupplyDetailPage() {
         }
         return purchasable[0]?.id ?? '';
       });
-      const activeCats = cats.items.filter((c) => c.status === 'ACTIVE');
       const activeUnits = unts.items.filter((u) => u.status === 'ACTIVE');
-      const activePolicies = pols.items.filter((p) => p.status === 'ACTIVE');
-      setCategories(activeCats);
       setUnits(activeUnits);
-      setPolicies(activePolicies);
-      setQuickCategoryId((current) => current || activeCats[0]?.id || '');
       setQuickUnitId((current) => current || activeUnits[0]?.id || '');
     } catch (err) {
       setError(formatApiErrorMessage(err, 'Не удалось загрузить'));
@@ -106,24 +113,55 @@ export default function SupplyDetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [organizationId, storeId, supplyId]);
 
-  useEffect(() => {
-    const match = policies.find((p) => p.itemType === quickType);
-    if (match) setQuickPolicyId(match.id);
-  }, [quickType, policies]);
-
   async function onAddItem(event: FormEvent) {
     event.preventDefault();
     setBusy(true);
     setError(null);
     try {
+      const cost = unitCost.trim();
+      if (!itemId) {
+        setError('Выберите товар');
+        setBusy(false);
+        return;
+      }
+      if (!qty.trim() || Number(qty) <= 0) {
+        setError('Укажите количество больше нуля');
+        setBusy(false);
+        return;
+      }
+      if (!cost || Number(cost) < 0) {
+        setError('Укажите себестоимость за единицу (BYN)');
+        setBusy(false);
+        return;
+      }
       await getApiClient().addSupplyItem(organizationId, storeId, supplyId, {
         itemId,
         orderedQuantity: qty,
+        plannedUnitPrice: cost,
       });
       setQty('1');
+      setUnitCost('');
       await load();
+      requestAnimationFrame(() => {
+        const el = document.getElementById(draftQtyId) as HTMLInputElement | null;
+        el?.focus();
+      });
     } catch (err) {
       setError(formatApiErrorMessage(err, 'Не удалось добавить позицию'));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onRemoveLine(line: SupplyLine) {
+    if (!window.confirm(`Убрать «${line.item?.name ?? 'позицию'}» из поставки?`)) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await getApiClient().removeSupplyItem(organizationId, storeId, supplyId, line.itemId);
+      await load();
+    } catch (err) {
+      setError(formatApiErrorMessage(err, 'Не удалось удалить позицию'));
     } finally {
       setBusy(false);
     }
@@ -134,18 +172,26 @@ export default function SupplyDetailPage() {
     setBusy(true);
     setError(null);
     try {
+      if (!quickUnitId) {
+        setError('Нет единиц измерения. Создайте штуку в Справочники → Единицы.');
+        setBusy(false);
+        return;
+      }
       const created = await getApiClient().createItem(organizationId, {
         name: quickName,
         itemType: quickType,
-        categoryId: quickCategoryId,
         unitId: quickUnitId,
-        inventoryPolicyId: quickPolicyId,
         isPurchasable: true,
         isSellable: false,
       });
       setQuickName('');
       setShowQuickCreate(false);
+      setItemId(created.id);
       await load(created.id);
+      requestAnimationFrame(() => {
+        const el = document.getElementById(draftQtyId) as HTMLInputElement | null;
+        el?.focus();
+      });
     } catch (err) {
       setError(formatApiErrorMessage(err, 'Не удалось создать товар'));
     } finally {
@@ -183,13 +229,19 @@ export default function SupplyDetailPage() {
   const draft = supply?.status === 'DRAFT';
   const receivable =
     supply?.status === 'SUBMITTED_TO_SUPPLIER' || supply?.status === 'PARTIALLY_RECEIVED';
+  const draftTotal = lineTotal(qty, unitCost);
+  const supplyTotal =
+    supply?.items.reduce((sum, line) => {
+      const part = lineTotal(line.orderedQuantity, line.plannedUnitPrice);
+      return sum + (part ? Number(part) : 0);
+    }, 0) ?? 0;
 
   return (
     <main>
       <PageContainer>
         <PageHeader
           title={supply?.number ?? 'Поставка'}
-          description="Черновик поставки: добавьте позиции из справочника или создайте новый товар."
+          description="Заполняйте строки: товар, количество и себестоимость. На телефоне поля идут столбь."
           breadcrumbs={[
             { label: 'Организации', href: '/organizations' },
             { label: 'Магазин', href: base },
@@ -204,22 +256,76 @@ export default function SupplyDetailPage() {
           <>
             <Section>
               <Card title="Позиции">
-                <ul className="list-stack">
-                  {supply.items.map((line) => (
-                    <li key={line.id}>
-                      <div className="meta-row">
-                        <strong>
-                          {line.item?.name ?? line.itemId} ({line.item?.code})
-                        </strong>
-                        <span>Заказано: {line.orderedQuantity}</span>
+                {supply.items.length > 0 ? (
+                  <p
+                    className="supply-lines__sum"
+                    style={{ margin: '0 0 12px', fontSize: 'var(--text-sm)' }}
+                  >
+                    Итого: {supplyTotal.toFixed(2)} BYN
+                  </p>
+                ) : null}
+                <div className="supply-lines">
+                  <div className="supply-lines__head" aria-hidden="true">
+                    <span>Товар</span>
+                    <span>Кол-во</span>
+                    <span>Себес</span>
+                    <span>Сумма</span>
+                    <span />
+                  </div>
+
+                  {supply.items.length === 0 && !draft ? (
+                    <p className="supply-lines__empty">Позиций пока нет</p>
+                  ) : null}
+
+                  {supply.items.map((line) => {
+                    const total = lineTotal(line.orderedQuantity, line.plannedUnitPrice);
+                    return (
+                      <div key={line.id} className="supply-lines__row">
+                        <div className="supply-lines__cell">
+                          <span className="supply-lines__label">Товар</span>
+                          <div className="supply-lines__value">
+                            <strong>{line.item?.name ?? line.itemId}</strong>
+                            {line.item?.code ? (
+                              <span className="supply-lines__code">{line.item.code}</span>
+                            ) : null}
+                          </div>
+                        </div>
+                        <div className="supply-lines__cell">
+                          <span className="supply-lines__label">Количество</span>
+                          <div className="supply-lines__value">{line.orderedQuantity}</div>
+                        </div>
+                        <div className="supply-lines__cell">
+                          <span className="supply-lines__label">Себес / ед.</span>
+                          <div className="supply-lines__value">
+                            {formatMoney(line.plannedUnitPrice)}
+                          </div>
+                        </div>
+                        <div className="supply-lines__cell">
+                          <span className="supply-lines__label">Сумма</span>
+                          <div className="supply-lines__value supply-lines__sum">
+                            {formatMoney(total)}
+                          </div>
+                        </div>
+                        <div className="supply-lines__actions">
+                          {draft ? (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              disabled={busy}
+                              onClick={() => void onRemoveLine(line)}
+                            >
+                              Убрать
+                            </Button>
+                          ) : null}
+                        </div>
                       </div>
-                    </li>
-                  ))}
-                </ul>
-                {draft ? (
-                  <>
-                    <form onSubmit={onAddItem} className="form-grid" style={{ marginTop: 16 }}>
-                      <Field label="Товар" required hint="Выберите из справочника или создайте новый ниже">
+                    );
+                  })}
+
+                  {draft ? (
+                    <form className="supply-lines__row supply-lines__row--draft" onSubmit={onAddItem}>
+                      <div className="supply-lines__cell">
+                        <span className="supply-lines__label">Товар *</span>
                         <FancySelect
                           value={itemId}
                           onChange={setItemId}
@@ -231,117 +337,123 @@ export default function SupplyDetailPage() {
                           required
                           aria-label="Товар"
                         />
-                      </Field>
-                      <Field label="Количество" required>
+                      </div>
+                      <div className="supply-lines__cell">
+                        <label className="supply-lines__label" htmlFor={draftQtyId}>
+                          Кол-во *
+                        </label>
                         <Input
+                          id={draftQtyId}
+                          className="supply-lines__input"
                           value={qty}
                           onChange={(e) => setQty(e.target.value)}
-                          aria-label="Заказанное количество"
+                          inputMode="decimal"
                           required
+                          aria-label="Количество"
                         />
-                      </Field>
-                      <Button type="submit" disabled={busy || !itemId}>
-                        Добавить позицию
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        disabled={busy}
-                        onClick={() => setShowQuickCreate((v) => !v)}
-                      >
-                        {showQuickCreate ? 'Скрыть создание товара' : 'Новый товар в справочник'}
-                      </Button>
-                    </form>
-
-                    {showQuickCreate ? (
-                      <form
-                        onSubmit={onQuickCreate}
-                        className="form-grid"
-                        style={{
-                          marginTop: 16,
-                          padding: 16,
-                          border: '1px solid var(--color-border)',
-                          borderRadius: 10,
-                          background: 'var(--color-surface)',
-                        }}
-                      >
-                        <p
-                          style={{
-                            margin: 0,
-                            gridColumn: '1 / -1',
-                            fontSize: 'var(--text-sm)',
-                            color: 'var(--color-muted)',
-                          }}
-                        >
-                          Быстрое создание товара для этой поставки. Код присвоится автоматически;
-                          в карточке сохранится, кто и когда добавил.
-                        </p>
-                        <AutoNumberNote label="Код товара" />
-                        <Field label="Название" required>
-                          <Input
-                            value={quickName}
-                            onChange={(e) => setQuickName(e.target.value)}
-                            required
-                            minLength={2}
-                            aria-label="Название нового товара"
-                          />
-                        </Field>
-                        <Field label="Тип" required>
-                          <FancySelect
-                            value={quickType}
-                            onChange={(value) => setQuickType(value as 'FLOWER' | 'MATERIAL')}
-                            searchable={false}
-                            options={[
-                              { value: 'FLOWER', label: 'Цветок' },
-                              { value: 'MATERIAL', label: 'Материал' },
-                            ]}
-                            aria-label="Тип нового товара"
-                          />
-                        </Field>
-                        <Field label="Категория" required>
-                          <FancySelect
-                            value={quickCategoryId}
-                            onChange={setQuickCategoryId}
-                            options={categories.map((c) => ({ value: c.id, label: c.name }))}
-                            required
-                            aria-label="Категория нового товара"
-                          />
-                        </Field>
-                        <Field label="Единица измерения" required>
-                          <FancySelect
-                            value={quickUnitId}
-                            onChange={setQuickUnitId}
-                            options={units.map((u) => ({ value: u.id, label: u.name }))}
-                            required
-                            aria-label="Единица нового товара"
-                          />
-                        </Field>
-                        <Field label="Политика учёта" required>
-                          <FancySelect
-                            value={quickPolicyId}
-                            onChange={setQuickPolicyId}
-                            options={policies
-                              .filter((p) => p.itemType === quickType)
-                              .map((p) => ({ value: p.id, label: p.name }))}
-                            required
-                            aria-label="Политика нового товара"
-                          />
-                        </Field>
-                        <Button
-                          type="submit"
-                          disabled={
-                            busy ||
-                            !quickName.trim() ||
-                            !quickCategoryId ||
-                            !quickUnitId ||
-                            !quickPolicyId
-                          }
-                        >
-                          Создать товар
+                      </div>
+                      <div className="supply-lines__cell">
+                        <label className="supply-lines__label" htmlFor={draftCostId}>
+                          Себес / ед. *
+                        </label>
+                        <Input
+                          id={draftCostId}
+                          className="supply-lines__input"
+                          value={unitCost}
+                          onChange={(e) => setUnitCost(e.target.value)}
+                          inputMode="decimal"
+                          placeholder="0.00"
+                          required
+                          aria-label="Себестоимость за единицу"
+                        />
+                      </div>
+                      <div className="supply-lines__cell">
+                        <span className="supply-lines__label">Сумма</span>
+                        <div className="supply-lines__value supply-lines__sum">
+                          {formatMoney(draftTotal)}
+                        </div>
+                      </div>
+                      <div className="supply-lines__actions">
+                        <Button type="submit" disabled={busy || !itemId}>
+                          {busy ? '…' : 'Добавить'}
                         </Button>
-                      </form>
-                    ) : null}
-                  </>
+                      </div>
+                    </form>
+                  ) : null}
+                </div>
+
+                {draft ? (
+                  <div className="page-header__actions" style={{ marginTop: 16 }}>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      disabled={busy}
+                      onClick={() => setShowQuickCreate((v) => !v)}
+                    >
+                      {showQuickCreate ? 'Скрыть новый товар' : 'Новый товар в справочник'}
+                    </Button>
+                  </div>
+                ) : null}
+
+                {draft && showQuickCreate ? (
+                  <form
+                    onSubmit={onQuickCreate}
+                    className="form-grid"
+                    style={{
+                      marginTop: 16,
+                      maxWidth: '100%',
+                      padding: 16,
+                      border: '1px solid var(--color-border)',
+                      borderRadius: 10,
+                      background: 'var(--color-surface)',
+                    }}
+                  >
+                    <p
+                      style={{
+                        margin: 0,
+                        gridColumn: '1 / -1',
+                        fontSize: 'var(--text-sm)',
+                        color: 'var(--color-muted)',
+                      }}
+                    >
+                      Создаст товар и подставит его в новую строку. Затем укажите количество и
+                      себестоимость.
+                    </p>
+                    <AutoNumberNote label="Код товара" />
+                    <Field label="Название" required>
+                      <Input
+                        value={quickName}
+                        onChange={(e) => setQuickName(e.target.value)}
+                        required
+                        minLength={2}
+                        aria-label="Название нового товара"
+                      />
+                    </Field>
+                    <Field label="Тип" required>
+                      <FancySelect
+                        value={quickType}
+                        onChange={(value) => setQuickType(value as 'FLOWER' | 'MATERIAL')}
+                        searchable={false}
+                        options={[
+                          { value: 'FLOWER', label: 'Цветок' },
+                          { value: 'MATERIAL', label: 'Материал' },
+                        ]}
+                        aria-label="Тип нового товара"
+                      />
+                    </Field>
+                    <Field label="Единица" required>
+                      <FancySelect
+                        value={quickUnitId}
+                        onChange={setQuickUnitId}
+                        options={units.map((u) => ({ value: u.id, label: u.name }))}
+                        required
+                        aria-label="Единица нового товара"
+                      />
+                    </Field>
+                    <Button type="submit" disabled={busy || !quickName.trim() || !quickUnitId}>
+                      Создать и выбрать
+                    </Button>
+                  </form>
                 ) : null}
               </Card>
             </Section>

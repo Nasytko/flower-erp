@@ -15,6 +15,7 @@ const svgProps = {
 
 export function NavIcon({ label }: { label: string }): ReactNode {
   switch (label) {
+    case 'Смена':
     case 'Сегодня':
       return (
         <svg {...svgProps}>

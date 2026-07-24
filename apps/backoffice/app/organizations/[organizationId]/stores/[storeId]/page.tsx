@@ -98,7 +98,7 @@ export default function StoreDetailPage() {
               <div className="page-header__actions">
                 {auth.hasPermission('workspace:read') ? (
                   <Button type="button" variant="secondary" onClick={() => router.push(`${base}/today`)}>
-                    Сегодня
+                    Смена
                   </Button>
                 ) : null}
                 {auth.hasPermission('operations:read') ? (
@@ -217,7 +217,7 @@ export default function StoreDetailPage() {
               <Card title="Операции магазина">
                 <div className="meta-row">
                   {auth.hasPermission('workspace:read') ? (
-                    <Link href={`${base}/today`}>Сегодня</Link>
+                    <Link href={`${base}/today`}>Смена</Link>
                   ) : null}
                   {auth.hasPermission('operations:read') ? (
                     <Link href={`${base}/operations`}>Операции</Link>

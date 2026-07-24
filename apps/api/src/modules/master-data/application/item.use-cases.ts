@@ -25,6 +25,7 @@ import {
 } from './ports/repositories';
 import {
   ItemType,
+  InventoryPolicyPresetCode,
   MasterDataStatus,
   assertAvailableForNewDocuments,
   assertEntityName,
@@ -35,6 +36,8 @@ import {
   type ItemProps,
 } from '../domain/master-data-rules';
 import { mapDomainError } from './map-domain-error';
+
+const DEFAULT_CATEGORY_NAME = 'Общее';
 
 function actorMembershipId(): string | null {
   return getRequestContext()?.auth?.membershipId ?? null;
@@ -53,11 +56,69 @@ export class ItemUseCases {
     @Inject(CLOCK_PORT) private readonly clock: ClockPort,
   ) {}
 
+  private async resolveCategoryId(
+    organizationId: string,
+    categoryId?: string | null,
+  ): Promise<string> {
+    if (categoryId?.trim()) {
+      return categoryId;
+    }
+    const listed = await this.categories.list(organizationId, { page: 1, pageSize: 100 });
+    const active = listed.items.filter((c) => c.status === MasterDataStatus.ACTIVE);
+    const preferred =
+      active.find((c) => c.name.trim().toLowerCase() === DEFAULT_CATEGORY_NAME.toLowerCase()) ??
+      active[0];
+    if (preferred) {
+      return preferred.id;
+    }
+    const code = await allocateUniqueCode('CAT', (candidate) =>
+      this.categories.existsCode(organizationId, candidate),
+    );
+    const created = await this.categories.create({
+      id: randomUUID(),
+      organizationId,
+      name: DEFAULT_CATEGORY_NAME,
+      code,
+      parentId: null,
+      status: MasterDataStatus.ACTIVE,
+    });
+    return created.id;
+  }
+
+  private async resolvePolicyId(
+    organizationId: string,
+    itemType: ItemType,
+    inventoryPolicyId?: string | null,
+  ): Promise<string> {
+    if (inventoryPolicyId?.trim()) {
+      return inventoryPolicyId;
+    }
+    const presetCode =
+      itemType === ItemType.FLOWER
+        ? InventoryPolicyPresetCode.FLOWER_DEFAULT
+        : InventoryPolicyPresetCode.MATERIAL_UNIT;
+    const byPreset = await this.policies.findByPresetCode(organizationId, presetCode);
+    if (byPreset && byPreset.status === MasterDataStatus.ACTIVE) {
+      return byPreset.id;
+    }
+    const listed = await this.policies.list(organizationId, { page: 1, pageSize: 100 });
+    const match = listed.items.find(
+      (p) => p.itemType === itemType && p.status === MasterDataStatus.ACTIVE,
+    );
+    if (!match) {
+      throw new BadRequestException({
+        code: 'POLICY_REQUIRED',
+        message: 'No inventory policy for this item type. Create one in master data first.',
+      });
+    }
+    return match.id;
+  }
+
   async createItem(input: {
     organizationId: string;
-    categoryId: string;
+    categoryId?: string | null;
     unitId: string;
-    inventoryPolicyId: string;
+    inventoryPolicyId?: string | null;
     name: string;
     code?: string | null;
     itemType: ItemType;
@@ -86,10 +147,20 @@ export class ItemUseCases {
           });
         }
 
+        const categoryId = await this.resolveCategoryId(
+          input.organizationId,
+          input.categoryId,
+        );
+        const inventoryPolicyId = await this.resolvePolicyId(
+          input.organizationId,
+          input.itemType,
+          input.inventoryPolicyId,
+        );
+
         const [category, unit, policy] = await Promise.all([
-          this.categories.findById(input.organizationId, input.categoryId),
+          this.categories.findById(input.organizationId, categoryId),
           this.units.findById(input.organizationId, input.unitId),
-          this.policies.findById(input.organizationId, input.inventoryPolicyId),
+          this.policies.findById(input.organizationId, inventoryPolicyId),
         ]);
 
         if (!category) {

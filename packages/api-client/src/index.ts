@@ -531,9 +531,9 @@ export function createApiClient(options: ApiClientOptions) {
     createItem: (
       organizationId: string,
       body: {
-        categoryId: string;
+        categoryId?: string;
         unitId: string;
-        inventoryPolicyId: string;
+        inventoryPolicyId?: string;
         name: string;
         code?: string;
         itemType: 'FLOWER' | 'MATERIAL';
@@ -629,6 +629,16 @@ export function createApiClient(options: ApiClientOptions) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       }),
+    removeSupplyItem: (
+      organizationId: string,
+      storeId: string,
+      supplyId: string,
+      itemId: string,
+    ) =>
+      request<void>(
+        `/organizations/${organizationId}/stores/${storeId}/supplies/${supplyId}/items/${itemId}/remove`,
+        { method: 'POST' },
+      ),
     submitSupply: (organizationId: string, storeId: string, supplyId: string) =>
       request<{ id: string; status: string }>(
         `/organizations/${organizationId}/stores/${storeId}/supplies/${supplyId}/submit`,

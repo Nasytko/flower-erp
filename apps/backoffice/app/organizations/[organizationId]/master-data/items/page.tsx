@@ -20,15 +20,12 @@ type Item = {
   code: string;
   itemType: string;
   status: string;
-  categoryId: string;
-  unitId: string;
-  inventoryPolicyId: string;
   isSellable?: boolean;
   createdAt?: string;
   createdByDisplayName?: string | null;
 };
 
-type Ref = { id: string; name: string; status?: string; itemType?: string };
+type Ref = { id: string; name: string; status?: string };
 
 function itemTypeLabel(type: string) {
   return type === 'MATERIAL' ? 'Материал' : 'Цветок';
@@ -57,15 +54,11 @@ export default function ItemsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [categories, setCategories] = useState<Ref[]>([]);
   const [units, setUnits] = useState<Ref[]>([]);
-  const [policies, setPolicies] = useState<Ref[]>([]);
 
   const [name, setName] = useState('');
   const [itemType, setItemType] = useState<'FLOWER' | 'MATERIAL'>('FLOWER');
-  const [categoryId, setCategoryId] = useState('');
   const [unitId, setUnitId] = useState('');
-  const [inventoryPolicyId, setInventoryPolicyId] = useState('');
   const [description, setDescription] = useState('');
   const [isSellable, setIsSellable] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -75,7 +68,7 @@ export default function ItemsPage() {
     setError(null);
     try {
       const client = getApiClient();
-      const [list, cats, unts, pols] = await Promise.all([
+      const [list, unts] = await Promise.all([
         client.listItems(organizationId, {
           page,
           pageSize: 10,
@@ -85,17 +78,13 @@ export default function ItemsPage() {
           sortBy: 'name',
           sortDir: 'asc',
         }),
-        client.listCategories(organizationId, 1, 100),
         client.listUnits(organizationId, 1, 100),
-        client.listPolicies(organizationId, 1, 100),
       ]);
       setItems(list.items);
       setTotalPages(list.totalPages);
-      setCategories(cats.items.filter((c) => c.status === 'ACTIVE'));
-      setUnits(unts.items.filter((u) => u.status === 'ACTIVE'));
-      setPolicies(pols.items.filter((p) => p.status === 'ACTIVE'));
-      setCategoryId((current) => current || cats.items.find((c) => c.status === 'ACTIVE')?.id || '');
-      setUnitId((current) => current || unts.items.find((u) => u.status === 'ACTIVE')?.id || '');
+      const activeUnits = unts.items.filter((u) => u.status === 'ACTIVE');
+      setUnits(activeUnits);
+      setUnitId((current) => current || activeUnits[0]?.id || '');
     } catch (err) {
       setError(formatApiErrorMessage(err, 'Не удалось загрузить товары'));
     } finally {
@@ -107,11 +96,6 @@ export default function ItemsPage() {
     void load();
   }, [load]);
 
-  useEffect(() => {
-    const match = policies.find((p) => p.itemType === itemType && p.status !== 'ARCHIVED');
-    if (match) setInventoryPolicyId(match.id);
-  }, [itemType, policies]);
-
   async function onCreate(event: FormEvent) {
     event.preventDefault();
     setCreating(true);
@@ -120,9 +104,7 @@ export default function ItemsPage() {
       await getApiClient().createItem(organizationId, {
         name,
         itemType,
-        categoryId,
         unitId,
-        inventoryPolicyId,
         description: description.trim() || undefined,
         isSellable,
         isPurchasable: true,
@@ -185,7 +167,13 @@ export default function ItemsPage() {
                   value={typeFilter}
                   onChange={(e) => setTypeFilter(e.target.value)}
                   aria-label="Фильтр по типу"
-                  style={{ minHeight: 40, borderRadius: 6, border: '1px solid var(--color-border)', padding: 8, width: '100%' }}
+                  style={{
+                    minHeight: 40,
+                    borderRadius: 6,
+                    border: '1px solid var(--color-border)',
+                    padding: 8,
+                    width: '100%',
+                  }}
                 >
                   <option value="">Все типы</option>
                   <option value="FLOWER">Цветок</option>
@@ -197,7 +185,13 @@ export default function ItemsPage() {
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value)}
                   aria-label="Фильтр по статусу"
-                  style={{ minHeight: 40, borderRadius: 6, border: '1px solid var(--color-border)', padding: 8, width: '100%' }}
+                  style={{
+                    minHeight: 40,
+                    borderRadius: 6,
+                    border: '1px solid var(--color-border)',
+                    padding: 8,
+                    width: '100%',
+                  }}
                 >
                   <option value="">Все статусы</option>
                   <option value="ACTIVE">Активные</option>
@@ -218,7 +212,7 @@ export default function ItemsPage() {
             {loading ? <LoadingState /> : null}
             {error ? <ErrorState message={error} /> : null}
             {!loading && !error && items.length === 0 ? (
-              <EmptyState message="Товаров пока нет. Создайте категорию, единицу и политику, затем товар." />
+              <EmptyState message="Товаров пока нет. Создайте единицу измерения, затем товар." />
             ) : null}
             <ul className="list-stack">
               {items.map((item) => (
@@ -311,7 +305,7 @@ export default function ItemsPage() {
               <Field
                 label="Тип"
                 required
-                hint="Цветок — с партиями и сроком годности; материал — без партий"
+                hint="Цветок — партии и срок годности; материал — без партий (политика подставится сама)"
               >
                 <FancySelect
                   value={itemType}
@@ -324,15 +318,6 @@ export default function ItemsPage() {
                   aria-label="Тип товара"
                 />
               </Field>
-              <Field label="Категория" required hint="Группа в справочнике">
-                <FancySelect
-                  value={categoryId}
-                  onChange={setCategoryId}
-                  options={categories.map((c) => ({ value: c.id, label: c.name }))}
-                  required
-                  aria-label="Категория"
-                />
-              </Field>
               <Field label="Единица измерения" required hint="Например: штука, ветка, метр">
                 <FancySelect
                   value={unitId}
@@ -340,21 +325,6 @@ export default function ItemsPage() {
                   options={units.map((u) => ({ value: u.id, label: u.name }))}
                   required
                   aria-label="Единица"
-                />
-              </Field>
-              <Field
-                label="Политика учёта"
-                required
-                hint="Правила партий и срока годности для этого типа"
-              >
-                <FancySelect
-                  value={inventoryPolicyId}
-                  onChange={setInventoryPolicyId}
-                  options={policies
-                    .filter((p) => p.itemType === itemType)
-                    .map((p) => ({ value: p.id, label: p.name }))}
-                  required
-                  aria-label="Политика учёта"
                 />
               </Field>
               <Field label="Описание" hint="Необязательно">
@@ -380,7 +350,7 @@ export default function ItemsPage() {
                 />
                 Готовый букет (продаётся в магазине как готовая позиция)
               </label>
-              <Button type="submit" disabled={creating || !categoryId || !unitId || !inventoryPolicyId}>
+              <Button type="submit" disabled={creating || !unitId}>
                 {creating ? 'Создание…' : 'Создать'}
               </Button>
             </form>

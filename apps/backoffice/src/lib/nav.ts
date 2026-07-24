@@ -20,7 +20,7 @@ export type NavItem = {
 export const PRIMARY_NAV: NavItem[] = [
   {
     href: '/organizations/{orgId}/stores/{storeId}/today',
-    label: 'Сегодня',
+    label: 'Смена',
     permission: 'workspace:read',
     storeScoped: true,
   },
@@ -86,12 +86,12 @@ export const NAV_ACTION_SHORTCUTS: NavActionShortcut[] = [
   { id: 'new-order', label: 'Новый заказ', navLabel: 'Заказы' },
   { id: 'new-sale', label: 'Новая продажа', navLabel: 'Продажи' },
   { id: 'stock', label: 'Склад', navLabel: 'Склад' },
-  { id: 'today', label: 'Сегодня', navLabel: 'Сегодня' },
+  { id: 'today', label: 'Смена', navLabel: 'Смена' },
 ];
 
 /**
  * Post-login / store home:
- * - workspace:read (director, florist) → Сегодня
+ * - workspace:read (director, florist) → Смена
  * - delivery:read without workspace (courier) → Доставка
  * - otherwise store base (rare fallback)
  */

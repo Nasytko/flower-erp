@@ -3,13 +3,15 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { useParams } from 'next/navigation';
 import { Button, Card, Input } from '@flower/ui';
-import { ApiClientError } from '@flower/api-client';
 import { getApiClient } from '@/lib/api-client';
 import { PageContainer } from '@/components/layout/page-container';
 import { PageHeader } from '@/components/layout/page-header';
 import { Section } from '@/components/layout/section';
 import { ErrorState, LoadingState } from '@/components/layout/states';
 import { StatusBadge } from '@/components/layout/status-badge';
+import { Field } from '@/components/layout/field';
+import { FancySelect } from '@/components/layout/fancy-select';
+import { formatApiErrorMessage } from '@/lib/format-api-error';
 
 export default function GoodsReceiptPage() {
   const params = useParams<{
@@ -22,7 +24,13 @@ export default function GoodsReceiptPage() {
   const base = `/organizations/${organizationId}/stores/${storeId}`;
 
   const [supply, setSupply] = useState<{
-    items: Array<{ id: string; itemId: string; orderedQuantity: string; item?: { name: string; code: string } }>;
+    items: Array<{
+      id: string;
+      itemId: string;
+      orderedQuantity: string;
+      plannedUnitPrice: string | null;
+      item?: { name: string; code: string };
+    }>;
   } | null>(null);
   const [receipt, setReceipt] = useState<{
     id: string;
@@ -41,12 +49,21 @@ export default function GoodsReceiptPage() {
   const [received, setReceived] = useState('0');
   const [accepted, setAccepted] = useState('0');
   const [defective, setDefective] = useState('0');
-  const [price, setPrice] = useState('0');
+  const [price, setPrice] = useState('');
   const [defectReason, setDefectReason] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [summary, setSummary] = useState<string | null>(null);
+
+  function applySupplyLine(lineId: string, items: NonNullable<typeof supply>['items']) {
+    const line = items.find((i) => i.id === lineId);
+    if (!line) return;
+    setSupplyItemId(line.id);
+    if (line.plannedUnitPrice != null && line.plannedUnitPrice !== '') {
+      setPrice(line.plannedUnitPrice);
+    }
+  }
 
   async function load() {
     setLoading(true);
@@ -59,9 +76,12 @@ export default function GoodsReceiptPage() {
       ]);
       setSupply(s);
       setReceipt(r);
-      if (s.items[0]) setSupplyItemId(s.items[0].id);
+      const first = s.items[0];
+      if (first) {
+        applySupplyLine(first.id, s.items);
+      }
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Не удалось загрузить');
+      setError(formatApiErrorMessage(err, 'Не удалось загрузить'));
     } finally {
       setLoading(false);
     }
@@ -78,6 +98,9 @@ export default function GoodsReceiptPage() {
     setReceived(line.orderedQuantity);
     setAccepted(line.orderedQuantity);
     setDefective('0');
+    if (line.plannedUnitPrice != null) {
+      setPrice(line.plannedUnitPrice);
+    }
   }
 
   async function onAddLine(event: FormEvent) {
@@ -85,6 +108,11 @@ export default function GoodsReceiptPage() {
     setBusy(true);
     setError(null);
     try {
+      if (!price.trim() || Number(price) < 0) {
+        setError('Укажите фактическую себестоимость за единицу (BYN)');
+        setBusy(false);
+        return;
+      }
       await getApiClient().addGoodsReceiptItem(organizationId, storeId, receiptId, {
         supplyItemId,
         receivedQuantity: received,
@@ -95,7 +123,7 @@ export default function GoodsReceiptPage() {
       });
       await load();
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Не удалось добавить строку');
+      setError(formatApiErrorMessage(err, 'Не удалось добавить строку'));
     } finally {
       setBusy(false);
     }
@@ -112,7 +140,7 @@ export default function GoodsReceiptPage() {
       setSummary(`Проведено: ${posted.status}. Партии и остатки обновлены.`);
       await load();
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Не удалось провести');
+      setError(formatApiErrorMessage(err, 'Не удалось провести'));
     } finally {
       setBusy(false);
     }
@@ -125,12 +153,12 @@ export default function GoodsReceiptPage() {
       <PageContainer>
         <PageHeader
           title={receipt?.number ?? 'Приёмка'}
-          description="Приёмка: получено / принято / брак / цена"
+          description="Укажите количества и фактическую себестоимость — она попадёт на склад."
           breadcrumbs={[
             { label: 'Магазин', href: base },
             { label: 'Поставки', href: `${base}/supplies` },
             { label: 'Поставка', href: `${base}/supplies/${supplyId}` },
-            { label: receipt?.number ?? 'Receipt' },
+            { label: receipt?.number ?? 'Приёмка' },
           ]}
           actions={receipt ? <StatusBadge status={receipt.status} /> : undefined}
         />
@@ -149,10 +177,10 @@ export default function GoodsReceiptPage() {
                   {receipt.items.map((line) => (
                     <li key={line.id}>
                       <div className="meta-row">
-                        <span>recv {line.receivedQuantity}</span>
-                        <span>ok {line.acceptedQuantity}</span>
-                        <span>def {line.defectiveQuantity}</span>
-                        <span>price {line.actualUnitPrice}</span>
+                        <span>Получено: {line.receivedQuantity}</span>
+                        <span>Принято: {line.acceptedQuantity}</span>
+                        <span>Брак: {line.defectiveQuantity}</span>
+                        <span>Себес: {line.actualUnitPrice} BYN</span>
                       </div>
                     </li>
                   ))}
@@ -163,28 +191,67 @@ export default function GoodsReceiptPage() {
               <Section>
                 <Card title="Добавить строку">
                   <form onSubmit={onAddLine} className="form-grid">
-                    <select
-                      value={supplyItemId}
-                      onChange={(e) => setSupplyItemId(e.target.value)}
-                      aria-label="Позиция поставки"
-                      style={{ minHeight: 40, borderRadius: 6, border: '1px solid var(--color-border)', padding: 8 }}
+                    <Field label="Позиция поставки" required>
+                      <FancySelect
+                        value={supplyItemId}
+                        onChange={(value) => {
+                          if (supply) applySupplyLine(value, supply.items);
+                          else setSupplyItemId(value);
+                        }}
+                        options={(supply?.items ?? []).map((line) => ({
+                          value: line.id,
+                          label: line.item?.name ?? line.itemId,
+                          hint: `заказано ${line.orderedQuantity}${
+                            line.plannedUnitPrice != null
+                              ? ` · план ${line.plannedUnitPrice} BYN`
+                              : ''
+                          }`,
+                        }))}
+                        required
+                        aria-label="Позиция поставки"
+                      />
+                    </Field>
+                    <Field label="Получено">
+                      <Input
+                        value={received}
+                        onChange={(e) => setReceived(e.target.value)}
+                        aria-label="Получено сейчас"
+                      />
+                    </Field>
+                    <Field label="Принято">
+                      <Input
+                        value={accepted}
+                        onChange={(e) => setAccepted(e.target.value)}
+                        aria-label="Принято"
+                      />
+                    </Field>
+                    <Field label="Брак">
+                      <Input
+                        value={defective}
+                        onChange={(e) => setDefective(e.target.value)}
+                        aria-label="Брак"
+                      />
+                    </Field>
+                    <Field
+                      label="Себестоимость за ед., BYN"
+                      required
+                      hint="Подставляется из поставки, можно поправить"
                     >
-                      {supply?.items.map((line) => (
-                        <option key={line.id} value={line.id}>
-                          {line.item?.name ?? line.itemId} (ordered {line.orderedQuantity})
-                        </option>
-                      ))}
-                    </select>
-                    <Input value={received} onChange={(e) => setReceived(e.target.value)} aria-label="Получено сейчас" />
-                    <Input value={accepted} onChange={(e) => setAccepted(e.target.value)} aria-label="Принято" />
-                    <Input value={defective} onChange={(e) => setDefective(e.target.value)} aria-label="Брак" />
-                    <Input value={price} onChange={(e) => setPrice(e.target.value)} aria-label="Фактическая цена за единицу" />
-                    <Input
-                      value={defectReason}
-                      onChange={(e) => setDefectReason(e.target.value)}
-                      aria-label="Причина брака"
-                      placeholder="Причина брака"
-                    />
+                      <Input
+                        value={price}
+                        onChange={(e) => setPrice(e.target.value)}
+                        inputMode="decimal"
+                        aria-label="Фактическая себестоимость за единицу"
+                        required
+                      />
+                    </Field>
+                    <Field label="Причина брака" hint="Если есть брак">
+                      <Input
+                        value={defectReason}
+                        onChange={(e) => setDefectReason(e.target.value)}
+                        aria-label="Причина брака"
+                      />
+                    </Field>
                     <Button type="button" variant="secondary" onClick={fillFull}>
                       Получить полностью
                     </Button>
@@ -197,7 +264,11 @@ export default function GoodsReceiptPage() {
             ) : null}
             {draft ? (
               <Section>
-                <Button type="button" disabled={busy || !receipt.items.length} onClick={() => void onPost()}>
+                <Button
+                  type="button"
+                  disabled={busy || !receipt.items.length}
+                  onClick={() => void onPost()}
+                >
                   Провести приёмку
                 </Button>
               </Section>

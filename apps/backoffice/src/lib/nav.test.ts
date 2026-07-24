@@ -1,4 +1,4 @@
-import assert from 'node:assert/strict';
+﻿import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   filterNavByPermissions,
@@ -56,7 +56,7 @@ test('parseStoreRoute extracts org and store ids', () => {
 test('PRIMARY_NAV is flat nine-item IA', () => {
   const labels = PRIMARY_NAV.map((item) => item.label);
   assert.deepEqual(labels, [
-    'Сегодня',
+    'Смена',
     'Заказы',
     'Продажи',
     'Склад',
@@ -99,7 +99,7 @@ test('store-scoped Delivery nav resolves with delivery:read', () => {
 });
 
 test('store-scoped Today nav resolves with workspace:read', () => {
-  const todayItem = PRIMARY_NAV.find((item) => item.label === 'Сегодня');
+  const todayItem = PRIMARY_NAV.find((item) => item.label === 'Смена');
   assert.ok(todayItem);
   assert.equal(resolveNavHref(todayItem, 'org-1', null), null);
   assert.equal(

@@ -219,17 +219,22 @@ export class CreatePolicyDto {
 }
 
 export class CreateItemDto {
-  @ApiProperty({ format: 'uuid' })
+  @ApiPropertyOptional({ format: 'uuid', description: 'Optional; defaults to «Общее» category' })
+  @IsOptional()
   @IsUUID()
-  categoryId!: string;
+  categoryId?: string;
 
   @ApiProperty({ format: 'uuid' })
   @IsUUID()
   unitId!: string;
 
-  @ApiProperty({ format: 'uuid' })
+  @ApiPropertyOptional({
+    format: 'uuid',
+    description: 'Optional; defaults to preset policy for itemType',
+  })
+  @IsOptional()
   @IsUUID()
-  inventoryPolicyId!: string;
+  inventoryPolicyId?: string;
 
   @ApiProperty()
   @IsString()

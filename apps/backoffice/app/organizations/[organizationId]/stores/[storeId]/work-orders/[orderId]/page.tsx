@@ -290,7 +290,7 @@ export default function WorkOrderPage() {
           title={data ? `Рабочий заказ ${data.order.number}` : 'Рабочий заказ'}
           description={data ? `${data.order.status} · ${data.order.occasion}` : 'Загрузка…'}
           breadcrumbs={[
-            { label: 'Сегодня', href: `${base}/today` },
+            { label: 'Смена', href: `${base}/today` },
             { label: data?.order.number ?? 'Рабочий заказ' },
           ]}
           actions={<div className="work-order-actions work-order-actions--desktop">{actionButtons}</div>}
