@@ -2,12 +2,14 @@
 
 import { Button } from '@flower/ui';
 import { Field } from '@/components/layout/field';
+import { FancySelect, paymentMethodLabel } from '@/components/layout/fancy-select';
 import { MoneyBynInput, parseBynToApi } from '@/components/layout/money-byn-input';
 
 export type PaymentMethodOption = {
   id: string;
   name: string;
   code?: string;
+  type?: string;
 };
 
 export type PaymentSplitLine = {
@@ -56,10 +58,8 @@ type PaymentSplitEditorProps = {
   methods: PaymentMethodOption[];
   lines: PaymentSplitLine[];
   onChange: (lines: PaymentSplitLine[]) => void;
-  /** Expected total (e.g. sale net) — shown for orientation, not forced. */
   expectedAmount?: string | null;
   currencyLabel?: string;
-  /** Soft requirement hint in tooltip. */
   required?: boolean;
   disabled?: boolean;
   label?: string;
@@ -88,6 +88,12 @@ export function PaymentSplitEditor({
       ? (expectedNum - paidNum).toFixed(2)
       : null;
 
+  const methodOptions = methods.map((method) => ({
+    value: method.id,
+    label: paymentMethodLabel(method),
+    hint: method.code,
+  }));
+
   function updateLine(key: string, patch: Partial<PaymentSplitLine>) {
     onChange(lines.map((row) => (row.key === key ? { ...row, ...patch } : row)));
   }
@@ -98,44 +104,60 @@ export function PaymentSplitEditor({
     onChange([...lines, createEmptyPaymentLine(nextMethod?.id ?? '')]);
   }
 
+  function fillRemainder(key: string) {
+    if (expectedNum == null || Number.isNaN(expectedNum)) return;
+    const others = lines
+      .filter((row) => row.key !== key)
+      .reduce((sum, row) => sum + Number(parseBynToApi(row.amount) ?? 0), 0);
+    const left = Math.max(expectedNum - others, 0);
+    updateLine(key, { amount: left.toFixed(2) });
+  }
+
   return (
     <div className="payment-split">
       <Field
         label={label}
-        tooltip="Можно разбить: например карта сейчас и наличные при выдаче, или наличные + карта сразу. Каждый способ — отдельная строка."
+        tooltip="Можно разбить: например карта + наличные. Каждый способ — отдельная строка."
         required={required}
         hint={
           methods.length === 0
-            ? 'Нет активных способов оплаты. Добавьте их в настройках магазина.'
+            ? 'Способы оплаты не загружены. Проверьте права payments или создайте их в настройках.'
             : undefined
         }
       >
         <div className="payment-split__rows">
           {lines.map((line, index) => (
             <div key={line.key} className="payment-split__row">
-              <select
-                className="field-control"
+              <FancySelect
                 value={line.methodId}
+                onChange={(methodId) => updateLine(line.key, { methodId })}
+                options={methodOptions}
+                placeholder="Способ оплаты"
                 disabled={disabled || methods.length === 0}
                 required={required && index === 0}
+                searchable={methodOptions.length > 5}
                 aria-label={`Способ оплаты ${index + 1}`}
-                onChange={(e) => updateLine(line.key, { methodId: e.target.value })}
-              >
-                <option value="">Способ оплаты</option>
-                {methods.map((method) => (
-                  <option key={method.id} value={method.id}>
-                    {method.name}
-                    {method.code ? ` (${method.code})` : ''}
-                  </option>
-                ))}
-              </select>
-              <MoneyBynInput
-                value={line.amount}
-                onChange={(amount) => updateLine(line.key, { amount })}
-                required={required && index === 0}
-                disabled={disabled}
-                aria-label={`Сумма оплаты ${index + 1}`}
+                className="payment-split__method"
               />
+              <div className="payment-split__amount">
+                <MoneyBynInput
+                  value={line.amount}
+                  onChange={(amount) => updateLine(line.key, { amount })}
+                  required={required && index === 0}
+                  disabled={disabled}
+                  aria-label={`Сумма оплаты ${index + 1}`}
+                />
+                {expected && !line.amount ? (
+                  <button
+                    type="button"
+                    className="payment-split__fill"
+                    disabled={disabled}
+                    onClick={() => fillRemainder(line.key)}
+                  >
+                    Вся сумма
+                  </button>
+                ) : null}
+              </div>
               {lines.length > 1 ? (
                 <Button
                   type="button"
@@ -152,7 +174,12 @@ export function PaymentSplitEditor({
       </Field>
 
       <div className="payment-split__footer">
-        <Button type="button" variant="secondary" disabled={disabled || methods.length === 0} onClick={addLine}>
+        <Button
+          type="button"
+          variant="secondary"
+          disabled={disabled || methods.length === 0}
+          onClick={addLine}
+        >
           + Ещё способ оплаты
         </Button>
         <p className="payment-split__summary">

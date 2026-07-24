@@ -7,11 +7,13 @@ import { ApiClientError } from '@flower/api-client';
 import { getApiClient } from '@/lib/api-client';
 import { useAuth } from '@/components/auth-provider';
 import { AutoNumberNote, Field } from '@/components/layout/field';
+import { FancySelect } from '@/components/layout/fancy-select';
 import { MoneyBynInput, parseBynToApi } from '@/components/layout/money-byn-input';
 import {
   PaymentSplitEditor,
   createEmptyPaymentLine,
   parsePaymentSplit,
+  sumPaymentSplit,
   type PaymentSplitLine,
 } from '@/components/layout/payment-split-editor';
 import { PageContainer } from '@/components/layout/page-container';
@@ -27,9 +29,25 @@ type CatalogItem = {
   isSellable?: boolean;
 };
 
-type PaymentMethod = { id: string; name: string; code: string };
+type PaymentMethod = { id: string; name: string; code: string; type?: string };
 
 type CompositionLine = { key: string; itemId: string; quantity: string };
+
+type SalePosition =
+  | {
+      key: string;
+      kind: 'CUSTOM';
+      name: string;
+      price: string;
+      composition: CompositionLine[];
+    }
+  | {
+      key: string;
+      kind: 'READY';
+      itemId: string;
+      quantity: string;
+      unitPrice: string;
+    };
 
 const DISCOUNT_REASONS = [
   { value: 'PROMOTION', label: 'Акция' },
@@ -42,6 +60,32 @@ const DISCOUNT_REASONS = [
 function newKey() {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return crypto.randomUUID();
   return `k_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+}
+
+function emptyCustomPosition(): SalePosition {
+  return {
+    key: newKey(),
+    kind: 'CUSTOM',
+    name: '',
+    price: '',
+    composition: [{ key: newKey(), itemId: '', quantity: '1' }],
+  };
+}
+
+function emptyReadyPosition(): SalePosition {
+  return {
+    key: newKey(),
+    kind: 'READY',
+    itemId: '',
+    quantity: '1',
+    unitPrice: '',
+  };
+}
+
+function itemTypeLabel(type: string) {
+  if (type === 'FLOWER') return 'Цветок';
+  if (type === 'MATERIAL') return 'Материал';
+  return type;
 }
 
 export default function NewSalePage() {
@@ -70,16 +114,14 @@ function NewSalePageInner() {
   const [warehouseId, setWarehouseId] = useState('');
   const [warehouseLabel, setWarehouseLabel] = useState('');
   const [items, setItems] = useState<CatalogItem[]>([]);
-  const [bouquetName, setBouquetName] = useState('');
-  const [unitPrice, setUnitPrice] = useState('');
-  const [composition, setComposition] = useState<CompositionLine[]>([
-    { key: newKey(), itemId: '', quantity: '1' },
-  ]);
+  const [positions, setPositions] = useState<SalePosition[]>([emptyCustomPosition()]);
   const [itemQuery, setItemQuery] = useState('');
   const [discountType, setDiscountType] = useState<'NONE' | 'PERCENT' | 'FIXED'>('NONE');
   const [discountValue, setDiscountValue] = useState('');
   const [discountReason, setDiscountReason] = useState<string>('OTHER');
   const [comment, setComment] = useState('');
+  const [orderTitle, setOrderTitle] = useState('');
+  const [orderPrice, setOrderPrice] = useState('');
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
   const [paymentLines, setPaymentLines] = useState<PaymentSplitLine[]>([createEmptyPaymentLine()]);
   const [orderBalanceDue, setOrderBalanceDue] = useState<string | null>(null);
@@ -89,16 +131,28 @@ function NewSalePageInner() {
 
   const canPay =
     auth.hasPermission('payments:create') && auth.hasPermission('payments:complete');
+  const canListPay =
+    auth.hasPermission('payments:create') ||
+    auth.hasPermission('payments:complete') ||
+    auth.hasPermission('payments:read');
 
-  const filteredItems = useMemo(() => {
+  const ingredients = useMemo(
+    () => items.filter((item) => item.itemType === 'FLOWER' || item.itemType === 'MATERIAL'),
+    [items],
+  );
+  const readyBouquets = useMemo(
+    () => items.filter((item) => item.isSellable),
+    [items],
+  );
+
+  const filteredIngredients = useMemo(() => {
     const q = itemQuery.trim().toLowerCase();
     const pool = !q
-      ? items
-      : items.filter(
+      ? ingredients
+      : ingredients.filter(
           (item) =>
             item.name.toLowerCase().includes(q) || item.code.toLowerCase().includes(q),
         );
-    // Prefer flowers first for bouquet assembly.
     return [...pool]
       .sort((a, b) => {
         if (a.itemType === b.itemType) return a.name.localeCompare(b.name, 'ru');
@@ -106,33 +160,126 @@ function NewSalePageInner() {
         if (b.itemType === 'FLOWER') return 1;
         return 0;
       })
-      .slice(0, 80);
-  }, [items, itemQuery]);
+      .slice(0, 120);
+  }, [ingredients, itemQuery]);
 
-  const compositionSummary = useMemo(() => {
-    return composition
-      .filter((line) => line.itemId && line.quantity.trim())
-      .map((line) => {
-        const item = items.find((row) => row.id === line.itemId);
-        return `${line.quantity.trim()}× ${item?.name ?? 'позиция'}`;
-      });
-  }, [composition, items]);
+  const ingredientOptions = useMemo(
+    () =>
+      filteredIngredients.map((item) => ({
+        value: item.id,
+        label: item.name,
+        hint: item.code,
+        group: itemTypeLabel(item.itemType),
+      })),
+    [filteredIngredients],
+  );
+
+  const readyOptions = useMemo(
+    () =>
+      readyBouquets.map((item) => ({
+        value: item.id,
+        label: item.name,
+        hint: item.code,
+        group: 'Готовые букеты',
+      })),
+    [readyBouquets],
+  );
+
+  const summaryLines = useMemo(() => {
+    if (fromOrderId) {
+      return [
+        {
+          key: 'order',
+          title: orderTitle || 'Заказ',
+          detail: 'По составу заказа',
+          amount: parseBynToApi(orderPrice),
+        },
+      ];
+    }
+    return positions.map((pos) => {
+      if (pos.kind === 'READY') {
+        const item = items.find((row) => row.id === pos.itemId);
+        const qty = Number(pos.quantity) || 0;
+        const unit = Number(parseBynToApi(pos.unitPrice) ?? 0);
+        const amount = qty > 0 && unit >= 0 ? (qty * unit).toFixed(2) : null;
+        return {
+          key: pos.key,
+          title: item?.name ?? 'Готовый букет',
+          detail: item ? `${pos.quantity || '0'} шт · ${item.code}` : 'Не выбран',
+          amount,
+        };
+      }
+      const parts = pos.composition
+        .filter((line) => line.itemId && line.quantity.trim())
+        .map((line) => {
+          const item = items.find((row) => row.id === line.itemId);
+          return `${line.quantity}× ${item?.name ?? '…'}`;
+        });
+      return {
+        key: pos.key,
+        title: pos.name.trim() || 'Свой букет',
+        detail: parts.length > 0 ? parts.join(', ') : 'Состав не задан',
+        amount: parseBynToApi(pos.price),
+      };
+    });
+  }, [fromOrderId, orderTitle, orderPrice, positions, items]);
+
+  const grossAmount = useMemo(() => {
+    const sum = summaryLines.reduce((acc, line) => acc + Number(line.amount ?? 0), 0);
+    return sum > 0 || summaryLines.some((l) => l.amount) ? sum.toFixed(2) : null;
+  }, [summaryLines]);
+
+  const discountAmount = useMemo(() => {
+    if (!grossAmount || discountType === 'NONE') return null;
+    if (discountType === 'PERCENT') {
+      const pct = Number(discountValue.replace(',', '.'));
+      if (!Number.isFinite(pct) || pct <= 0) return null;
+      return ((Number(grossAmount) * pct) / 100).toFixed(2);
+    }
+    return parseBynToApi(discountValue);
+  }, [grossAmount, discountType, discountValue]);
+
+  const netAmount = useMemo(() => {
+    if (!grossAmount) return null;
+    const disc = Number(discountAmount ?? 0);
+    return Math.max(Number(grossAmount) - disc, 0).toFixed(2);
+  }, [grossAmount, discountAmount]);
+
+  const paidNow = sumPaymentSplit(paymentLines);
 
   useEffect(() => {
     if (!auth.hasPermission('sales:create')) return;
     let cancelled = false;
     setLoading(true);
     const client = getApiClient();
+
+    async function loadPaymentMethods(): Promise<PaymentMethod[]> {
+      if (!canListPay) return [];
+      let methods = await client.listPaymentMethods(organizationId, storeId, {
+        activeOnly: true,
+      });
+      if (methods.length === 0 && auth.hasPermission('payments:create')) {
+        await client.ensureDefaultPaymentMethods(organizationId, storeId);
+        methods = await client.listPaymentMethods(organizationId, storeId, {
+          activeOnly: true,
+        });
+      }
+      return methods.map((m) => ({
+        id: m.id,
+        name: m.name,
+        code: m.code,
+        type: m.type,
+      }));
+    }
+
     Promise.all([
       client.listWarehouses(organizationId, storeId),
       fromOrderId
         ? Promise.resolve({ items: [] as CatalogItem[] })
-        : client.listItems(organizationId, { pageSize: 100, status: 'ACTIVE' }),
+        : client.listItems(organizationId, { pageSize: 200, status: 'ACTIVE' }),
       fromOrderId ? client.getOrder(organizationId, storeId, fromOrderId) : Promise.resolve(null),
-      canPay
-        ? client.listPaymentMethods(organizationId, storeId, { activeOnly: true })
-        : Promise.resolve([] as PaymentMethod[]),
-      fromOrderId && canPay
+      loadPaymentMethods(),
+      fromOrderId && canListPay
         ? client.getOrderPaymentSummary(organizationId, storeId, fromOrderId)
         : Promise.resolve(null),
     ])
@@ -145,14 +292,12 @@ function NewSalePageInner() {
         }
         const catalogItems = catalog.items as CatalogItem[];
         setItems(catalogItems);
-        const firstFlower =
-          catalogItems.find((item) => item.itemType === 'FLOWER') ?? catalogItems[0];
-        if (firstFlower) {
-          setComposition([{ key: newKey(), itemId: firstFlower.id, quantity: '1' }]);
+        if (!fromOrderId) {
+          setPositions([emptyCustomPosition()]);
         }
         if (order) {
-          setUnitPrice(order.plannedPrice ?? '');
-          setBouquetName(`Заказ ${order.number}`);
+          setOrderPrice(order.plannedPrice ?? '');
+          setOrderTitle(`Заказ ${order.number}`);
           setComment(order.comment ?? '');
         }
         setPaymentMethods(methods);
@@ -172,7 +317,7 @@ function NewSalePageInner() {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [organizationId, storeId, auth, fromOrderId, canPay]);
+  }, [organizationId, storeId, auth, fromOrderId, canListPay]);
 
   function discountPayload() {
     if (discountType === 'NONE' || !auth.hasPermission('sales:discount')) return undefined;
@@ -187,41 +332,99 @@ function NewSalePageInner() {
   }
 
   function buildDirectLines() {
-    const price = parseBynToApi(unitPrice);
-    const lines = composition.filter((line) => line.itemId && line.quantity.trim());
-    if (lines.length === 0) {
+    if (positions.length === 0) {
       throw new ApiClientError({
-        message: 'Добавьте хотя бы один цветок или материал в состав букета',
+        message: 'Добавьте хотя бы одну позицию в продажу',
         code: 'VALIDATION',
         status: 400,
         requestId: 'local',
       });
     }
-    if (!price) {
-      throw new ApiClientError({
-        message: 'Укажите цену букета в BYN (например 45.50)',
-        code: 'VALIDATION',
-        status: 400,
-        requestId: 'local',
+
+    const apiLines: Array<{
+      itemId: string;
+      quantity: string;
+      unitPrice: string;
+      description?: string;
+    }> = [];
+
+    for (const pos of positions) {
+      if (pos.kind === 'READY') {
+        const price = parseBynToApi(pos.unitPrice);
+        if (!pos.itemId) {
+          throw new ApiClientError({
+            message: 'Выберите готовый букет из справочника',
+            code: 'VALIDATION',
+            status: 400,
+            requestId: 'local',
+          });
+        }
+        if (!price) {
+          throw new ApiClientError({
+            message: 'Укажите цену готового букета',
+            code: 'VALIDATION',
+            status: 400,
+            requestId: 'local',
+          });
+        }
+        if (!pos.quantity.trim() || Number(pos.quantity) <= 0) {
+          throw new ApiClientError({
+            message: 'Укажите количество готового букета',
+            code: 'VALIDATION',
+            status: 400,
+            requestId: 'local',
+          });
+        }
+        const item = items.find((row) => row.id === pos.itemId);
+        apiLines.push({
+          itemId: pos.itemId,
+          quantity: pos.quantity.trim(),
+          unitPrice: price,
+          description: item?.name,
+        });
+        continue;
+      }
+
+      const price = parseBynToApi(pos.price);
+      const lines = pos.composition.filter((line) => line.itemId && line.quantity.trim());
+      if (lines.length === 0) {
+        throw new ApiClientError({
+          message: 'В своём букете добавьте хотя бы один цветок или материал',
+          code: 'VALIDATION',
+          status: 400,
+          requestId: 'local',
+        });
+      }
+      if (!price) {
+        throw new ApiClientError({
+          message: 'Укажите цену своего букета',
+          code: 'VALIDATION',
+          status: 400,
+          requestId: 'local',
+        });
+      }
+      if (!pos.name.trim()) {
+        throw new ApiClientError({
+          message: 'Укажите название своего букета',
+          code: 'VALIDATION',
+          status: 400,
+          requestId: 'local',
+        });
+      }
+      const firstQty = Number(lines[0]!.quantity);
+      const firstUnit =
+        firstQty > 0 ? (Number(price) / firstQty).toFixed(2) : Number(price).toFixed(2);
+      lines.forEach((line, index) => {
+        apiLines.push({
+          itemId: line.itemId,
+          quantity: line.quantity.trim(),
+          unitPrice: index === 0 ? firstUnit : '0.00',
+          description: index === 0 ? pos.name.trim() : undefined,
+        });
       });
     }
-    if (!bouquetName.trim()) {
-      throw new ApiClientError({
-                        message: 'Укажите название букета',
-        code: 'VALIDATION',
-        status: 400,
-        requestId: 'local',
-      });
-    }
-    const firstQty = Number(lines[0]!.quantity);
-    const firstUnit =
-      firstQty > 0 ? (Number(price) / firstQty).toFixed(2) : Number(price).toFixed(2);
-    return lines.map((line, index) => ({
-      itemId: line.itemId,
-      quantity: line.quantity.trim(),
-      unitPrice: index === 0 ? firstUnit : '0.00',
-      description: index === 0 ? bouquetName.trim() : undefined,
-    }));
+
+    return apiLines;
   }
 
   async function onSubmit(event: FormEvent) {
@@ -246,7 +449,7 @@ function NewSalePageInner() {
       if (needsPaymentNow && payments.length === 0) {
         throw new ApiClientError({
           message: fromOrderId
-            ? 'Укажите доплату (способ и сумму) или несколько способов. Если всё уже оплачено предоплатой — обновите страницу.'
+            ? 'Укажите доплату (способ и сумму). Если всё оплачено предоплатой — обновите страницу.'
             : 'Укажите способ оплаты и сумму. Можно добавить несколько способов.',
           code: 'VALIDATION',
           status: 400,
@@ -258,7 +461,7 @@ function NewSalePageInner() {
       let saleId: string;
       if (fromOrderId) {
         const created = await client.createSaleFromOrder(organizationId, storeId, fromOrderId, {
-          unitPrice: parseBynToApi(unitPrice) ?? undefined,
+          unitPrice: parseBynToApi(orderPrice) ?? undefined,
           comment: comment.trim() || undefined,
           discount: discountPayload(),
         });
@@ -285,7 +488,7 @@ function NewSalePageInner() {
               newKey(),
             );
           } catch {
-            // Prepayment allocation is best-effort; sale already completed.
+            // best-effort
           }
         }
         for (const payment of payments) {
@@ -309,9 +512,8 @@ function NewSalePageInner() {
   }
 
   const canComplete = auth.hasPermission('sales:complete');
-  const pricePreview = parseBynToApi(unitPrice);
   const expectedPay =
-    fromOrderId && orderBalanceDue != null ? orderBalanceDue : pricePreview;
+    fromOrderId && orderBalanceDue != null ? orderBalanceDue : netAmount;
   const paymentRequired =
     canPay &&
     canComplete &&
@@ -320,6 +522,15 @@ function NewSalePageInner() {
       Number.isNaN(Number(orderBalanceDue)) ||
       Number(orderBalanceDue) > 0.0001);
 
+  function updatePosition(key: string, patch: Partial<SalePosition>) {
+    setPositions((prev) =>
+      prev.map((row) => {
+        if (row.key !== key) return row;
+        return { ...row, ...patch } as SalePosition;
+      }),
+    );
+  }
+
   return (
     <main>
       <PageContainer>
@@ -327,8 +538,8 @@ function NewSalePageInner() {
           title={fromOrderId ? 'Продажа из заказа' : 'Новая продажа'}
           description={
             fromOrderId
-              ? 'Заказ готов — оформляем продажу: оплата и списание со склада. Номер назначит система.'
-              : 'Продажа в магазине без предварительного заказа. Номер назначит система.'
+              ? 'Заказ готов — оформляем продажу: оплата и списание. Номер назначит система.'
+              : 'Добавьте позиции, укажите оплату. Слева — ввод, справа — итог.'
           }
           breadcrumbs={[
             { label: 'Магазин', href: base },
@@ -337,270 +548,421 @@ function NewSalePageInner() {
           ]}
         />
 
-        {loading ? <LoadingState message="Загрузка каталога и склада магазина…" /> : null}
+        {loading ? <LoadingState message="Загрузка каталога и склада…" /> : null}
         {error ? <ErrorState message={error} /> : null}
 
         {!loading ? (
           <Section>
-            <Card title={fromOrderId ? 'Из заказа' : 'Букет для продажи'}>
-              {!fromOrderId ? (
-                <div className="concept-callout">
-                  <strong>Продажа</strong>
-                  <p>
-                    Клиент забирает букет сейчас. Укажите состав, цену и способ оплаты (можно
-                    несколько). Склад спишется сразу
-                    {warehouseLabel ? (
+            <form onSubmit={onSubmit} className="sale-form">
+              <div className="sale-form__main">
+                <Card title={fromOrderId ? 'Из заказа' : 'Позиции продажи'}>
+                  {!fromOrderId ? (
+                    <div className="concept-callout">
+                      <strong>Позиции</strong>
+                      <p>
+                        Можно собрать свой букет из цветов/материалов или продать готовый букет из
+                        справочника (позиции с признаком «продаётся»). Склад:{' '}
+                        <strong>{warehouseLabel || 'не найден'}</strong>.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="concept-callout">
+                      <strong>Заказ → продажа</strong>
+                      <p>
+                        Состав возьмётся из заказа. Укажите цену при необходимости и оплату
+                        (остаток после предоплаты).
+                      </p>
+                    </div>
+                  )}
+
+                  <div className="stack-form">
+                    <AutoNumberNote label="Номер продажи" />
+
+                    {fromOrderId ? (
                       <>
-                        {' '}
-                        (<strong>{warehouseLabel}</strong>)
+                        <Field label="Название" required>
+                          <Input
+                            value={orderTitle}
+                            onChange={(e) => setOrderTitle(e.target.value)}
+                            required
+                          />
+                        </Field>
+                        <Field label="Цена продажи" required>
+                          <MoneyBynInput value={orderPrice} onChange={setOrderPrice} required />
+                        </Field>
                       </>
-                    ) : null}
-                    .
-                  </p>
-                </div>
-              ) : (
-                <div className="concept-callout">
-                  <strong>Заказ → продажа</strong>
-                  <p>
-                    Когда заказ готов и передаётся клиенту, оформляется продажа. Укажите оплату
-                    (можно добрать остаток другим способом) — состав заказа спишется со склада.
-                  </p>
-                </div>
-              )}
+                    ) : (
+                      <>
+                        {positions.map((pos, posIndex) => (
+                          <div key={pos.key} className="sale-position">
+                            <div className="sale-position__head">
+                              <strong>
+                                Позиция {posIndex + 1}:{' '}
+                                {pos.kind === 'CUSTOM' ? 'свой букет' : 'готовый букет'}
+                              </strong>
+                              {positions.length > 1 ? (
+                                <Button
+                                  type="button"
+                                  variant="secondary"
+                                  onClick={() =>
+                                    setPositions((prev) => prev.filter((row) => row.key !== pos.key))
+                                  }
+                                >
+                                  Удалить
+                                </Button>
+                              ) : null}
+                            </div>
 
-              <form onSubmit={onSubmit} className="stack-form">
-                <AutoNumberNote label="Номер продажи" />
+                            {pos.kind === 'CUSTOM' ? (
+                              <div className="stack-form">
+                                <Field label="Название букета" required>
+                                  <Input
+                                    value={pos.name}
+                                    onChange={(e) =>
+                                      updatePosition(pos.key, { name: e.target.value })
+                                    }
+                                    required
+                                    placeholder="Букет «Розы и эустома»"
+                                  />
+                                </Field>
+                                <Field label="Цена букета" required>
+                                  <MoneyBynInput
+                                    value={pos.price}
+                                    onChange={(price) => updatePosition(pos.key, { price })}
+                                    required
+                                  />
+                                </Field>
+                                <Field
+                                  label="Состав"
+                                  tooltip="Цветы и материалы спишутся со склада"
+                                  required
+                                >
+                                  <Input
+                                    value={itemQuery}
+                                    onChange={(e) => setItemQuery(e.target.value)}
+                                    placeholder="Фильтр по названию или коду…"
+                                  />
+                                </Field>
+                                {pos.composition.map((line, lineIndex) => (
+                                  <div key={line.key} className="bouquet-line">
+                                    <FancySelect
+                                      value={line.itemId}
+                                      onChange={(itemId) =>
+                                        setPositions((prev) =>
+                                          prev.map((row) => {
+                                            if (row.key !== pos.key || row.kind !== 'CUSTOM') {
+                                              return row;
+                                            }
+                                            return {
+                                              ...row,
+                                              composition: row.composition.map((c) =>
+                                                c.key === line.key ? { ...c, itemId } : c,
+                                              ),
+                                            };
+                                          }),
+                                        )
+                                      }
+                                      options={ingredientOptions}
+                                      placeholder="Цветок или материал"
+                                      required
+                                      searchPlaceholder="Найти позицию…"
+                                      aria-label={`Состав ${lineIndex + 1}`}
+                                    />
+                                    <Input
+                                      value={line.quantity}
+                                      onChange={(e) =>
+                                        setPositions((prev) =>
+                                          prev.map((row) => {
+                                            if (row.key !== pos.key || row.kind !== 'CUSTOM') {
+                                              return row;
+                                            }
+                                            return {
+                                              ...row,
+                                              composition: row.composition.map((c) =>
+                                                c.key === line.key
+                                                  ? {
+                                                      ...c,
+                                                      quantity: e.target.value.replace(',', '.'),
+                                                    }
+                                                  : c,
+                                              ),
+                                            };
+                                          }),
+                                        )
+                                      }
+                                      required
+                                      style={{ width: 110 }}
+                                      placeholder="Кол-во"
+                                      inputMode="decimal"
+                                      aria-label={`Количество ${lineIndex + 1}`}
+                                    />
+                                    {pos.composition.length > 1 ? (
+                                      <Button
+                                        type="button"
+                                        variant="secondary"
+                                        onClick={() =>
+                                          setPositions((prev) =>
+                                            prev.map((row) => {
+                                              if (row.key !== pos.key || row.kind !== 'CUSTOM') {
+                                                return row;
+                                              }
+                                              return {
+                                                ...row,
+                                                composition: row.composition.filter(
+                                                  (c) => c.key !== line.key,
+                                                ),
+                                              };
+                                            }),
+                                          )
+                                        }
+                                      >
+                                        Удалить
+                                      </Button>
+                                    ) : null}
+                                  </div>
+                                ))}
+                                <Button
+                                  type="button"
+                                  variant="secondary"
+                                  onClick={() =>
+                                    setPositions((prev) =>
+                                      prev.map((row) => {
+                                        if (row.key !== pos.key || row.kind !== 'CUSTOM') {
+                                          return row;
+                                        }
+                                        return {
+                                          ...row,
+                                          composition: [
+                                            ...row.composition,
+                                            {
+                                              key: newKey(),
+                                              itemId: filteredIngredients[0]?.id ?? '',
+                                              quantity: '1',
+                                            },
+                                          ],
+                                        };
+                                      }),
+                                    )
+                                  }
+                                >
+                                  + Позиция в состав
+                                </Button>
+                              </div>
+                            ) : (
+                              <div className="stack-form">
+                                <Field
+                                  label="Готовый букет"
+                                  tooltip="Из справочника: позиции с признаком «продаётся»"
+                                  required
+                                >
+                                  <FancySelect
+                                    value={pos.itemId}
+                                    onChange={(itemId) => updatePosition(pos.key, { itemId })}
+                                    options={readyOptions}
+                                    placeholder={
+                                      readyOptions.length
+                                        ? 'Выберите букет'
+                                        : 'Нет готовых букетов в справочнике'
+                                    }
+                                    required
+                                    disabled={readyOptions.length === 0}
+                                    searchPlaceholder="Найти букет…"
+                                    emptyText="Отметьте позиции как «продаётся» в справочнике"
+                                  />
+                                </Field>
+                                {readyOptions.length === 0 ? (
+                                  <p className="field__hint">
+                                    В справочнике пока нет sellable-позиций. Создайте букет в
+                                    «Справочники → Номенклатура» и включите «Продаётся».
+                                  </p>
+                                ) : null}
+                                <div className="bouquet-line">
+                                  <Field label="Количество" required>
+                                    <Input
+                                      value={pos.quantity}
+                                      onChange={(e) =>
+                                        updatePosition(pos.key, {
+                                          quantity: e.target.value.replace(',', '.'),
+                                        })
+                                      }
+                                      required
+                                      inputMode="decimal"
+                                      style={{ width: 120 }}
+                                    />
+                                  </Field>
+                                  <Field label="Цена за штуку" required>
+                                    <MoneyBynInput
+                                      value={pos.unitPrice}
+                                      onChange={(unitPrice) =>
+                                        updatePosition(pos.key, { unitPrice })
+                                      }
+                                      required
+                                    />
+                                  </Field>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        ))}
 
-                <Field
-                  label={fromOrderId ? 'Название' : 'Название букета'}
-                  tooltip="Так продажа сохранится в истории магазина"
-                  required
-                >
-                  <Input
-                    value={bouquetName}
-                    onChange={(e) => setBouquetName(e.target.value)}
-                    required
-                    placeholder="Сборный букет «Розы и эустома»"
-                  />
-                </Field>
-
-                <Field
-                  label="Цена продажи"
-                  tooltip="Белорусские рубли и копейки. Можно ввести 45.50 или 45,50"
-                  required={!fromOrderId}
-                >
-                  <MoneyBynInput
-                    value={unitPrice}
-                    onChange={setUnitPrice}
-                    required={!fromOrderId}
-                  />
-                </Field>
-
-                {!fromOrderId ? (
-                  <div className="stack-form bouquet-composition">
-                    <Field
-                      label="Состав букета"
-                      tooltip="Эти позиции спишутся со склада магазина сразу после продажи"
-                      required
-                    >
-                      <Input
-                        value={itemQuery}
-                        onChange={(e) => setItemQuery(e.target.value)}
-                        placeholder="Найти цветок или материал…"
-                      />
-                    </Field>
-
-                    {composition.map((line, index) => (
-                      <div key={line.key} className="bouquet-line">
-                        <select
-                          className="field-control"
-                          value={line.itemId}
-                          onChange={(e) =>
-                            setComposition((prev) =>
-                              prev.map((row) =>
-                                row.key === line.key ? { ...row, itemId: e.target.value } : row,
-                              ),
-                            )
-                          }
-                          required
-                          aria-label={`Позиция ${index + 1}`}
-                        >
-                          <option value="">Выберите позицию</option>
-                          {filteredItems.map((item) => (
-                            <option key={item.id} value={item.id}>
-                              {item.itemType === 'FLOWER' ? 'Цветок · ' : 'Материал · '}
-                              {item.name} ({item.code})
-                            </option>
-                          ))}
-                          {line.itemId &&
-                          !filteredItems.some((item) => item.id === line.itemId) ? (
-                            <option value={line.itemId}>{line.itemId}</option>
-                          ) : null}
-                        </select>
-                        <Input
-                          value={line.quantity}
-                          onChange={(e) =>
-                            setComposition((prev) =>
-                              prev.map((row) =>
-                                row.key === line.key
-                                  ? { ...row, quantity: e.target.value.replace(',', '.') }
-                                  : row,
-                              ),
-                            )
-                          }
-                          required
-                          style={{ width: 110 }}
-                          placeholder="Кол-во"
-                          aria-label={`Количество ${index + 1}`}
-                          inputMode="decimal"
-                        />
-                        {composition.length > 1 ? (
+                        <div className="sale-position-actions">
                           <Button
                             type="button"
                             variant="secondary"
                             onClick={() =>
-                              setComposition((prev) => prev.filter((row) => row.key !== line.key))
+                              setPositions((prev) => [...prev, emptyCustomPosition()])
                             }
                           >
-                            Удалить
+                            + Свой букет
                           </Button>
-                        ) : null}
-                      </div>
-                    ))}
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            onClick={() =>
+                              setPositions((prev) => [...prev, emptyReadyPosition()])
+                            }
+                          >
+                            + Готовый букет
+                          </Button>
+                        </div>
+                      </>
+                    )}
 
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      onClick={() =>
-                        setComposition((prev) => [
-                          ...prev,
-                          {
-                            key: newKey(),
-                            itemId: filteredItems[0]?.id ?? '',
-                            quantity: '1',
-                          },
-                        ])
-                      }
-                    >
-                      + Добавить позицию
-                    </Button>
-
-                    {compositionSummary.length > 0 ? (
-                      <p className="bouquet-summary">
-                        К списанию: {compositionSummary.join(', ')}
-                        {pricePreview ? (
+                    {auth.hasPermission('sales:discount') ? (
+                      <div className="stack-form">
+                        <Field label="Скидка">
+                          <FancySelect
+                            value={discountType}
+                            onChange={(v) =>
+                              setDiscountType(v as 'NONE' | 'PERCENT' | 'FIXED')
+                            }
+                            options={[
+                              { value: 'NONE', label: 'Без скидки' },
+                              { value: 'PERCENT', label: 'Процент' },
+                              { value: 'FIXED', label: 'Фиксированная сумма' },
+                            ]}
+                            searchable={false}
+                          />
+                        </Field>
+                        {discountType !== 'NONE' ? (
                           <>
-                            {' '}
-                            · К оплате: <strong>{pricePreview} BYN</strong>
+                            {discountType === 'PERCENT' ? (
+                              <Field label="Процент скидки" required>
+                                <Input
+                                  value={discountValue}
+                                  onChange={(e) => setDiscountValue(e.target.value)}
+                                  required
+                                  placeholder="10"
+                                  inputMode="decimal"
+                                />
+                              </Field>
+                            ) : (
+                              <Field label="Сумма скидки" required>
+                                <MoneyBynInput
+                                  value={discountValue}
+                                  onChange={setDiscountValue}
+                                  required
+                                />
+                              </Field>
+                            )}
+                            <Field label="Причина скидки" required>
+                              <FancySelect
+                                value={discountReason}
+                                onChange={setDiscountReason}
+                                options={DISCOUNT_REASONS.map((r) => ({
+                                  value: r.value,
+                                  label: r.label,
+                                }))}
+                                searchable={false}
+                              />
+                            </Field>
                           </>
                         ) : null}
+                      </div>
+                    ) : null}
+
+                    <Field label="Комментарий">
+                      <Input
+                        value={comment}
+                        onChange={(e) => setComment(e.target.value)}
+                        placeholder="Внутренняя заметка"
+                      />
+                    </Field>
+
+                    {canPay && canComplete ? (
+                      <PaymentSplitEditor
+                        methods={paymentMethods}
+                        lines={paymentLines}
+                        onChange={setPaymentLines}
+                        expectedAmount={expectedPay}
+                        required={paymentRequired}
+                        disabled={busy}
+                        label={fromOrderId ? 'Доплата при выдаче' : 'Оплата'}
+                      />
+                    ) : !canPay ? (
+                      <p className="field__hint">
+                        Нет прав на оплату — продажа сохранится без фиксации платежа.
                       </p>
                     ) : null}
-                  </div>
-                ) : null}
 
-                {auth.hasPermission('sales:discount') ? (
-                  <div className="stack-form">
-                    <Field
-                      label="Скидка"
-                      tooltip="Необязательно. Укажите только если есть основание для снижения цены"
+                    <Button
+                      type="submit"
+                      disabled={
+                        busy ||
+                        (!fromOrderId && !warehouseId) ||
+                        (paymentRequired && paymentMethods.length === 0)
+                      }
                     >
-                      <select
-                        className="field-control"
-                        value={discountType}
-                        onChange={(e) =>
-                          setDiscountType(e.target.value as 'NONE' | 'PERCENT' | 'FIXED')
-                        }
-                      >
-                        <option value="NONE">Без скидки</option>
-                        <option value="PERCENT">Процент</option>
-                        <option value="FIXED">Фиксированная сумма</option>
-                      </select>
-                    </Field>
-                    {discountType !== 'NONE' ? (
-                      <>
-                        {discountType === 'PERCENT' ? (
-                          <Field label="Процент скидки" required>
-                            <Input
-                              value={discountValue}
-                              onChange={(e) => setDiscountValue(e.target.value)}
-                              required
-                              placeholder="10"
-                              inputMode="decimal"
-                            />
-                          </Field>
-                        ) : (
-                          <Field label="Сумма скидки" required>
-                            <MoneyBynInput
-                              value={discountValue}
-                              onChange={setDiscountValue}
-                              required
-                            />
-                          </Field>
-                        )}
-                        <Field label="Причина скидки" required>
-                          <select
-                            className="field-control"
-                            value={discountReason}
-                            onChange={(e) => setDiscountReason(e.target.value)}
-                          >
-                            {DISCOUNT_REASONS.map((reason) => (
-                              <option key={reason.value} value={reason.value}>
-                                {reason.label}
-                              </option>
-                            ))}
-                          </select>
-                        </Field>
-                      </>
+                      {busy
+                        ? 'Оформляем…'
+                        : canComplete
+                          ? 'Оформить продажу'
+                          : 'Создать черновик продажи'}
+                    </Button>
+                  </div>
+                </Card>
+              </div>
+
+              <aside className="sale-form__summary" aria-label="Итог продажи">
+                <Card title="Итог">
+                  <ul className="sale-summary__list">
+                    {summaryLines.map((line) => (
+                      <li key={line.key}>
+                        <div className="sale-summary__row">
+                          <div>
+                            <strong>{line.title}</strong>
+                            <p>{line.detail}</p>
+                          </div>
+                          <span>{line.amount ? `${line.amount} BYN` : '—'}</span>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                  <div className="sale-summary__totals">
+                    <div className="sale-summary__total-row">
+                      <span>Сумма</span>
+                      <strong>{grossAmount ? `${grossAmount} BYN` : '—'}</strong>
+                    </div>
+                    {discountAmount ? (
+                      <div className="sale-summary__total-row">
+                        <span>Скидка</span>
+                        <strong>−{discountAmount} BYN</strong>
+                      </div>
+                    ) : null}
+                    <div className="sale-summary__total-row sale-summary__total-row--net">
+                      <span>К оплате</span>
+                      <strong>{netAmount ? `${netAmount} BYN` : '—'}</strong>
+                    </div>
+                    {paidNow ? (
+                      <div className="sale-summary__total-row">
+                        <span>Оплата сейчас</span>
+                        <strong>{paidNow} BYN</strong>
+                      </div>
                     ) : null}
                   </div>
-                ) : null}
-
-                <Field
-                  label="Комментарий"
-                  tooltip="Внутренняя заметка для сотрудников — покупатель её не видит"
-                >
-                  <Input
-                    value={comment}
-                    onChange={(e) => setComment(e.target.value)}
-                    placeholder="Например: без упаковки, оплата картой"
-                  />
-                </Field>
-
-                {canPay && canComplete ? (
-                  <PaymentSplitEditor
-                    methods={paymentMethods}
-                    lines={paymentLines}
-                    onChange={setPaymentLines}
-                    expectedAmount={expectedPay}
-                    required={paymentRequired}
-                    disabled={busy}
-                    label={fromOrderId ? 'Доплата при выдаче' : 'Оплата'}
-                  />
-                ) : null}
-
-                <Button
-                  type="submit"
-                  disabled={
-                    busy ||
-                    (!fromOrderId && !warehouseId) ||
-                    (paymentRequired && paymentMethods.length === 0)
-                  }
-                >
-                  {busy
-                    ? 'Оформляем…'
-                    : canComplete
-                      ? 'Оформить продажу'
-                      : 'Создать черновик продажи'}
-                </Button>
-                {canComplete ? (
-                  <p className="field__hint">
-                    Продажа завершится, состав спишется со склада
-                    {canPay ? ', оплата зафиксируется по указанным способам' : ''}.
-                  </p>
-                ) : null}
-              </form>
-            </Card>
+                </Card>
+              </aside>
+            </form>
           </Section>
         ) : null}
       </PageContainer>

@@ -518,6 +518,8 @@ export function createApiClient(options: ApiClientOptions) {
         code: string;
         itemType: 'FLOWER' | 'MATERIAL';
         description?: string;
+        isSellable?: boolean;
+        isPurchasable?: boolean;
       },
     ) =>
       request<{
@@ -526,6 +528,7 @@ export function createApiClient(options: ApiClientOptions) {
         code: string;
         itemType: string;
         status: string;
+        isSellable?: boolean;
       }>(`/organizations/${organizationId}/items`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -542,6 +545,8 @@ export function createApiClient(options: ApiClientOptions) {
         unitId: string;
         inventoryPolicyId: string;
         description: string | null;
+        isSellable?: boolean;
+        isPurchasable?: boolean;
       }>(`/organizations/${organizationId}/items/${itemId}`),
     archiveItem: (organizationId: string, itemId: string, reason?: string) =>
       request<{ id: string; status: string }>(

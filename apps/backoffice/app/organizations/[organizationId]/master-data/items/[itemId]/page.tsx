@@ -26,6 +26,7 @@ export default function ItemDetailPage() {
     unitId: string;
     inventoryPolicyId: string;
     description: string | null;
+    isSellable?: boolean;
   } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -90,6 +91,7 @@ export default function ItemDetailPage() {
               <div className="meta-row">
                 <StatusBadge status={item.itemType} />
                 <StatusBadge status={item.status} />
+                {item.isSellable ? <span className="sale-type-pill">Готовый букет</span> : null}
               </div>
               <p style={{ marginTop: 12, color: 'var(--color-muted)', fontSize: 'var(--text-sm)' }}>
                 categoryId: {item.categoryId}

@@ -21,6 +21,7 @@ type Item = {
   categoryId: string;
   unitId: string;
   inventoryPolicyId: string;
+  isSellable?: boolean;
 };
 
 type Ref = { id: string; name: string; status?: string; itemType?: string };
@@ -49,6 +50,7 @@ export default function ItemsPage() {
   const [categoryId, setCategoryId] = useState('');
   const [unitId, setUnitId] = useState('');
   const [inventoryPolicyId, setInventoryPolicyId] = useState('');
+  const [isSellable, setIsSellable] = useState(false);
   const [creating, setCreating] = useState(false);
 
   const load = useCallback(async () => {
@@ -105,9 +107,11 @@ export default function ItemsPage() {
         categoryId,
         unitId,
         inventoryPolicyId,
+        isSellable,
       });
       setName('');
       setCode('');
+      setIsSellable(false);
       await load();
     } catch (err) {
       setError(err instanceof ApiClientError ? err.message : 'Не удалось создать');
@@ -131,7 +135,7 @@ export default function ItemsPage() {
       <PageContainer>
         <PageHeader
           title="Товары"
-          description="Единый Item. FLOWER и MATERIAL различаются ItemType и InventoryPolicy."
+          description="Цветы и материалы для сборки, либо готовые букеты с признаком «продаётся»."
           breadcrumbs={[
             { label: 'Организации', href: '/organizations' },
             { label: 'Организация', href: `/organizations/${organizationId}` },
@@ -216,6 +220,9 @@ export default function ItemsPage() {
                       <div className="meta-row" style={{ marginTop: 4 }}>
                         <StatusBadge status={item.itemType} />
                         <StatusBadge status={item.status} />
+                        {item.isSellable ? (
+                          <span className="sale-type-pill">Готовый букет</span>
+                        ) : null}
                       </div>
                     </div>
                     {item.status !== 'ARCHIVED' ? (
@@ -318,6 +325,22 @@ export default function ItemsPage() {
                     </option>
                   ))}
               </select>
+              <label
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  minHeight: 40,
+                  fontSize: 'var(--text-sm)',
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={isSellable}
+                  onChange={(e) => setIsSellable(e.target.checked)}
+                />
+                Готовый букет (продаётся в магазине)
+              </label>
               <Button type="submit" disabled={creating || !categoryId || !unitId || !inventoryPolicyId}>
                 {creating ? 'Создание…' : 'Создать'}
               </Button>

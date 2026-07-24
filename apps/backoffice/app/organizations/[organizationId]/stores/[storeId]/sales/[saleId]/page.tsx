@@ -87,7 +87,18 @@ function SaleDetailPageInner() {
           : Promise.resolve(null),
         canReadPayments &&
         (auth.hasPermission('payments:create') || auth.hasPermission('payments:complete'))
-          ? client.listPaymentMethods(organizationId, storeId, { activeOnly: true })
+          ? (async () => {
+              let methods = await client.listPaymentMethods(organizationId, storeId, {
+                activeOnly: true,
+              });
+              if (methods.length === 0 && auth.hasPermission('payments:create')) {
+                await client.ensureDefaultPaymentMethods(organizationId, storeId);
+                methods = await client.listPaymentMethods(organizationId, storeId, {
+                  activeOnly: true,
+                });
+              }
+              return methods;
+            })()
           : Promise.resolve([] as PaymentMethod[]),
       ]);
       setSale(detail);
