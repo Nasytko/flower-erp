@@ -639,9 +639,47 @@ export function createApiClient(options: ApiClientOptions) {
         `/organizations/${organizationId}/stores/${storeId}/supplies/${supplyId}/items/${itemId}/remove`,
         { method: 'POST' },
       ),
+    updateSupplyItem: (
+      organizationId: string,
+      storeId: string,
+      supplyId: string,
+      itemId: string,
+      body: { orderedQuantity: string; plannedUnitPrice: string },
+    ) =>
+      request<unknown>(
+        `/organizations/${organizationId}/stores/${storeId}/supplies/${supplyId}/items/${itemId}/update`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        },
+      ),
     submitSupply: (organizationId: string, storeId: string, supplyId: string) =>
       request<{ id: string; status: string }>(
         `/organizations/${organizationId}/stores/${storeId}/supplies/${supplyId}/submit`,
+        { method: 'POST' },
+      ),
+    receiveSupply: (
+      organizationId: string,
+      storeId: string,
+      supplyId: string,
+      body?: { receivedAt?: string; comment?: string },
+      idempotencyKey?: string,
+    ) =>
+      request<{ id: string; number: string; status: string }>(
+        `/organizations/${organizationId}/stores/${storeId}/supplies/${supplyId}/receive`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {}),
+          },
+          body: JSON.stringify(body ?? {}),
+        },
+      ),
+    annulSupply: (organizationId: string, storeId: string, supplyId: string) =>
+      request<{ id: string; status: string }>(
+        `/organizations/${organizationId}/stores/${storeId}/supplies/${supplyId}/annul`,
         { method: 'POST' },
       ),
     createGoodsReceipt: (

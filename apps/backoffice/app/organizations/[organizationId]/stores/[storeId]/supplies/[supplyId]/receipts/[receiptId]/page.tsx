@@ -156,8 +156,8 @@ export default function GoodsReceiptPage() {
           description="Укажите количества и фактическую себестоимость — она попадёт на склад."
           breadcrumbs={[
             { label: 'Магазин', href: base },
-            { label: 'Поставки', href: `${base}/supplies` },
-            { label: 'Поставка', href: `${base}/supplies/${supplyId}` },
+            { label: 'Приёмки', href: `${base}/supplies` },
+            { label: 'Приёмка', href: `${base}/supplies/${supplyId}` },
             { label: receipt?.number ?? 'Приёмка' },
           ]}
           actions={receipt ? <StatusBadge status={receipt.status} /> : undefined}

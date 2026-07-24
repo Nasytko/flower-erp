@@ -51,6 +51,8 @@ type SalePosition =
       unitPrice: string;
     };
 
+type BuilderMode = 'READY' | 'CUSTOM';
+
 const DISCOUNT_REASONS = [
   { value: 'PROMOTION', label: 'Акция' },
   { value: 'LOYAL_CUSTOMER', label: 'Постоянный клиент' },
@@ -64,23 +66,13 @@ function newKey() {
   return `k_${Date.now()}_${Math.random().toString(16).slice(2)}`;
 }
 
-function emptyCustomPosition(): SalePosition {
+function emptyCustomPosition(): Extract<SalePosition, { kind: 'CUSTOM' }> {
   return {
     key: newKey(),
     kind: 'CUSTOM',
     name: '',
     price: '',
-    composition: [{ key: newKey(), itemId: '', quantity: '1' }],
-  };
-}
-
-function emptyReadyPosition(): SalePosition {
-  return {
-    key: newKey(),
-    kind: 'READY',
-    itemId: '',
-    quantity: '1',
-    unitPrice: '',
+    composition: [],
   };
 }
 
@@ -88,6 +80,44 @@ function itemTypeLabel(type: string) {
   if (type === 'FLOWER') return 'Цветок';
   if (type === 'MATERIAL') return 'Материал';
   return type;
+}
+
+function QtyStepper({
+  value,
+  onDecrease,
+  onIncrease,
+  disabled,
+}: {
+  value: number;
+  onDecrease: () => void;
+  onIncrease: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <div className="sale-qty">
+      <button
+        type="button"
+        className="sale-qty__btn"
+        onClick={onDecrease}
+        disabled={disabled || value <= 0}
+        aria-label="Уменьшить"
+      >
+        −
+      </button>
+      <span className="sale-qty__value" aria-live="polite">
+        {value}
+      </span>
+      <button
+        type="button"
+        className="sale-qty__btn"
+        onClick={onIncrease}
+        disabled={disabled}
+        aria-label="Увеличить"
+      >
+        +
+      </button>
+    </div>
+  );
 }
 
 export default function NewSalePage() {
@@ -117,7 +147,8 @@ function NewSalePageInner() {
   const [warehouseLabel, setWarehouseLabel] = useState('');
   const [items, setItems] = useState<CatalogItem[]>([]);
   const [positions, setPositions] = useState<SalePosition[]>([emptyCustomPosition()]);
-  const [itemQuery, setItemQuery] = useState('');
+  const [builderMode, setBuilderMode] = useState<BuilderMode>('CUSTOM');
+  const [catalogQuery, setCatalogQuery] = useState('');
   const [discountType, setDiscountType] = useState<'NONE' | 'PERCENT' | 'FIXED'>('NONE');
   const [discountValue, setDiscountValue] = useState('');
   const [discountReason, setDiscountReason] = useState<string>('OTHER');
@@ -147,11 +178,13 @@ function NewSalePageInner() {
     [items],
   );
 
-  const filteredIngredients = useMemo(() => {
-    const q = itemQuery.trim().toLowerCase();
+  const catalogPool = builderMode === 'READY' ? readyBouquets : ingredients;
+
+  const filteredCatalog = useMemo(() => {
+    const q = catalogQuery.trim().toLowerCase();
     const pool = !q
-      ? ingredients
-      : ingredients.filter(
+      ? catalogPool
+      : catalogPool.filter(
           (item) =>
             item.name.toLowerCase().includes(q) || item.code.toLowerCase().includes(q),
         );
@@ -162,30 +195,32 @@ function NewSalePageInner() {
         if (b.itemType === 'FLOWER') return 1;
         return 0;
       })
-      .slice(0, 120);
-  }, [ingredients, itemQuery]);
+      .slice(0, 160);
+  }, [catalogPool, catalogQuery]);
 
-  const ingredientOptions = useMemo(
-    () =>
-      filteredIngredients.map((item) => ({
-        value: item.id,
-        label: item.name,
-        hint: item.code,
-        group: itemTypeLabel(item.itemType),
-      })),
-    [filteredIngredients],
+  const activeCustom = useMemo(
+    () => positions.find((p): p is Extract<SalePosition, { kind: 'CUSTOM' }> => p.kind === 'CUSTOM'),
+    [positions],
   );
 
-  const readyOptions = useMemo(
-    () =>
-      readyBouquets.map((item) => ({
-        value: item.id,
-        label: item.name,
-        hint: item.code,
-        group: 'Готовые букеты',
-      })),
-    [readyBouquets],
-  );
+  const readyQtyByItem = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const pos of positions) {
+      if (pos.kind !== 'READY' || !pos.itemId) continue;
+      map.set(pos.itemId, (map.get(pos.itemId) ?? 0) + (Number(pos.quantity) || 0));
+    }
+    return map;
+  }, [positions]);
+
+  const customQtyByItem = useMemo(() => {
+    const map = new Map<string, number>();
+    if (!activeCustom) return map;
+    for (const line of activeCustom.composition) {
+      if (!line.itemId) continue;
+      map.set(line.itemId, (map.get(line.itemId) ?? 0) + (Number(line.quantity) || 0));
+    }
+    return map;
+  }, [activeCustom]);
 
   const summaryLines = useMemo(() => {
     if (fromOrderId) {
@@ -198,32 +233,37 @@ function NewSalePageInner() {
         },
       ];
     }
-    return positions.map((pos) => {
-      if (pos.kind === 'READY') {
-        const item = items.find((row) => row.id === pos.itemId);
-        const qty = Number(pos.quantity) || 0;
-        const unit = Number(parseBynToApi(pos.unitPrice) ?? 0);
-        const amount = qty > 0 && unit >= 0 ? (qty * unit).toFixed(2) : null;
+    return positions
+      .filter((pos) => {
+        if (pos.kind === 'READY') return Boolean(pos.itemId) && Number(pos.quantity) > 0;
+        return pos.composition.some((line) => line.itemId && Number(line.quantity) > 0);
+      })
+      .map((pos) => {
+        if (pos.kind === 'READY') {
+          const item = items.find((row) => row.id === pos.itemId);
+          const qty = Number(pos.quantity) || 0;
+          const unit = Number(parseBynToApi(pos.unitPrice) ?? 0);
+          const amount = qty > 0 && unit >= 0 ? (qty * unit).toFixed(2) : null;
+          return {
+            key: pos.key,
+            title: item?.name ?? 'Готовый букет',
+            detail: item ? `${pos.quantity || '0'} шт · готовый` : 'Не выбран',
+            amount,
+          };
+        }
+        const parts = pos.composition
+          .filter((line) => line.itemId && line.quantity.trim())
+          .map((line) => {
+            const item = items.find((row) => row.id === line.itemId);
+            return `${line.quantity}× ${item?.name ?? '…'}`;
+          });
         return {
           key: pos.key,
-          title: item?.name ?? 'Готовый букет',
-          detail: item ? `${pos.quantity || '0'} шт · ${item.code}` : 'Не выбран',
-          amount,
+          title: pos.name.trim() || 'Собранный букет',
+          detail: parts.length > 0 ? parts.join(', ') : 'Состав не задан',
+          amount: parseBynToApi(pos.price),
         };
-      }
-      const parts = pos.composition
-        .filter((line) => line.itemId && line.quantity.trim())
-        .map((line) => {
-          const item = items.find((row) => row.id === line.itemId);
-          return `${line.quantity}× ${item?.name ?? '…'}`;
-        });
-      return {
-        key: pos.key,
-        title: pos.name.trim() || 'Свой букет',
-        detail: parts.length > 0 ? parts.join(', ') : 'Состав не задан',
-        amount: parseBynToApi(pos.price),
-      };
-    });
+      });
   }, [fromOrderId, orderTitle, orderPrice, positions, items]);
 
   const grossAmount = useMemo(() => {
@@ -302,6 +342,7 @@ function NewSalePageInner() {
         setItems(catalogItems);
         if (!fromOrderId) {
           setPositions([emptyCustomPosition()]);
+          setBuilderMode('CUSTOM');
         }
         if (order) {
           setOrderPrice(order.plannedPrice ?? '');
@@ -339,10 +380,116 @@ function NewSalePageInner() {
     return { type: discountType, value: amount, reason: discountReason };
   }
 
+  function bumpReadyQty(itemId: string, delta: number) {
+    setPositions((prev) => {
+      const existing = prev.find((p) => p.kind === 'READY' && p.itemId === itemId);
+      if (existing && existing.kind === 'READY') {
+        const nextQty = Math.max(0, (Number(existing.quantity) || 0) + delta);
+        if (nextQty <= 0) return prev.filter((p) => p.key !== existing.key);
+        return prev.map((p) =>
+          p.key === existing.key && p.kind === 'READY'
+            ? { ...p, quantity: String(nextQty) }
+            : p,
+        );
+      }
+      if (delta <= 0) return prev;
+      return [
+        ...prev.filter((p) => !(p.kind === 'CUSTOM' && p.composition.length === 0 && !p.name && !p.price)),
+        {
+          key: newKey(),
+          kind: 'READY' as const,
+          itemId,
+          quantity: '1',
+          unitPrice: '',
+        },
+      ];
+    });
+  }
+
+  function setReadyUnitPrice(itemId: string, unitPrice: string) {
+    setPositions((prev) =>
+      prev.map((p) =>
+        p.kind === 'READY' && p.itemId === itemId ? { ...p, unitPrice } : p,
+      ),
+    );
+  }
+
+  function ensureCustomPosition(prev: SalePosition[]): {
+    list: SalePosition[];
+    custom: Extract<SalePosition, { kind: 'CUSTOM' }>;
+  } {
+    const found = prev.find(
+      (p): p is Extract<SalePosition, { kind: 'CUSTOM' }> => p.kind === 'CUSTOM',
+    );
+    if (found) return { list: prev, custom: found };
+    const custom = emptyCustomPosition();
+    return { list: [...prev, custom], custom };
+  }
+
+  function bumpCustomQty(itemId: string, delta: number) {
+    setPositions((prev) => {
+      const { list, custom } = ensureCustomPosition(prev);
+      const existing = custom.composition.find((line) => line.itemId === itemId);
+      let composition = custom.composition;
+      if (existing) {
+        const nextQty = Math.max(0, (Number(existing.quantity) || 0) + delta);
+        composition =
+          nextQty <= 0
+            ? custom.composition.filter((line) => line.key !== existing.key)
+            : custom.composition.map((line) =>
+                line.key === existing.key ? { ...line, quantity: String(nextQty) } : line,
+              );
+      } else if (delta > 0) {
+        composition = [
+          ...custom.composition,
+          { key: newKey(), itemId, quantity: '1' },
+        ];
+      } else {
+        return prev;
+      }
+      return list.map((p) =>
+        p.key === custom.key && p.kind === 'CUSTOM' ? { ...p, composition } : p,
+      );
+    });
+  }
+
+  function updateCustomMeta(patch: { name?: string; price?: string }) {
+    setPositions((prev) => {
+      const { list, custom } = ensureCustomPosition(prev);
+      return list.map((p) =>
+        p.key === custom.key && p.kind === 'CUSTOM' ? { ...p, ...patch } : p,
+      );
+    });
+  }
+
+  function removePosition(key: string) {
+    setPositions((prev) => {
+      const next = prev.filter((p) => p.key !== key);
+      if (next.length === 0) return [emptyCustomPosition()];
+      return next;
+    });
+  }
+
+  function switchMode(mode: BuilderMode) {
+    setBuilderMode(mode);
+    setCatalogQuery('');
+    if (mode === 'CUSTOM') {
+      setPositions((prev) => {
+        if (prev.some((p) => p.kind === 'CUSTOM')) return prev;
+        return [...prev, emptyCustomPosition()];
+      });
+    }
+  }
+
   function buildDirectLines() {
-    if (positions.length === 0) {
+    const meaningful = positions.filter((pos) => {
+      if (pos.kind === 'READY') return Boolean(pos.itemId) && Number(pos.quantity) > 0;
+      return pos.composition.some((line) => line.itemId && Number(line.quantity) > 0);
+    });
+
+    if (meaningful.length === 0) {
       throw new ApiClientError({
-        message: 'Добавьте хотя бы одну позицию в продажу',
+        message: 'Добавьте товары: готовый букет или состав',
         code: 'VALIDATION',
         status: 400,
         requestId: 'local',
@@ -356,28 +503,12 @@ function NewSalePageInner() {
       description?: string;
     }> = [];
 
-    for (const pos of positions) {
+    for (const pos of meaningful) {
       if (pos.kind === 'READY') {
         const price = parseBynToApi(pos.unitPrice);
-        if (!pos.itemId) {
-          throw new ApiClientError({
-            message: 'Выберите готовый букет из справочника',
-            code: 'VALIDATION',
-            status: 400,
-            requestId: 'local',
-          });
-        }
         if (!price) {
           throw new ApiClientError({
-            message: 'Укажите цену готового букета',
-            code: 'VALIDATION',
-            status: 400,
-            requestId: 'local',
-          });
-        }
-        if (!pos.quantity.trim() || Number(pos.quantity) <= 0) {
-          throw new ApiClientError({
-            message: 'Укажите количество готового букета',
+            message: 'Укажите цену для каждого готового букета',
             code: 'VALIDATION',
             status: 400,
             requestId: 'local',
@@ -394,10 +525,10 @@ function NewSalePageInner() {
       }
 
       const price = parseBynToApi(pos.price);
-      const lines = pos.composition.filter((line) => line.itemId && line.quantity.trim());
+      const lines = pos.composition.filter((line) => line.itemId && Number(line.quantity) > 0);
       if (lines.length === 0) {
         throw new ApiClientError({
-          message: 'В своём букете добавьте хотя бы один цветок или материал',
+          message: 'В собранном букете выберите хотя бы один товар',
           code: 'VALIDATION',
           status: 400,
           requestId: 'local',
@@ -405,7 +536,7 @@ function NewSalePageInner() {
       }
       if (!price) {
         throw new ApiClientError({
-          message: 'Укажите цену своего букета',
+          message: 'Укажите цену собранного букета',
           code: 'VALIDATION',
           status: 400,
           requestId: 'local',
@@ -413,7 +544,7 @@ function NewSalePageInner() {
       }
       if (!pos.name.trim()) {
         throw new ApiClientError({
-          message: 'Укажите название своего букета',
+          message: 'Укажите название собранного букета',
           code: 'VALIDATION',
           status: 400,
           requestId: 'local',
@@ -457,19 +588,21 @@ function NewSalePageInner() {
       if (!orderTitle.trim()) issues.push('Укажите название продажи');
       if (!parseBynToApi(orderPrice)) issues.push('Укажите цену продажи');
     } else {
-      if (positions.length === 0) issues.push('Добавьте хотя бы одну позицию');
-      positions.forEach((pos, index) => {
-        const n = index + 1;
+      const meaningful = positions.filter((pos) => {
+        if (pos.kind === 'READY') return Boolean(pos.itemId) && Number(pos.quantity) > 0;
+        return pos.composition.some((line) => line.itemId && Number(line.quantity) > 0);
+      });
+      if (meaningful.length === 0) {
+        issues.push('Выберите товары в ячейках (+/−) — готовый букет или сборку');
+      }
+      meaningful.forEach((pos) => {
         if (pos.kind === 'CUSTOM') {
-          if (!pos.name.trim()) issues.push(`Позиция ${n}: укажите название букета`);
-          if (!parseBynToApi(pos.price)) issues.push(`Позиция ${n}: укажите цену`);
-          const hasParts = pos.composition.some((line) => line.itemId && line.quantity.trim());
-          if (!hasParts) issues.push(`Позиция ${n}: выберите состав (цветы/материалы)`);
+          if (!pos.name.trim()) issues.push('Укажите название собранного букета');
+          if (!parseBynToApi(pos.price)) issues.push('Укажите цену собранного букета');
         } else {
-          if (!pos.itemId) issues.push(`Позиция ${n}: выберите готовый букет из справочника`);
-          if (!parseBynToApi(pos.unitPrice)) issues.push(`Позиция ${n}: укажите цену`);
-          if (!pos.quantity.trim() || Number(pos.quantity) <= 0) {
-            issues.push(`Позиция ${n}: укажите количество`);
+          const item = items.find((row) => row.id === pos.itemId);
+          if (!parseBynToApi(pos.unitPrice)) {
+            issues.push(`Укажите цену: ${item?.name ?? 'готовый букет'}`);
           }
         }
       });
@@ -484,37 +617,7 @@ function NewSalePageInner() {
     return issues;
   }
 
-  const blockers = useMemo(() => {
-    // Recompute when form fields change — mirrors collectBlockers for live warnings.
-    const issues: string[] = [];
-    if (!fromOrderId && !warehouseId) {
-      issues.push('Нет склада магазина — продажу оформить нельзя.');
-    }
-    if (!fromOrderId) {
-      const incomplete = positions.some((pos) => {
-        if (pos.kind === 'CUSTOM') {
-          return (
-            !pos.name.trim() ||
-            !parseBynToApi(pos.price) ||
-            !pos.composition.some((line) => line.itemId && line.quantity.trim())
-          );
-        }
-        return !pos.itemId || !parseBynToApi(pos.unitPrice) || !(Number(pos.quantity) > 0);
-      });
-      if (positions.length === 0 || incomplete) {
-        issues.push('Заполните все позиции: название/букет, цену и состав или количество.');
-      }
-    } else if (!orderTitle.trim() || !parseBynToApi(orderPrice)) {
-      issues.push('Укажите название и цену продажи из заказа.');
-    }
-    if (paymentRequired && paymentMethods.length === 0) {
-      issues.push('Не загружены способы оплаты.');
-    } else if (paymentRequired && parsePaymentSplit(paymentLines).length === 0) {
-      issues.push('Укажите оплату перед оформлением.');
-    }
-    return issues;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
+  const blockers = useMemo(() => collectBlockers(), [
     fromOrderId,
     warehouseId,
     positions,
@@ -523,6 +626,7 @@ function NewSalePageInner() {
     paymentRequired,
     paymentMethods,
     paymentLines,
+    items,
   ]);
 
   async function onSubmit(event: FormEvent) {
@@ -596,14 +700,13 @@ function NewSalePageInner() {
     return <p className="page-state">Доступ запрещён</p>;
   }
 
-  function updatePosition(key: string, patch: Partial<SalePosition>) {
-    setPositions((prev) =>
-      prev.map((row) => {
-        if (row.key !== key) return row;
-        return { ...row, ...patch } as SalePosition;
-      }),
-    );
-  }
+  const selectedReady = positions.filter(
+    (p): p is Extract<SalePosition, { kind: 'READY' }> =>
+      p.kind === 'READY' && Boolean(p.itemId) && Number(p.quantity) > 0,
+  );
+  const customPartsCount = activeCustom?.composition.filter(
+    (line) => line.itemId && Number(line.quantity) > 0,
+  ).length ?? 0;
 
   return (
     <main>
@@ -613,7 +716,7 @@ function NewSalePageInner() {
           description={
             fromOrderId
               ? 'Заказ готов — оформляем продажу: оплата и списание. Номер назначит система.'
-              : 'Добавьте позиции, укажите оплату. Слева — ввод, справа — итог.'
+              : 'Выберите тип продажи, наберите товары ячейками, укажите цену и оплату.'
           }
           breadcrumbs={[
             { label: 'Магазин', href: base },
@@ -647,23 +750,14 @@ function NewSalePageInner() {
               </InlineAlert>
             ) : (
               <InlineAlert tone="success" title="Форма готова">
-                Можно оформлять продажу — итог справа обновится по мере заполнения.
+                Можно оформлять — итог справа обновится по мере заполнения.
               </InlineAlert>
             )}
 
             <form onSubmit={onSubmit} className="sale-form" noValidate>
               <div className="sale-form__main">
-                <Card title={fromOrderId ? 'Из заказа' : 'Позиции продажи'}>
-                  {!fromOrderId ? (
-                    <div className="concept-callout">
-                      <strong>Позиции</strong>
-                      <p>
-                        Можно собрать свой букет из цветов/материалов или продать готовый букет из
-                        справочника (позиции с признаком «продаётся»). Склад:{' '}
-                        <strong>{warehouseLabel || 'не найден'}</strong>.
-                      </p>
-                    </div>
-                  ) : (
+                <Card title={fromOrderId ? 'Из заказа' : 'Состав продажи'}>
+                  {fromOrderId ? (
                     <div className="concept-callout">
                       <strong>Заказ → продажа</strong>
                       <p>
@@ -671,6 +765,11 @@ function NewSalePageInner() {
                         (остаток после предоплаты).
                       </p>
                     </div>
+                  ) : (
+                    <p className="sale-hint">
+                      Склад: <strong>{warehouseLabel || 'не найден'}</strong>. Нажмите «+» на
+                      ячейке, чтобы добавить товар.
+                    </p>
                   )}
 
                   <div className="stack-form">
@@ -691,238 +790,195 @@ function NewSalePageInner() {
                       </>
                     ) : (
                       <>
-                        {positions.map((pos, posIndex) => (
-                          <div key={pos.key} className="sale-position">
-                            <div className="sale-position__head">
-                              <strong>
-                                Позиция {posIndex + 1}:{' '}
-                                {pos.kind === 'CUSTOM' ? 'свой букет' : 'готовый букет'}
-                              </strong>
-                              {positions.length > 1 ? (
-                                <Button
-                                  type="button"
-                                  variant="secondary"
-                                  onClick={() =>
-                                    setPositions((prev) => prev.filter((row) => row.key !== pos.key))
-                                  }
-                                >
-                                  Удалить
-                                </Button>
-                              ) : null}
-                            </div>
-
-                            {pos.kind === 'CUSTOM' ? (
-                              <div className="stack-form">
-                                <Field label="Название букета" required>
-                                  <Input
-                                    value={pos.name}
-                                    onChange={(e) =>
-                                      updatePosition(pos.key, { name: e.target.value })
-                                    }
-                                    required
-                                    placeholder="Букет «Розы и эустома»"
-                                  />
-                                </Field>
-                                <Field label="Цена букета" required>
-                                  <MoneyBynInput
-                                    value={pos.price}
-                                    onChange={(price) => updatePosition(pos.key, { price })}
-                                    required
-                                  />
-                                </Field>
-                                <Field
-                                  label="Состав"
-                                  tooltip="Цветы и материалы спишутся со склада"
-                                  required
-                                >
-                                  <Input
-                                    value={itemQuery}
-                                    onChange={(e) => setItemQuery(e.target.value)}
-                                    placeholder="Фильтр по названию или коду…"
-                                  />
-                                </Field>
-                                {pos.composition.map((line, lineIndex) => (
-                                  <div key={line.key} className="bouquet-line">
-                                    <FancySelect
-                                      value={line.itemId}
-                                      onChange={(itemId) =>
-                                        setPositions((prev) =>
-                                          prev.map((row) => {
-                                            if (row.key !== pos.key || row.kind !== 'CUSTOM') {
-                                              return row;
-                                            }
-                                            return {
-                                              ...row,
-                                              composition: row.composition.map((c) =>
-                                                c.key === line.key ? { ...c, itemId } : c,
-                                              ),
-                                            };
-                                          }),
-                                        )
-                                      }
-                                      options={ingredientOptions}
-                                      placeholder="Цветок или материал"
-                                      required
-                                      searchPlaceholder="Найти позицию…"
-                                      aria-label={`Состав ${lineIndex + 1}`}
-                                    />
-                                    <Input
-                                      value={line.quantity}
-                                      onChange={(e) =>
-                                        setPositions((prev) =>
-                                          prev.map((row) => {
-                                            if (row.key !== pos.key || row.kind !== 'CUSTOM') {
-                                              return row;
-                                            }
-                                            return {
-                                              ...row,
-                                              composition: row.composition.map((c) =>
-                                                c.key === line.key
-                                                  ? {
-                                                      ...c,
-                                                      quantity: e.target.value.replace(',', '.'),
-                                                    }
-                                                  : c,
-                                              ),
-                                            };
-                                          }),
-                                        )
-                                      }
-                                      required
-                                      style={{ width: 110 }}
-                                      placeholder="Кол-во"
-                                      inputMode="decimal"
-                                      aria-label={`Количество ${lineIndex + 1}`}
-                                    />
-                                    {pos.composition.length > 1 ? (
-                                      <Button
-                                        type="button"
-                                        variant="secondary"
-                                        onClick={() =>
-                                          setPositions((prev) =>
-                                            prev.map((row) => {
-                                              if (row.key !== pos.key || row.kind !== 'CUSTOM') {
-                                                return row;
-                                              }
-                                              return {
-                                                ...row,
-                                                composition: row.composition.filter(
-                                                  (c) => c.key !== line.key,
-                                                ),
-                                              };
-                                            }),
-                                          )
-                                        }
-                                      >
-                                        Удалить
-                                      </Button>
-                                    ) : null}
-                                  </div>
-                                ))}
-                                <Button
-                                  type="button"
-                                  variant="secondary"
-                                  onClick={() =>
-                                    setPositions((prev) =>
-                                      prev.map((row) => {
-                                        if (row.key !== pos.key || row.kind !== 'CUSTOM') {
-                                          return row;
-                                        }
-                                        return {
-                                          ...row,
-                                          composition: [
-                                            ...row.composition,
-                                            {
-                                              key: newKey(),
-                                              itemId: filteredIngredients[0]?.id ?? '',
-                                              quantity: '1',
-                                            },
-                                          ],
-                                        };
-                                      }),
-                                    )
-                                  }
-                                >
-                                  + Позиция в состав
-                                </Button>
-                              </div>
-                            ) : (
-                              <div className="stack-form">
-                                <Field
-                                  label="Готовый букет"
-                                  tooltip="Из справочника: позиции с признаком «продаётся»"
-                                  required
-                                >
-                                  <FancySelect
-                                    value={pos.itemId}
-                                    onChange={(itemId) => updatePosition(pos.key, { itemId })}
-                                    options={readyOptions}
-                                    placeholder={
-                                      readyOptions.length
-                                        ? 'Выберите букет'
-                                        : 'Нет готовых букетов в справочнике'
-                                    }
-                                    required
-                                    disabled={readyOptions.length === 0}
-                                    searchPlaceholder="Найти букет…"
-                                    emptyText="Отметьте позиции как «продаётся» в справочнике"
-                                  />
-                                </Field>
-                                {readyOptions.length === 0 ? (
-                                  <p className="field__hint">
-                                    В справочнике пока нет sellable-позиций. Создайте букет в
-                                    «Справочники → Номенклатура» и включите «Продаётся».
-                                  </p>
-                                ) : null}
-                                <div className="bouquet-line">
-                                  <Field label="Количество" required>
-                                    <Input
-                                      value={pos.quantity}
-                                      onChange={(e) =>
-                                        updatePosition(pos.key, {
-                                          quantity: e.target.value.replace(',', '.'),
-                                        })
-                                      }
-                                      required
-                                      inputMode="decimal"
-                                      style={{ width: 120 }}
-                                    />
-                                  </Field>
-                                  <Field label="Цена за штуку" required>
-                                    <MoneyBynInput
-                                      value={pos.unitPrice}
-                                      onChange={(unitPrice) =>
-                                        updatePosition(pos.key, { unitPrice })
-                                      }
-                                      required
-                                    />
-                                  </Field>
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        ))}
-
-                        <div className="sale-position-actions">
-                          <Button
+                        <div className="sale-mode" role="tablist" aria-label="Тип продажи">
+                          <button
                             type="button"
-                            variant="secondary"
-                            onClick={() =>
-                              setPositions((prev) => [...prev, emptyCustomPosition()])
-                            }
+                            role="tab"
+                            aria-selected={builderMode === 'READY'}
+                            className={`sale-mode__card${builderMode === 'READY' ? ' sale-mode__card--active' : ''}`}
+                            onClick={() => switchMode('READY')}
                           >
-                            + Свой букет
-                          </Button>
-                          <Button
+                            <span className="sale-mode__title">Готовый букет</span>
+                            <span className="sale-mode__text">
+                              Продажа из витрины / справочника (отмечен как «продаётся»)
+                            </span>
+                            {selectedReady.length > 0 ? (
+                              <span className="sale-mode__badge">
+                                {selectedReady.reduce((s, p) => s + (Number(p.quantity) || 0), 0)} шт
+                              </span>
+                            ) : null}
+                          </button>
+                          <button
                             type="button"
-                            variant="secondary"
-                            onClick={() =>
-                              setPositions((prev) => [...prev, emptyReadyPosition()])
-                            }
+                            role="tab"
+                            aria-selected={builderMode === 'CUSTOM'}
+                            className={`sale-mode__card${builderMode === 'CUSTOM' ? ' sale-mode__card--active' : ''}`}
+                            onClick={() => switchMode('CUSTOM')}
                           >
-                            + Готовый букет
-                          </Button>
+                            <span className="sale-mode__title">Собрать букет</span>
+                            <span className="sale-mode__text">
+                              Набрать цветы и материалы по количеству, задать цену букета
+                            </span>
+                            {customPartsCount > 0 ? (
+                              <span className="sale-mode__badge">{customPartsCount} поз.</span>
+                            ) : null}
+                          </button>
                         </div>
+
+                        {builderMode === 'CUSTOM' ? (
+                          <div className="sale-custom-meta">
+                            <Field label="Название букета" required>
+                              <Input
+                                value={activeCustom?.name ?? ''}
+                                onChange={(e) => updateCustomMeta({ name: e.target.value })}
+                                required
+                                placeholder="Например: Букет «Нежность»"
+                              />
+                            </Field>
+                            <Field label="Цена букета" required>
+                              <MoneyBynInput
+                                value={activeCustom?.price ?? ''}
+                                onChange={(price) => updateCustomMeta({ price })}
+                                required
+                              />
+                            </Field>
+                          </div>
+                        ) : null}
+
+                        <Field
+                          label={builderMode === 'READY' ? 'Каталог готовых' : 'Цветы и материалы'}
+                        >
+                          <Input
+                            value={catalogQuery}
+                            onChange={(e) => setCatalogQuery(e.target.value)}
+                            placeholder="Поиск по названию или коду…"
+                            aria-label="Поиск товаров"
+                          />
+                        </Field>
+
+                        {builderMode === 'READY' && readyBouquets.length === 0 ? (
+                          <InlineAlert tone="warning" title="Нет готовых букетов">
+                            В справочнике нет позиций с признаком «Продаётся». Создайте букет в
+                            «Справочники → Номенклатура» и включите продажу.
+                          </InlineAlert>
+                        ) : null}
+
+                        {filteredCatalog.length === 0 ? (
+                          <p className="sale-cells__empty">
+                            {catalogQuery.trim()
+                              ? 'Ничего не найдено по запросу'
+                              : 'Каталог пуст'}
+                          </p>
+                        ) : (
+                          <div className="sale-cells" role="list">
+                            {filteredCatalog.map((item) => {
+                              const qty =
+                                builderMode === 'READY'
+                                  ? readyQtyByItem.get(item.id) ?? 0
+                                  : customQtyByItem.get(item.id) ?? 0;
+                              const readyPos =
+                                builderMode === 'READY'
+                                  ? selectedReady.find((p) => p.itemId === item.id)
+                                  : undefined;
+                              return (
+                                <div
+                                  key={item.id}
+                                  role="listitem"
+                                  className={`sale-cell${qty > 0 ? ' sale-cell--active' : ''}`}
+                                >
+                                  <div className="sale-cell__top">
+                                    <strong className="sale-cell__name">{item.name}</strong>
+                                    <span className="sale-cell__meta">
+                                      {itemTypeLabel(item.itemType)} · {item.code}
+                                    </span>
+                                  </div>
+                                  <QtyStepper
+                                    value={qty}
+                                    disabled={busy}
+                                    onDecrease={() =>
+                                      builderMode === 'READY'
+                                        ? bumpReadyQty(item.id, -1)
+                                        : bumpCustomQty(item.id, -1)
+                                    }
+                                    onIncrease={() =>
+                                      builderMode === 'READY'
+                                        ? bumpReadyQty(item.id, 1)
+                                        : bumpCustomQty(item.id, 1)
+                                    }
+                                  />
+                                  {builderMode === 'READY' && qty > 0 ? (
+                                    <div className="sale-cell__price">
+                                      <label className="sale-cell__price-label" htmlFor={`price-${item.id}`}>
+                                        Цена / шт
+                                      </label>
+                                      <MoneyBynInput
+                                        id={`price-${item.id}`}
+                                        value={readyPos?.unitPrice ?? ''}
+                                        onChange={(unitPrice) =>
+                                          setReadyUnitPrice(item.id, unitPrice)
+                                        }
+                                        required
+                                      />
+                                    </div>
+                                  ) : null}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+
+                        {(selectedReady.length > 0 || customPartsCount > 0) && (
+                          <div className="sale-cart">
+                            <div className="sale-cart__head">В продаже</div>
+                            <ul className="sale-cart__list">
+                              {selectedReady.map((pos) => {
+                                const item = items.find((row) => row.id === pos.itemId);
+                                return (
+                                  <li key={pos.key} className="sale-cart__row">
+                                    <div>
+                                      <strong>{item?.name ?? 'Букет'}</strong>
+                                      <span>
+                                        Готовый · {pos.quantity} шт
+                                        {pos.unitPrice
+                                          ? ` · ${parseBynToApi(pos.unitPrice) ?? pos.unitPrice} BYN`
+                                          : ''}
+                                      </span>
+                                    </div>
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      disabled={busy}
+                                      onClick={() => removePosition(pos.key)}
+                                    >
+                                      Убрать
+                                    </Button>
+                                  </li>
+                                );
+                              })}
+                              {activeCustom && customPartsCount > 0 ? (
+                                <li className="sale-cart__row">
+                                  <div>
+                                    <strong>{activeCustom.name.trim() || 'Собранный букет'}</strong>
+                                    <span>
+                                      Сборка · {customPartsCount} поз.
+                                      {activeCustom.price
+                                        ? ` · ${parseBynToApi(activeCustom.price) ?? activeCustom.price} BYN`
+                                        : ''}
+                                    </span>
+                                  </div>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    disabled={busy}
+                                    onClick={() => removePosition(activeCustom.key)}
+                                  >
+                                    Убрать
+                                  </Button>
+                                </li>
+                              ) : null}
+                            </ul>
+                          </div>
+                        )}
                       </>
                     )}
 
@@ -1027,17 +1083,29 @@ function NewSalePageInner() {
               <aside className="sale-form__summary" aria-label="Итог продажи">
                 <Card title="Итог">
                   <ul className="sale-summary__list">
-                    {summaryLines.map((line) => (
-                      <li key={line.key}>
+                    {summaryLines.length === 0 ? (
+                      <li>
                         <div className="sale-summary__row">
                           <div>
-                            <strong>{line.title}</strong>
-                            <p>{line.detail}</p>
+                            <strong>Пока пусто</strong>
+                            <p>Выберите тип и наберите товары ячейками</p>
                           </div>
-                          <span>{line.amount ? `${line.amount} BYN` : '—'}</span>
+                          <span>—</span>
                         </div>
                       </li>
-                    ))}
+                    ) : (
+                      summaryLines.map((line) => (
+                        <li key={line.key}>
+                          <div className="sale-summary__row">
+                            <div>
+                              <strong>{line.title}</strong>
+                              <p>{line.detail}</p>
+                            </div>
+                            <span>{line.amount ? `${line.amount} BYN` : '—'}</span>
+                          </div>
+                        </li>
+                      ))
+                    )}
                   </ul>
                   <div className="sale-summary__totals">
                     <div className="sale-summary__total-row">

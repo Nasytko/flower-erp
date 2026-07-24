@@ -248,9 +248,8 @@ export function assertCanStartTransit(input: {
   if (!DISPATCHABLE.has(input.status) && input.status !== DeliveryStatus.IN_TRANSIT) {
     throw new DomainError('INVALID_STATUS_TRANSITION', `Cannot start transit from ${input.status}`);
   }
-  if (input.method === DeliveryMethod.OWN_COURIER && !input.hasActiveAssignment) {
-    throw new DomainError('ASSIGNMENT_REQUIRED', 'OWN_COURIER requires an active assignment');
-  }
+  // Courier assignment is optional at this stage — shops track only status
+  // (handed over / in transit / delivered) without naming a courier.
   if (
     (input.method === DeliveryMethod.TAXI ||
       input.method === DeliveryMethod.THIRD_PARTY_SERVICE) &&

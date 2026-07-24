@@ -1,7 +1,7 @@
 ﻿'use client';
 
 import Link from 'next/link';
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Button, Card, Input } from '@flower/ui';
 import { getApiClient } from '@/lib/api-client';
@@ -16,8 +16,16 @@ import { EmptyState, ErrorState, LoadingState } from '@/components/layout/states
 import { StatusBadge } from '@/components/layout/status-badge';
 import { InlineAlert } from '@/components/workspace/workspace-ui';
 import { formatApiErrorMessage } from '@/lib/format-api-error';
+import { statusLabelRu } from '@/lib/status-labels-ru';
 
-type DashOrder = { id: string; number: string; status: string; readyAt?: string | null };
+type OrderRow = {
+  id: string;
+  number: string;
+  status: string;
+  type?: string;
+  readyAt?: string | null;
+  recipientName?: string | null;
+};
 
 type CustomerOption = { id: string; name: string; phone: string; status: string };
 
@@ -39,15 +47,7 @@ export default function OrdersPage() {
   const { organizationId, storeId } = params;
   const base = `/organizations/${organizationId}/stores/${storeId}`;
 
-  const [dashboard, setDashboard] = useState<{
-    today: DashOrder[];
-    overdue: DashOrder[];
-    unassigned: DashOrder[];
-    partiallyReserved: DashOrder[];
-    ready: DashOrder[];
-    inProgress: DashOrder[];
-  } | null>(null);
-  const [orders, setOrders] = useState<DashOrder[]>([]);
+  const [orders, setOrders] = useState<OrderRow[]>([]);
   const [customers, setCustomers] = useState<CustomerOption[]>([]);
   const [warehouseId, setWarehouseId] = useState('');
   const [orderType, setOrderType] = useState<'PICKUP' | 'DELIVERY'>('PICKUP');
@@ -60,6 +60,8 @@ export default function OrdersPage() {
   const [deliveryAddress, setDeliveryAddress] = useState('');
   const [deliveryCity, setDeliveryCity] = useState('');
   const [storeCity, setStoreCity] = useState('');
+  const [showCreate, setShowCreate] = useState(false);
+  const [filter, setFilter] = useState<'ALL' | 'ASSEMBLING' | 'READY' | 'DONE'>('ALL');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
@@ -69,8 +71,7 @@ export default function OrdersPage() {
     setError(null);
     try {
       const client = getApiClient();
-      const [dash, list, warehouses, customerList, store] = await Promise.all([
-        client.getOrderDashboard(organizationId, storeId),
+      const [list, warehouses, customerList, store] = await Promise.all([
         client.listOrders(organizationId, storeId),
         (async () => {
           let rows = await client.listWarehouses(organizationId, storeId);
@@ -84,13 +85,11 @@ export default function OrdersPage() {
           : Promise.resolve([] as CustomerOption[]),
         client.getStore(organizationId, storeId),
       ]);
-      setDashboard(dash);
       setOrders(list);
       setCustomers(customerList.filter((c) => c.status === 'ACTIVE'));
       const wh = warehouses.find((w) => w.isDefault) ?? warehouses[0];
       if (wh) setWarehouseId(wh.id);
-      const city = store.city?.trim() || '';
-      setStoreCity(city);
+      setStoreCity(store.city?.trim() || '');
     } catch (err) {
       setError(formatApiErrorMessage(err, 'Не удалось загрузить'));
     } finally {
@@ -103,6 +102,19 @@ export default function OrdersPage() {
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [organizationId, storeId, auth]);
+
+  const filteredOrders = useMemo(() => {
+    return orders.filter((item) => {
+      if (filter === 'ALL') return true;
+      if (filter === 'READY') return item.status === 'READY';
+      if (filter === 'DONE') return item.status === 'COMPLETED' || item.status === 'CANCELLED';
+      return (
+        item.status !== 'READY' &&
+        item.status !== 'COMPLETED' &&
+        item.status !== 'CANCELLED'
+      );
+    });
+  }, [orders, filter]);
 
   async function onCreate(event: FormEvent) {
     event.preventDefault();
@@ -142,27 +154,6 @@ export default function OrdersPage() {
     }
   }
 
-  function Bucket({ title, items, tone }: { title: string; items: DashOrder[]; tone: string }) {
-    return (
-      <div className="order-dashboard__bucket">
-        <h3>
-          {title} <StatusBadge status={tone} />
-        </h3>
-        {items.length === 0 ? (
-          <p className="order-dashboard__empty">Пусто</p>
-        ) : (
-          <ul>
-            {items.map((item) => (
-              <li key={item.id}>
-                <Link href={`${base}/orders/${item.id}`}>{item.number}</Link>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-    );
-  }
-
   if (!auth.hasPermission('orders:read')) {
     return <p className="page-state">Доступ запрещён</p>;
   }
@@ -174,50 +165,32 @@ export default function OrdersPage() {
       <PageContainer>
         <PageHeader
           title="Заказы"
-          description="Простой заказ: кто, когда, самовывоз или доставка с адресом. Пустой город = город магазина."
+          description="Создайте заказ с адресом сразу. Дальше только сборка и статусы доставки — без отдельной формы адреса и без назначения курьера."
           breadcrumbs={[
             { label: 'Магазин', href: base },
             { label: 'Заказы' },
           ]}
           actions={
-            auth.hasPermission('sales:create') ? (
-              <Button type="button" variant="secondary" onClick={() => router.push(`${base}/sales/new`)}>
-                Новая продажа
-              </Button>
-            ) : undefined
+            <div className="page-header__actions">
+              {canCreate ? (
+                <Button type="button" onClick={() => setShowCreate((v) => !v)}>
+                  {showCreate ? 'Скрыть' : 'Новый заказ'}
+                </Button>
+              ) : null}
+              {auth.hasPermission('sales:create') ? (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => router.push(`${base}/sales/new`)}
+                >
+                  Новая продажа
+                </Button>
+              ) : null}
+            </div>
           }
         />
 
-        <Section>
-          <div className="concept-callout">
-            <strong>Заказ → продажа</strong>
-            <p>
-              Заказ готовим к сроку. При доставке адрес указываем сразу — доставка создаётся
-              автоматически. Когда букет выдан, оформляем продажу.
-            </p>
-          </div>
-        </Section>
-
-        <Section>
-          {loading ? <LoadingState /> : null}
-          {error ? <ErrorState message={error} /> : null}
-          {dashboard ? (
-            <div className="order-dashboard">
-              <Bucket title="Сегодня" items={dashboard.today} tone="CONFIRMED" />
-              <Bucket title="Просроченные" items={dashboard.overdue} tone="OVERDUE" />
-              <Bucket title="Без флориста" items={dashboard.unassigned} tone="UNASSIGNED" />
-              <Bucket
-                title="Частично зарезервированные"
-                items={dashboard.partiallyReserved}
-                tone="PARTIALLY_RESERVED"
-              />
-              <Bucket title="Готовые" items={dashboard.ready} tone="READY" />
-              <Bucket title="В работе" items={dashboard.inProgress} tone="IN_PREPARATION" />
-            </div>
-          ) : null}
-        </Section>
-
-        {canCreate ? (
+        {canCreate && showCreate ? (
           <Section>
             <Card title="Новый заказ">
               {!warehouseId ? (
@@ -225,21 +198,31 @@ export default function OrdersPage() {
                   Без склада заказ создать нельзя. Обновите страницу или создайте склад магазина.
                 </InlineAlert>
               ) : null}
-              <p className="form-lead">Минимум полей: способ, получатель, время. Адрес — сразу, если доставка.</p>
               <form onSubmit={onCreate} className="stack-form" noValidate>
                 <AutoNumberNote label="Номер заказа" />
 
-                <Field label="Способ получения" required>
-                  <FancySelect
-                    value={orderType}
-                    onChange={(v) => setOrderType(v as 'PICKUP' | 'DELIVERY')}
-                    options={[
-                      { value: 'PICKUP', label: 'Самовывоз к времени' },
-                      { value: 'DELIVERY', label: 'Доставка' },
-                    ]}
-                    searchable={false}
-                  />
-                </Field>
+                <div className="sale-mode" role="tablist" aria-label="Способ получения">
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={orderType === 'PICKUP'}
+                    className={`sale-mode__card${orderType === 'PICKUP' ? ' sale-mode__card--active' : ''}`}
+                    onClick={() => setOrderType('PICKUP')}
+                  >
+                    <span className="sale-mode__title">Самовывоз</span>
+                    <span className="sale-mode__text">Клиент заберёт к указанному времени</span>
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={orderType === 'DELIVERY'}
+                    className={`sale-mode__card${orderType === 'DELIVERY' ? ' sale-mode__card--active' : ''}`}
+                    onClick={() => setOrderType('DELIVERY')}
+                  >
+                    <span className="sale-mode__title">Доставка</span>
+                    <span className="sale-mode__text">Адрес укажите сразу — доставка создастся сама</span>
+                  </button>
+                </div>
 
                 {customers.length > 0 ? (
                   <Field label="Клиент">
@@ -269,23 +252,24 @@ export default function OrdersPage() {
                   />
                 </Field>
 
-                <Field label="Получатель" required>
-                  <Input
-                    value={recipientName}
-                    onChange={(e) => setRecipientName(e.target.value)}
-                    placeholder="Анна"
-                    required
-                  />
-                </Field>
-
-                <Field label="Телефон">
-                  <Input
-                    value={recipientPhone}
-                    onChange={(e) => setRecipientPhone(e.target.value)}
-                    placeholder="+375 …"
-                    inputMode="tel"
-                  />
-                </Field>
+                <div className="sale-custom-meta">
+                  <Field label="Получатель" required>
+                    <Input
+                      value={recipientName}
+                      onChange={(e) => setRecipientName(e.target.value)}
+                      placeholder="Анна"
+                      required
+                    />
+                  </Field>
+                  <Field label="Телефон">
+                    <Input
+                      value={recipientPhone}
+                      onChange={(e) => setRecipientPhone(e.target.value)}
+                      placeholder="+375 …"
+                      inputMode="tel"
+                    />
+                  </Field>
+                </div>
 
                 <Field
                   label={orderType === 'DELIVERY' ? 'Время доставки' : 'Время готовности'}
@@ -301,11 +285,7 @@ export default function OrdersPage() {
 
                 {orderType === 'DELIVERY' ? (
                   <>
-                    <Field
-                      label="Адрес доставки"
-                      tooltip="Улица, дом, корпус, квартира"
-                      required
-                    >
+                    <Field label="Адрес доставки" required>
                       <Input
                         value={deliveryAddress}
                         onChange={(e) => setDeliveryAddress(e.target.value)}
@@ -317,8 +297,8 @@ export default function OrdersPage() {
                       label="Город"
                       tooltip={
                         storeCity
-                          ? `Если пусто — подставим город магазина: ${storeCity}`
-                          : 'Если пусто — город магазина (или Минск по умолчанию)'
+                          ? `Если пусто — город магазина: ${storeCity}`
+                          : 'Если пусто — город магазина'
                       }
                     >
                       <Input
@@ -343,14 +323,55 @@ export default function OrdersPage() {
         ) : null}
 
         <Section>
-          <Card title="Очередь заказов">
-            {!loading && orders.length === 0 ? <EmptyState message="Заказов пока нет." /> : null}
+          {loading ? <LoadingState /> : null}
+          {error ? <ErrorState message={error} /> : null}
+
+          <div className="order-filters" role="tablist" aria-label="Фильтр заказов">
+            {(
+              [
+                ['ALL', 'Все'],
+                ['ASSEMBLING', 'Собираются'],
+                ['READY', 'Готовы'],
+                ['DONE', 'Закрыты'],
+              ] as const
+            ).map(([id, label]) => (
+              <button
+                key={id}
+                type="button"
+                role="tab"
+                aria-selected={filter === id}
+                className={`order-filters__chip${filter === id ? ' order-filters__chip--active' : ''}`}
+                onClick={() => setFilter(id)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          <Card title="Очередь">
+            {!loading && filteredOrders.length === 0 ? (
+              <EmptyState message="Заказов в этом фильтре нет." />
+            ) : null}
             <ul className="list-stack">
-              {orders.map((item) => (
+              {filteredOrders.map((item) => (
                 <li key={item.id}>
                   <Link href={`${base}/orders/${item.id}`}>
                     <div className="meta-row">
-                      <strong>{item.number}</strong>
+                      <div>
+                        <strong>{item.number}</strong>
+                        <div className="order-queue__meta">
+                          {item.type ? statusLabelRu(item.type) : null}
+                          {item.recipientName ? ` · ${item.recipientName}` : null}
+                          {item.readyAt
+                            ? ` · ${new Date(item.readyAt).toLocaleString('ru-RU', {
+                                day: '2-digit',
+                                month: '2-digit',
+                                hour: '2-digit',
+                                minute: '2-digit',
+                              })}`
+                            : null}
+                        </div>
+                      </div>
                       <StatusBadge status={item.status} />
                     </div>
                   </Link>

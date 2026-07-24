@@ -151,6 +151,49 @@ export class SupplyUseCases {
     }
   }
 
+  async updateSupplyItem(input: {
+    organizationId: string;
+    storeId: string;
+    supplyId: string;
+    itemId: string;
+    orderedQuantity: string;
+    plannedUnitPrice: string;
+  }) {
+    try {
+      return await this.uow.runInTransaction(async () => {
+        const supply = await this.requireSupply(input.organizationId, input.storeId, input.supplyId);
+        canEditSupplyItems(supply.status as SupplyStatus);
+        const item = await this.items.getItem(input.organizationId, input.itemId);
+        assertItemPurchasable(item);
+        const unit = await this.units.getUnit(input.organizationId, item.unitId);
+        assertQuantityMatchesScale(input.orderedQuantity, unit.quantityScale);
+        const price = Number(input.plannedUnitPrice);
+        if (!Number.isFinite(price) || price < 0) {
+          throw new BadRequestException({
+            code: 'INVALID_UNIT_PRICE',
+            message: 'Unit cost must be a non-negative decimal',
+          });
+        }
+        const updated = await this.supplies.updateSupplyItem({
+          organizationId: input.organizationId,
+          supplyId: supply.id,
+          itemId: item.id,
+          orderedQuantity: input.orderedQuantity,
+          plannedUnitPrice: input.plannedUnitPrice,
+        });
+        if (!updated) {
+          throw new NotFoundException({
+            code: 'SUPPLY_ITEM_NOT_FOUND',
+            message: 'Supply item not found',
+          });
+        }
+        return updated;
+      });
+    } catch (error) {
+      domain(error);
+    }
+  }
+
   async submitSupply(input: {
     organizationId: string;
     storeId: string;
@@ -255,6 +298,84 @@ export class GoodsReceiptUseCases {
     }
   }
 
+  /**
+   * One-step receiving: DRAFT supply → submit → goods receipt with all lines → post to inventory.
+   * Used when ERP does not send orders to suppliers; staff only records what arrived.
+   */
+  async receiveFromSupply(input: {
+    organizationId: string;
+    storeId: string;
+    supplyId: string;
+    receivedAt?: string;
+    comment?: string | null;
+    idempotencyKey?: string;
+  }): Promise<ReceiptView> {
+    try {
+      return await this.uow.runInTransaction(async () => {
+        const supply = await this.requireSupply(input.organizationId, input.storeId, input.supplyId);
+        canSubmit(supply.status as SupplyStatus, supply.items.length);
+
+        for (const line of supply.items) {
+          const price = Number(line.plannedUnitPrice);
+          if (line.plannedUnitPrice == null || !Number.isFinite(price) || price < 0) {
+            throw new BadRequestException({
+              code: 'SUPPLY_ITEM_MISSING_COST',
+              message: `Unit cost is required for item ${line.item.name}`,
+            });
+          }
+          if (compareQty(line.orderedQuantity, '0') <= 0) {
+            throw new BadRequestException({
+              code: 'INVALID_RECEIPT_QUANTITY',
+              message: `Quantity must be greater than zero for item ${line.item.name}`,
+            });
+          }
+        }
+
+        await this.supplies.updateSupplyStatus(
+          supply.id,
+          'SUBMITTED_TO_SUPPLIER',
+          this.clock.now(),
+        );
+
+        const receivedAt = input.receivedAt ? new Date(input.receivedAt) : this.clock.now();
+        const receipt = await this.supplies.createReceipt({
+          id: randomUUID(),
+          organizationId: input.organizationId,
+          storeId: input.storeId,
+          warehouseId: supply.warehouseId,
+          supplyId: supply.id,
+          number: await this.supplies.uniqueNumber('GR', input.organizationId),
+          receivedAt,
+          comment: input.comment?.trim() || null,
+        });
+
+        for (const line of supply.items) {
+          await this.supplies.addReceiptItem({
+            id: randomUUID(),
+            organizationId: input.organizationId,
+            goodsReceiptId: receipt.id,
+            supplyItemId: line.id,
+            itemId: line.itemId,
+            receivedQuantity: line.orderedQuantity,
+            acceptedQuantity: line.orderedQuantity,
+            defectiveQuantity: '0',
+            actualUnitPrice: line.plannedUnitPrice as string,
+            defectReason: null,
+          });
+        }
+
+        const draft = await this.requireReceipt(
+          input.organizationId,
+          input.storeId,
+          receipt.id,
+        );
+        return this.postDraftReceiptInTx(draft, input.idempotencyKey);
+      });
+    } catch (error) {
+      domain(error);
+    }
+  }
+
   async addGoodsReceiptItem(input: {
     organizationId: string;
     storeId: string;
@@ -352,69 +473,87 @@ export class GoodsReceiptUseCases {
           message: 'Receipt must have items',
         });
       }
-      const supply = await this.requireSupply(
-        input.organizationId,
-        input.storeId,
-        receipt.supplyId,
-      );
-      canCreateReceipt(supply.status as SupplyStatus);
-      const supplier = await this.suppliers.getSupplier(input.organizationId, supply.supplierId);
-      assertActiveReference(supplier.status, 'SUPPLIER');
-
-      for (const line of receipt.items) {
-        const [item, unit] = await Promise.all([
-          this.items.getItem(input.organizationId, line.itemId),
-          this.units.getUnit(input.organizationId, line.item.unitId),
-        ]);
-        assertItemPurchasable(item);
-        assertQuantityMatchesScale(line.receivedQuantity, unit.quantityScale);
-        const posted = await this.supplies.sumPostedBySupplyItem(
-          input.organizationId,
-          line.supplyItemId,
-        );
-        if (compareQty(addQty(posted, line.receivedQuantity), line.supplyItem.orderedQuantity) > 0) {
-          throw new ConflictException({
-            code: 'OVER_RECEIPT',
-            message: 'Posting would exceed ordered quantity',
-          });
-        }
-      }
-
-      const lines = await Promise.all(
-        receipt.items
-          .filter((line) => compareQty(line.acceptedQuantity, '0') > 0)
-          .map(async (line) => {
-            const [item, policy] = await Promise.all([
-              this.items.getItem(input.organizationId, line.itemId),
-              this.policies.getPolicy(input.organizationId, line.item.inventoryPolicyId),
-            ]);
-            assertActiveReference(policy.status, 'POLICY');
-            return {
-              goodsReceiptItemId: line.id,
-              itemId: line.itemId,
-              acceptedQuantity: line.acceptedQuantity,
-              actualUnitPrice: line.actualUnitPrice,
-              receivedAt: receipt.receivedAt,
-              itemType: item.itemType,
-              defaultShelfLifeDays: policy.defaultShelfLifeDays,
-            };
-          }),
-      );
-
-      await this.inventoryPosting.postGoodsReceipt({
-        organizationId: input.organizationId,
-        storeId: receipt.storeId,
-        warehouseId: receipt.warehouseId,
-        goodsReceiptId: receipt.id,
-        idempotencyKey: input.idempotencyKey,
-        lines,
-      });
-
-      const posted = await this.supplies.setReceiptPosted(receipt.id, this.clock.now());
-      await this.recalculate(supply);
-      await this.auditAction(input.organizationId, receipt.storeId, 'goods_receipt.posted', receipt.id);
-      return posted;
+      return this.postDraftReceiptInTx(receipt, input.idempotencyKey);
     });
+  }
+
+  private async postDraftReceiptInTx(
+    receipt: ReceiptView,
+    idempotencyKey?: string,
+  ): Promise<ReceiptView> {
+    if (!receipt.items.length) {
+      throw new BadRequestException({
+        code: 'RECEIPT_HAS_NO_ITEMS',
+        message: 'Receipt must have items',
+      });
+    }
+    const supply = await this.requireSupply(
+      receipt.organizationId,
+      receipt.storeId,
+      receipt.supplyId,
+    );
+    canCreateReceipt(supply.status as SupplyStatus);
+    const supplier = await this.suppliers.getSupplier(receipt.organizationId, supply.supplierId);
+    assertActiveReference(supplier.status, 'SUPPLIER');
+
+    for (const line of receipt.items) {
+      const [item, unit] = await Promise.all([
+        this.items.getItem(receipt.organizationId, line.itemId),
+        this.units.getUnit(receipt.organizationId, line.item.unitId),
+      ]);
+      assertItemPurchasable(item);
+      assertQuantityMatchesScale(line.receivedQuantity, unit.quantityScale);
+      const posted = await this.supplies.sumPostedBySupplyItem(
+        receipt.organizationId,
+        line.supplyItemId,
+      );
+      if (compareQty(addQty(posted, line.receivedQuantity), line.supplyItem.orderedQuantity) > 0) {
+        throw new ConflictException({
+          code: 'OVER_RECEIPT',
+          message: 'Posting would exceed ordered quantity',
+        });
+      }
+    }
+
+    const lines = await Promise.all(
+      receipt.items
+        .filter((line) => compareQty(line.acceptedQuantity, '0') > 0)
+        .map(async (line) => {
+          const [item, policy] = await Promise.all([
+            this.items.getItem(receipt.organizationId, line.itemId),
+            this.policies.getPolicy(receipt.organizationId, line.item.inventoryPolicyId),
+          ]);
+          assertActiveReference(policy.status, 'POLICY');
+          return {
+            goodsReceiptItemId: line.id,
+            itemId: line.itemId,
+            acceptedQuantity: line.acceptedQuantity,
+            actualUnitPrice: line.actualUnitPrice,
+            receivedAt: receipt.receivedAt,
+            itemType: item.itemType,
+            defaultShelfLifeDays: policy.defaultShelfLifeDays,
+          };
+        }),
+    );
+
+    await this.inventoryPosting.postGoodsReceipt({
+      organizationId: receipt.organizationId,
+      storeId: receipt.storeId,
+      warehouseId: receipt.warehouseId,
+      goodsReceiptId: receipt.id,
+      idempotencyKey,
+      lines,
+    });
+
+    const posted = await this.supplies.setReceiptPosted(receipt.id, this.clock.now());
+    await this.recalculate(supply);
+    await this.auditAction(
+      receipt.organizationId,
+      receipt.storeId,
+      'goods_receipt.posted',
+      receipt.id,
+    );
+    return posted;
   }
 
   async reverseGoodsReceipt(input: {

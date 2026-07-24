@@ -1,10 +1,10 @@
 export const DELIVERY_STATUS_LABELS: Record<string, string> = {
   DRAFT: 'Черновик',
-  PLANNED: 'Запланирована',
-  READY_FOR_DISPATCH: 'Готова к отправке',
-  ASSIGNED: 'Назначена',
-  IN_TRANSIT: 'В пути',
-  DELIVERED: 'Доставлена',
+  PLANNED: 'Ожидает',
+  READY_FOR_DISPATCH: 'К передаче',
+  ASSIGNED: 'К передаче',
+  IN_TRANSIT: 'Передали в доставку',
+  DELIVERED: 'Доставили',
   PROBLEM: 'Проблема',
   CANCELLED: 'Отменена',
 };
@@ -26,14 +26,14 @@ export const DELIVERY_PROBLEM_TYPES = [
 ] as const;
 
 export const BOARD_SECTION_LABELS: Record<string, string> = {
-  needsPlanning: 'Требуют планирования',
-  withoutCourier: 'Без курьера',
-  orderPreparing: 'Заказ готовится',
-  readyForDispatch: 'Готовы к отправке',
-  assigned: 'Назначены',
-  inTransit: 'В пути',
+  needsPlanning: 'Ожидают',
+  withoutCourier: 'К передаче',
+  orderPreparing: 'Ещё собирается',
+  readyForDispatch: 'К передаче',
+  assigned: 'К передаче',
+  inTransit: 'Передали в доставку',
   problems: 'Проблемы',
-  delivered: 'Доставлены',
+  delivered: 'Доставили',
 };
 
 export function deliveryStatusLabel(status: string): string {

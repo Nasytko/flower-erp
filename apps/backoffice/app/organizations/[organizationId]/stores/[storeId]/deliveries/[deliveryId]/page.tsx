@@ -6,9 +6,7 @@ import { useParams } from 'next/navigation';
 import { Button, Card, Input } from '@flower/ui';
 import {
   ApiClientError,
-  type CourierProfileDto,
   type DeliveryJobDto,
-  type DeliveryRoutePlanDto,
   type DeliverySummaryDto,
   type DeliveryTimelineEventDto,
 } from '@flower/api-client';
@@ -21,7 +19,6 @@ import { ErrorState, LoadingState } from '@/components/layout/states';
 import { StatusBadge } from '@/components/layout/status-badge';
 import { ConfirmDialog, InlineAlert } from '@/components/workspace/workspace-ui';
 import {
-  DELIVERY_METHOD_LABELS,
   DELIVERY_PROBLEM_TYPES,
   deliveryStatusLabel,
   formatWindow,
@@ -48,22 +45,18 @@ export default function DeliveryDetailPage() {
 
   const [summary, setSummary] = useState<DeliverySummaryDto | null>(null);
   const [timeline, setTimeline] = useState<DeliveryTimelineEventDto[]>([]);
-  const [couriers, setCouriers] = useState<CourierProfileDto[]>([]);
-  const [route, setRoute] = useState<DeliveryRoutePlanDto | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [courierId, setCourierId] = useState('');
   const [problemType, setProblemType] = useState<string>(DELIVERY_PROBLEM_TYPES[0]);
   const [problemDescription, setProblemDescription] = useState('');
-  const [resolveToStatus, setResolveToStatus] = useState('ASSIGNED');
+  const [resolveToStatus, setResolveToStatus] = useState('IN_TRANSIT');
   const [resolution, setResolution] = useState('');
   const [confirmCancel, setConfirmCancel] = useState(false);
-  const [lat, setLat] = useState('');
-  const [lng, setLng] = useState('');
 
   const canRead = auth.hasPermission('delivery:read');
   const canPayment = auth.hasPermission('delivery:view-payment-summary');
+  const canAudit = auth.hasPermission('audit:read');
 
   const job = summary?.delivery ?? null;
   const problems = useMemo(() => openProblemIds(timeline), [timeline]);
@@ -73,29 +66,18 @@ export default function DeliveryDetailPage() {
     setError(null);
     try {
       const client = getApiClient();
-      const [sum, tl, courierList, routes] = await Promise.all([
+      const [sum, tl] = await Promise.all([
         client.getDeliverySummary(organizationId, storeId, deliveryId),
         client.getDeliveryTimeline(organizationId, storeId, deliveryId),
-        auth.hasPermission('delivery:assign') || auth.hasPermission('delivery:read')
-          ? client.listCouriers(organizationId, storeId, { status: 'ACTIVE' })
-          : Promise.resolve([] as CourierProfileDto[]),
-        client.listDeliveryRoutes(organizationId, storeId),
       ]);
       setSummary(sum);
       setTimeline(tl);
-      setCouriers(courierList);
-      setLat(sum.delivery.latitude ?? '');
-      setLng(sum.delivery.longitude ?? '');
-      setCourierId(sum.delivery.assignedCourierId ?? '');
-      const matched =
-        routes.find((r) => r.stops.some((s) => s.deliveryJobId === deliveryId)) ?? null;
-      setRoute(matched);
     } catch (err) {
       setError(err instanceof ApiClientError ? err.message : 'Не удалось загрузить доставку');
     } finally {
       setLoading(false);
     }
-  }, [organizationId, storeId, deliveryId, auth]);
+  }, [organizationId, storeId, deliveryId]);
 
   useEffect(() => {
     if (!canRead) return;
@@ -134,11 +116,11 @@ export default function DeliveryDetailPage() {
         withVersion({
           addressLine: String(form.get('addressLine') || ''),
           city: String(form.get('city') || ''),
-          postalCode: String(form.get('postalCode') || '') || null,
-          entrance: String(form.get('entrance') || '') || null,
-          floor: String(form.get('floor') || '') || null,
-          apartment: String(form.get('apartment') || '') || null,
-          accessCode: String(form.get('accessCode') || '') || null,
+          postalCode: job.postalCode,
+          entrance: job.entrance,
+          floor: job.floor,
+          apartment: job.apartment,
+          accessCode: job.accessCode,
           deliveryComment: String(form.get('deliveryComment') || '') || null,
           recipientName: String(form.get('recipientName') || '') || undefined,
           recipientPhone: String(form.get('recipientPhone') || '') || undefined,
@@ -184,17 +166,10 @@ export default function DeliveryDetailPage() {
         {!loading && summary && job ? (
           <>
             <Section>
-              <Card title="Статус и действия">
+              <Card title="Статус">
                 <div className="meta-row">
                   <StatusBadge status={job.status} />
                   <span>{deliveryStatusLabel(job.status)}</span>
-                  {summary.urgency && summary.urgency !== 'NORMAL' ? (
-                    <span className={`urgency-badge urgency-badge--${summary.urgency.toLowerCase()}`}>
-                      {summary.urgency}
-                    </span>
-                  ) : null}
-                  <span>v{job.version}</span>
-                  <span>{DELIVERY_METHOD_LABELS[job.method] ?? job.method}</span>
                 </div>
                 <p style={{ marginTop: 12 }}>
                   Заказ:{' '}
@@ -203,10 +178,27 @@ export default function DeliveryDetailPage() {
                   ) : (
                     job.orderId
                   )}
-                  {summary.orderStatus ? ` · ${summary.orderStatus}` : ''}
-                  {summary.orderReady ? ' · готов' : ''}
+                  {summary.orderReady ? ' · букет готов' : ' · ещё собирается'}
+                </p>
+                <p className="field__hint">
+                  Курьера не назначаем. Достаточно статусов: к передаче → передали → доставили.
                 </p>
                 <div className="delivery-action-row" style={{ marginTop: 16 }}>
+                  {auth.hasPermission('delivery:dispatch') && job.status === 'DRAFT' ? (
+                    <Button
+                      type="button"
+                      disabled={busy}
+                      onClick={() =>
+                        void run(() =>
+                          getApiClient().planDelivery(organizationId, storeId, deliveryId, {
+                            expectedVersion: job.version,
+                          }),
+                        )
+                      }
+                    >
+                      Подтвердить
+                    </Button>
+                  ) : null}
                   {auth.hasPermission('delivery:dispatch') &&
                   (job.status === 'PLANNED' || job.status === 'ASSIGNED') ? (
                     <Button
@@ -223,43 +215,36 @@ export default function DeliveryDetailPage() {
                         )
                       }
                     >
-                      Готово к отправке
+                      К передаче
                     </Button>
                   ) : null}
                   {auth.hasPermission('delivery:dispatch') &&
                   (job.status === 'READY_FOR_DISPATCH' || job.status === 'ASSIGNED') ? (
-                    <>
-                      <Button
-                        type="button"
-                        disabled={busy}
-                        onClick={() =>
-                          void run(() =>
-                            getApiClient().handoverDelivery(organizationId, storeId, deliveryId, {
-                              expectedVersion: job.version,
-                            }),
-                          )
-                        }
-                      >
-                        Передать курьеру
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        disabled={busy}
-                        onClick={() =>
-                          void run(() =>
-                            getApiClient().startDeliveryTransit(
+                    <Button
+                      type="button"
+                      disabled={busy}
+                      onClick={() =>
+                        void run(async () => {
+                          const client = getApiClient();
+                          let current = job;
+                          if (!current.handedOverAt) {
+                            current = await client.handoverDelivery(
                               organizationId,
                               storeId,
                               deliveryId,
-                              { expectedVersion: job.version },
-                            ),
-                          )
-                        }
-                      >
-                        В путь
-                      </Button>
-                    </>
+                              { expectedVersion: current.version },
+                            );
+                          }
+                          if (current.status !== 'IN_TRANSIT') {
+                            await client.startDeliveryTransit(organizationId, storeId, deliveryId, {
+                              expectedVersion: current.version,
+                            });
+                          }
+                        })
+                      }
+                    >
+                      Передали в доставку
+                    </Button>
                   ) : null}
                   {auth.hasPermission('delivery:complete') && job.status === 'IN_TRANSIT' ? (
                     <Button
@@ -277,7 +262,7 @@ export default function DeliveryDetailPage() {
                         )
                       }
                     >
-                      Доставлено
+                      Доставили
                     </Button>
                   ) : null}
                   {auth.hasPermission('delivery:cancel') &&
@@ -291,30 +276,32 @@ export default function DeliveryDetailPage() {
                       Отменить
                     </Button>
                   ) : null}
-                  {summary.navigationUrl ? (
-                    <a href={summary.navigationUrl} target="_blank" rel="noreferrer">
-                      <Button type="button" variant="secondary">
-                        Открыть в навигаторе
-                      </Button>
-                    </a>
-                  ) : null}
                 </div>
               </Card>
             </Section>
 
             <Section>
-              <Card title="Адрес">
-                {auth.hasPermission('delivery:update') ? (
+              <Card title="Адрес из заказа">
+                {auth.hasPermission('delivery:update') &&
+                !['DELIVERED', 'CANCELLED', 'IN_TRANSIT'].includes(job.status) ? (
                   <form className="stack-form" onSubmit={onUpdateAddress}>
-                    <Input name="recipientName" defaultValue={job.recipientName} placeholder="Получатель" />
-                    <Input name="recipientPhone" defaultValue={job.recipientPhone} placeholder="Телефон" />
-                    <Input name="addressLine" defaultValue={job.addressLine} placeholder="Адрес" required />
+                    <Input
+                      name="recipientName"
+                      defaultValue={job.recipientName}
+                      placeholder="Получатель"
+                    />
+                    <Input
+                      name="recipientPhone"
+                      defaultValue={job.recipientPhone}
+                      placeholder="Телефон"
+                    />
+                    <Input
+                      name="addressLine"
+                      defaultValue={job.addressLine}
+                      placeholder="Адрес"
+                      required
+                    />
                     <Input name="city" defaultValue={job.city} placeholder="Город" required />
-                    <Input name="postalCode" defaultValue={job.postalCode ?? ''} placeholder="Индекс" />
-                    <Input name="entrance" defaultValue={job.entrance ?? ''} placeholder="Подъезд" />
-                    <Input name="floor" defaultValue={job.floor ?? ''} placeholder="Этаж" />
-                    <Input name="apartment" defaultValue={job.apartment ?? ''} placeholder="Кв." />
-                    <Input name="accessCode" defaultValue={job.accessCode ?? ''} placeholder="Код" />
                     <Input
                       name="deliveryComment"
                       defaultValue={job.deliveryComment ?? ''}
@@ -325,157 +312,18 @@ export default function DeliveryDetailPage() {
                     </Button>
                   </form>
                 ) : (
-                  <p>{job.displayAddress}</p>
+                  <div className="stack-form">
+                    <p className="order-address">
+                      <strong>{job.displayAddress}</strong>
+                    </p>
+                    <p>
+                      {job.recipientName}
+                      {job.recipientPhone ? ` · ${job.recipientPhone}` : ''}
+                    </p>
+                  </div>
                 )}
-                <div className="stack-form" style={{ marginTop: 16 }}>
-                  <p>
-                    Геокодирование: <StatusBadge status={job.geocodingStatus} />{' '}
-                    {job.geocodingStatus}
-                  </p>
-                  {auth.hasPermission('delivery:update') ? (
-                    <>
-                      <div className="delivery-action-row">
-                        <Button
-                          type="button"
-                          variant="secondary"
-                          disabled={busy}
-                          onClick={() =>
-                            void run(() =>
-                              getApiClient().geocodeDelivery(organizationId, storeId, deliveryId, {
-                                expectedVersion: job.version,
-                              }),
-                            )
-                          }
-                        >
-                          Геокодировать
-                        </Button>
-                      </div>
-                      <label>
-                        Широта
-                        <Input value={lat} onChange={(e) => setLat(e.target.value)} />
-                      </label>
-                      <label>
-                        Долгота
-                        <Input value={lng} onChange={(e) => setLng(e.target.value)} />
-                      </label>
-                      <Button
-                        type="button"
-                        disabled={busy || !lat.trim() || !lng.trim()}
-                        onClick={() =>
-                          void run(() =>
-                            getApiClient().setDeliveryCoordinates(
-                              organizationId,
-                              storeId,
-                              deliveryId,
-                              {
-                                expectedVersion: job.version,
-                                latitude: lat.trim(),
-                                longitude: lng.trim(),
-                              },
-                            ),
-                          )
-                        }
-                      >
-                        Сохранить координаты
-                      </Button>
-                    </>
-                  ) : null}
-                </div>
               </Card>
             </Section>
-
-            <Section>
-              <Card title="Курьер">
-                <div className="stack-form">
-                  <label>
-                    Курьер
-                    <select value={courierId} onChange={(e) => setCourierId(e.target.value)}>
-                      <option value="">—</option>
-                      {couriers.map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.displayNameSnapshot}
-                          {c.phoneSnapshot ? ` (${c.phoneSnapshot})` : ''}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  {auth.hasPermission('delivery:assign') ? (
-                    <div className="delivery-action-row">
-                      {!job.assignedCourierId ? (
-                        <Button
-                          type="button"
-                          disabled={busy || !courierId}
-                          onClick={() =>
-                            void run(() =>
-                              getApiClient().assignDeliveryCourier(
-                                organizationId,
-                                storeId,
-                                deliveryId,
-                                { expectedVersion: job.version, courierProfileId: courierId },
-                              ),
-                            )
-                          }
-                        >
-                          Назначить
-                        </Button>
-                      ) : (
-                        <>
-                          <Button
-                            type="button"
-                            disabled={busy || !courierId}
-                            onClick={() =>
-                              void run(() =>
-                                getApiClient().reassignDeliveryCourier(
-                                  organizationId,
-                                  storeId,
-                                  deliveryId,
-                                  { expectedVersion: job.version, courierProfileId: courierId },
-                                ),
-                              )
-                            }
-                          >
-                            Переназначить
-                          </Button>
-                          <Button
-                            type="button"
-                            variant="secondary"
-                            disabled={busy}
-                            onClick={() =>
-                              void run(() =>
-                                getApiClient().releaseDeliveryCourier(
-                                  organizationId,
-                                  storeId,
-                                  deliveryId,
-                                  { expectedVersion: job.version, reason: 'Released from UI' },
-                                ),
-                              )
-                            }
-                          >
-                            Снять курьера
-                          </Button>
-                        </>
-                      )}
-                    </div>
-                  ) : null}
-                </div>
-              </Card>
-            </Section>
-
-            {route ? (
-              <Section>
-                <Card title="Маршрут">
-                  <p>
-                    <Link href={`${base}/delivery-routes/${route.id}`}>
-                      {route.name} ({route.status})
-                    </Link>
-                  </p>
-                  <p>
-                    Стоп #
-                    {route.stops.find((s) => s.deliveryJobId === deliveryId)?.sequence ?? '—'}
-                  </p>
-                </Card>
-              </Section>
-            ) : null}
 
             {canPayment && summary.payment ? (
               <Section>
@@ -484,7 +332,6 @@ export default function DeliveryDetailPage() {
                     <StatusBadge status={summary.payment.paymentStatus} />
                     <span>Итого: {summary.payment.orderTotal}</span>
                     <span>Оплачено: {summary.payment.paidAmount}</span>
-                    <span>Возврат: {summary.payment.refundedAmount}</span>
                     <span>К доплате: {summary.payment.balanceDue}</span>
                   </div>
                 </Card>
@@ -495,7 +342,7 @@ export default function DeliveryDetailPage() {
               <Card title="Проблемы">
                 {job.status === 'PROBLEM' ? (
                   <InlineAlert tone="warning" title="Открытая проблема">
-                    Статус PROBLEM. Разрешите проблему ниже.
+                    Нужно разрешить проблему ниже.
                   </InlineAlert>
                 ) : null}
                 {auth.hasPermission('delivery:report-problem') &&
@@ -566,13 +413,11 @@ export default function DeliveryDetailPage() {
                         value={resolveToStatus}
                         onChange={(e) => setResolveToStatus(e.target.value)}
                       >
-                        {['PLANNED', 'ASSIGNED', 'IN_TRANSIT', 'DELIVERED', 'CANCELLED'].map(
-                          (s) => (
-                            <option key={s} value={s}>
-                              {deliveryStatusLabel(s)}
-                            </option>
-                          ),
-                        )}
+                        {['PLANNED', 'IN_TRANSIT', 'DELIVERED', 'CANCELLED'].map((s) => (
+                          <option key={s} value={s}>
+                            {deliveryStatusLabel(s)}
+                          </option>
+                        ))}
                       </select>
                     </label>
                     <Input
@@ -582,28 +427,22 @@ export default function DeliveryDetailPage() {
                       required
                     />
                     <Button type="submit" disabled={busy}>
-                      Разрешить проблему
+                      Разрешить
                     </Button>
                   </form>
                 ) : null}
               </Card>
             </Section>
 
-            <Section>
-              <Card title="Таймлайн">
-                <ul className="list-stack">
-                  {timeline.map((event) => (
-                    <li key={event.id}>
-                      <div className="meta-row">
-                        <StatusBadge status={event.type} />
-                        <span>{new Date(event.occurredAt).toLocaleString()}</span>
-                      </div>
-                      {event.message ? <p>{event.message}</p> : null}
-                    </li>
-                  ))}
-                </ul>
-              </Card>
-            </Section>
+            <p className="field__hint">
+              История действий — в журнале аудита.
+              {canAudit ? (
+                <>
+                  {' '}
+                  <Link href={`/organizations/${organizationId}/audit`}>Открыть аудит</Link>
+                </>
+              ) : null}
+            </p>
           </>
         ) : null}
       </PageContainer>
@@ -611,23 +450,21 @@ export default function DeliveryDetailPage() {
       <ConfirmDialog
         open={confirmCancel}
         title="Отменить доставку?"
-        message="Доставка будет отменена. Это действие нельзя отменить."
+        message="Доставка будет отменена. Заказ останется — его можно переоформить."
         confirmLabel="Отменить доставку"
-        destructive
         busy={busy}
         onCancel={() => setConfirmCancel(false)}
         onConfirm={() => {
           if (!job) return;
-          setConfirmCancel(false);
           void run(() =>
             getApiClient().cancelDelivery(
               organizationId,
               storeId,
               deliveryId,
-              { expectedVersion: job.version, reason: null },
+              { expectedVersion: job.version, reason: 'Cancelled from UI' },
               { idempotencyKey: newIdempotencyKey('cancel') },
             ),
-          );
+          ).then(() => setConfirmCancel(false));
         }}
       />
     </main>

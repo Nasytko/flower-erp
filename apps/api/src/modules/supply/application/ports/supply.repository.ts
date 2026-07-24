@@ -35,6 +35,7 @@ export type SupplyView = {
   createdAt: Date;
   updatedAt: Date;
   items: SupplyItemView[];
+  supplier?: { id: string; name: string; code: string };
 };
 
 export type ReceiptItemView = {
@@ -92,6 +93,13 @@ export interface SupplyRepository {
     supplyId: string,
     itemId: string,
   ): Promise<{ count: number }>;
+  updateSupplyItem(input: {
+    organizationId: string;
+    supplyId: string;
+    itemId: string;
+    orderedQuantity: string;
+    plannedUnitPrice: string;
+  }): Promise<SupplyItemView | null>;
   updateSupplyStatus(
     id: string,
     status: string,

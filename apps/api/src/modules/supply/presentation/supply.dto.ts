@@ -18,6 +18,14 @@ export class SupplyItemDto {
   @IsString() orderedQuantity!: string;
   @IsOptional() @IsString() plannedUnitPrice?: string;
 }
+export class UpdateSupplyItemDto {
+  @IsString() orderedQuantity!: string;
+  @IsString() plannedUnitPrice!: string;
+}
+export class ReceiveSupplyDto {
+  @IsOptional() @IsDateString() receivedAt?: string;
+  @IsOptional() @IsString() @MaxLength(2000) comment?: string;
+}
 export class CreateReceiptDto {
   @IsDateString() receivedAt!: string;
   @IsOptional() @IsString() @MaxLength(2000) comment?: string;

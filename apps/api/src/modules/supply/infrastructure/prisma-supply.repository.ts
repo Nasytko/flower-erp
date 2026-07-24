@@ -86,6 +86,9 @@ function mapSupply(row: Prisma.SupplyGetPayload<{ include: typeof supplyInclude 
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
     items: row.items.map(mapSupplyItem),
+    supplier: row.supplier
+      ? { id: row.supplier.id, name: row.supplier.name, code: row.supplier.code }
+      : undefined,
   };
 }
 
@@ -195,6 +198,32 @@ export class PrismaSupplyRepository implements SupplyRepository {
 
   removeSupplyItem(organizationId: string, supplyId: string, itemId: string) {
     return this.client.supplyItem.deleteMany({ where: { organizationId, supplyId, itemId } });
+  }
+
+  async updateSupplyItem(input: {
+    organizationId: string;
+    supplyId: string;
+    itemId: string;
+    orderedQuantity: string;
+    plannedUnitPrice: string;
+  }) {
+    const existing = await this.client.supplyItem.findFirst({
+      where: {
+        organizationId: input.organizationId,
+        supplyId: input.supplyId,
+        itemId: input.itemId,
+      },
+    });
+    if (!existing) return null;
+    const row = await this.client.supplyItem.update({
+      where: { id: existing.id },
+      data: {
+        orderedQuantity: new Prisma.Decimal(input.orderedQuantity),
+        plannedUnitPrice: new Prisma.Decimal(input.plannedUnitPrice),
+      },
+      include: { item: true },
+    });
+    return mapSupplyItem(row);
   }
 
   async updateSupplyStatus(id: string, status: string, submittedAt?: Date | null) {

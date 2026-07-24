@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useId, useState, type FormEvent } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import { Button, Card, Input } from '@flower/ui';
 import { getApiClient } from '@/lib/api-client';
 import { PageContainer } from '@/components/layout/page-container';
@@ -45,7 +45,6 @@ function formatMoney(value: string | null | undefined): string {
 
 export default function SupplyDetailPage() {
   const params = useParams<{ organizationId: string; storeId: string; supplyId: string }>();
-  const router = useRouter();
   const { organizationId, storeId, supplyId } = params;
   const base = `/organizations/${organizationId}/stores/${storeId}`;
   const draftQtyId = useId();
@@ -56,11 +55,9 @@ export default function SupplyDetailPage() {
     number: string;
     status: string;
     warehouseId: string;
+    supplier?: { name: string; code: string };
     items: SupplyLine[];
   } | null>(null);
-  const [receipts, setReceipts] = useState<Array<{ id: string; number: string; status: string }>>(
-    [],
-  );
   const [catalog, setCatalog] = useState<CatalogItem[]>([]);
   const [units, setUnits] = useState<Ref[]>([]);
   const [itemId, setItemId] = useState('');
@@ -70,6 +67,9 @@ export default function SupplyDetailPage() {
   const [quickName, setQuickName] = useState('');
   const [quickType, setQuickType] = useState<'FLOWER' | 'MATERIAL'>('FLOWER');
   const [quickUnitId, setQuickUnitId] = useState('');
+  const [editingItemId, setEditingItemId] = useState<string | null>(null);
+  const [editQty, setEditQty] = useState('');
+  const [editCost, setEditCost] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -79,14 +79,12 @@ export default function SupplyDetailPage() {
     setError(null);
     try {
       const client = getApiClient();
-      const [s, r, items, unts] = await Promise.all([
+      const [s, items, unts] = await Promise.all([
         client.getSupply(organizationId, storeId, supplyId),
-        client.listGoodsReceipts(organizationId, storeId, supplyId),
         client.listItems(organizationId, { pageSize: 100, status: 'ACTIVE' }),
         client.listUnits(organizationId, 1, 100),
       ]);
       setSupply(s);
-      setReceipts(r);
       const purchasable = items.items.filter((item) => item.isPurchasable !== false);
       setCatalog(purchasable);
       setItemId((current) => {
@@ -112,6 +110,46 @@ export default function SupplyDetailPage() {
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [organizationId, storeId, supplyId]);
+
+  function startEdit(line: SupplyLine) {
+    setEditingItemId(line.itemId);
+    setEditQty(line.orderedQuantity);
+    setEditCost(line.plannedUnitPrice ?? '');
+    setError(null);
+  }
+
+  function cancelEdit() {
+    setEditingItemId(null);
+    setEditQty('');
+    setEditCost('');
+  }
+
+  async function onSaveEdit(line: SupplyLine) {
+    setBusy(true);
+    setError(null);
+    try {
+      if (!editQty.trim() || Number(editQty) <= 0) {
+        setError('Укажите количество больше нуля');
+        setBusy(false);
+        return;
+      }
+      if (!editCost.trim() || Number(editCost) < 0) {
+        setError('Укажите себестоимость за единицу (BYN)');
+        setBusy(false);
+        return;
+      }
+      await getApiClient().updateSupplyItem(organizationId, storeId, supplyId, line.itemId, {
+        orderedQuantity: editQty,
+        plannedUnitPrice: editCost,
+      });
+      cancelEdit();
+      await load();
+    } catch (err) {
+      setError(formatApiErrorMessage(err, 'Не удалось сохранить строку'));
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function onAddItem(event: FormEvent) {
     event.preventDefault();
@@ -154,10 +192,11 @@ export default function SupplyDetailPage() {
   }
 
   async function onRemoveLine(line: SupplyLine) {
-    if (!window.confirm(`Убрать «${line.item?.name ?? 'позицию'}» из поставки?`)) return;
+    if (!window.confirm(`Убрать «${line.item?.name ?? 'позицию'}» из приёмки?`)) return;
     setBusy(true);
     setError(null);
     try {
+      if (editingItemId === line.itemId) cancelEdit();
       await getApiClient().removeSupplyItem(organizationId, storeId, supplyId, line.itemId);
       await load();
     } catch (err) {
@@ -199,54 +238,81 @@ export default function SupplyDetailPage() {
     }
   }
 
-  async function onSubmit() {
+  async function onReceive() {
+    if (
+      !window.confirm(
+        'Оприходовать все позиции на склад? После проведения изменить документ нельзя.',
+      )
+    ) {
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
-      await getApiClient().submitSupply(organizationId, storeId, supplyId);
+      await getApiClient().receiveSupply(
+        organizationId,
+        storeId,
+        supplyId,
+        { receivedAt: new Date().toISOString() },
+        crypto.randomUUID(),
+      );
       await load();
     } catch (err) {
-      setError(formatApiErrorMessage(err, 'Не удалось отправить'));
+      setError(formatApiErrorMessage(err, 'Не удалось оприходовать'));
     } finally {
       setBusy(false);
     }
   }
 
-  async function onCreateReceipt() {
+  async function onAnnul() {
+    if (!window.confirm('Аннулировать черновик приёмки?')) return;
     setBusy(true);
     setError(null);
     try {
-      const receipt = await getApiClient().createGoodsReceipt(organizationId, storeId, supplyId, {
-        receivedAt: new Date().toISOString(),
-      });
-      router.push(`${base}/supplies/${supplyId}/receipts/${receipt.id}`);
+      await getApiClient().annulSupply(organizationId, storeId, supplyId);
+      await load();
     } catch (err) {
-      setError(formatApiErrorMessage(err, 'Не удалось создать приёмку'));
+      setError(formatApiErrorMessage(err, 'Не удалось аннулировать'));
+    } finally {
       setBusy(false);
     }
   }
 
   const draft = supply?.status === 'DRAFT';
-  const receivable =
-    supply?.status === 'SUBMITTED_TO_SUPPLIER' || supply?.status === 'PARTIALLY_RECEIVED';
+  const posted = supply?.status === 'RECEIVED' || supply?.status === 'PARTIALLY_RECEIVED';
   const draftTotal = lineTotal(qty, unitCost);
   const supplyTotal =
     supply?.items.reduce((sum, line) => {
       const part = lineTotal(line.orderedQuantity, line.plannedUnitPrice);
       return sum + (part ? Number(part) : 0);
     }, 0) ?? 0;
+  const canReceive =
+    draft &&
+    supply.items.length > 0 &&
+    supply.items.every(
+      (line) =>
+        line.plannedUnitPrice != null &&
+        Number(line.plannedUnitPrice) >= 0 &&
+        Number(line.orderedQuantity) > 0,
+    );
 
   return (
     <main>
       <PageContainer>
         <PageHeader
-          title={supply?.number ?? 'Поставка'}
-          description="Заполняйте строки: товар, количество и себестоимость. На телефоне поля идут столбь."
+          title={supply?.number ?? 'Приёмка'}
+          description={
+            draft
+              ? 'Добавьте товары, укажите количество и себестоимость. Когда всё верно — проведите на склад.'
+              : posted
+                ? 'Документ проведён: остатки на складе обновлены.'
+                : 'Документ приёмки.'
+          }
           breadcrumbs={[
             { label: 'Организации', href: '/organizations' },
             { label: 'Магазин', href: base },
-            { label: 'Поставки', href: `${base}/supplies` },
-            { label: supply?.number ?? 'Поставка' },
+            { label: 'Приёмки', href: `${base}/supplies` },
+            { label: supply?.number ?? 'Приёмка' },
           ]}
           actions={supply ? <StatusBadge status={supply.status} /> : undefined}
         />
@@ -254,16 +320,30 @@ export default function SupplyDetailPage() {
         {error ? <ErrorState message={error} /> : null}
         {supply ? (
           <>
+            {supply.supplier?.name ? (
+              <p style={{ margin: '0 0 12px', color: 'var(--color-muted)', fontSize: 'var(--text-sm)' }}>
+                Поставщик: <strong style={{ color: 'var(--color-foreground)' }}>{supply.supplier.name}</strong>
+              </p>
+            ) : null}
+
             <Section>
               <Card title="Позиции">
                 {supply.items.length > 0 ? (
-                  <p
-                    className="supply-lines__sum"
-                    style={{ margin: '0 0 12px', fontSize: 'var(--text-sm)' }}
-                  >
+                  <p className="supply-lines__sum" style={{ margin: '0 0 12px', fontSize: 'var(--text-sm)' }}>
                     Итого: {supplyTotal.toFixed(2)} BYN
+                    {draft ? (
+                      <span style={{ fontWeight: 400, color: 'var(--color-muted)' }}>
+                        {' '}
+                        · можно править до проведения
+                      </span>
+                    ) : null}
                   </p>
-                ) : null}
+                ) : (
+                  <p className="supply-lines__empty" style={{ marginBottom: 12 }}>
+                    Пока пусто. Добавьте первую позицию ниже.
+                  </p>
+                )}
+
                 <div className="supply-lines">
                   <div className="supply-lines__head" aria-hidden="true">
                     <span>Товар</span>
@@ -273,14 +353,17 @@ export default function SupplyDetailPage() {
                     <span />
                   </div>
 
-                  {supply.items.length === 0 && !draft ? (
-                    <p className="supply-lines__empty">Позиций пока нет</p>
-                  ) : null}
-
                   {supply.items.map((line) => {
-                    const total = lineTotal(line.orderedQuantity, line.plannedUnitPrice);
+                    const isEditing = draft && editingItemId === line.itemId;
+                    const total = lineTotal(
+                      isEditing ? editQty : line.orderedQuantity,
+                      isEditing ? editCost : line.plannedUnitPrice,
+                    );
                     return (
-                      <div key={line.id} className="supply-lines__row">
+                      <div
+                        key={line.id}
+                        className={`supply-lines__row${isEditing ? ' supply-lines__row--draft' : ''}`}
+                      >
                         <div className="supply-lines__cell">
                           <span className="supply-lines__label">Товар</span>
                           <div className="supply-lines__value">
@@ -292,13 +375,33 @@ export default function SupplyDetailPage() {
                         </div>
                         <div className="supply-lines__cell">
                           <span className="supply-lines__label">Количество</span>
-                          <div className="supply-lines__value">{line.orderedQuantity}</div>
+                          {isEditing ? (
+                            <Input
+                              className="supply-lines__input"
+                              value={editQty}
+                              onChange={(e) => setEditQty(e.target.value)}
+                              inputMode="decimal"
+                              aria-label="Количество"
+                            />
+                          ) : (
+                            <div className="supply-lines__value">{line.orderedQuantity}</div>
+                          )}
                         </div>
                         <div className="supply-lines__cell">
                           <span className="supply-lines__label">Себес / ед.</span>
-                          <div className="supply-lines__value">
-                            {formatMoney(line.plannedUnitPrice)}
-                          </div>
+                          {isEditing ? (
+                            <Input
+                              className="supply-lines__input"
+                              value={editCost}
+                              onChange={(e) => setEditCost(e.target.value)}
+                              inputMode="decimal"
+                              aria-label="Себестоимость"
+                            />
+                          ) : (
+                            <div className="supply-lines__value">
+                              {formatMoney(line.plannedUnitPrice)}
+                            </div>
+                          )}
                         </div>
                         <div className="supply-lines__cell">
                           <span className="supply-lines__label">Сумма</span>
@@ -307,15 +410,44 @@ export default function SupplyDetailPage() {
                           </div>
                         </div>
                         <div className="supply-lines__actions">
-                          {draft ? (
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              disabled={busy}
-                              onClick={() => void onRemoveLine(line)}
-                            >
-                              Убрать
-                            </Button>
+                          {draft && !isEditing ? (
+                            <>
+                              <Button
+                                type="button"
+                                variant="secondary"
+                                disabled={busy || editingItemId != null}
+                                onClick={() => startEdit(line)}
+                              >
+                                Изменить
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                disabled={busy || editingItemId != null}
+                                onClick={() => void onRemoveLine(line)}
+                              >
+                                Убрать
+                              </Button>
+                            </>
+                          ) : null}
+                          {isEditing ? (
+                            <>
+                              <Button
+                                type="button"
+                                disabled={busy}
+                                onClick={() => void onSaveEdit(line)}
+                              >
+                                Сохранить
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                disabled={busy}
+                                onClick={cancelEdit}
+                              >
+                                Отмена
+                              </Button>
+                            </>
                           ) : null}
                         </div>
                       </div>
@@ -374,7 +506,7 @@ export default function SupplyDetailPage() {
                         </div>
                       </div>
                       <div className="supply-lines__actions">
-                        <Button type="submit" disabled={busy || !itemId}>
+                        <Button type="submit" disabled={busy || !itemId || editingItemId != null}>
                           {busy ? '…' : 'Добавить'}
                         </Button>
                       </div>
@@ -457,20 +589,26 @@ export default function SupplyDetailPage() {
                 ) : null}
               </Card>
             </Section>
+
             <Section>
               <div className="page-header__actions">
                 {draft ? (
                   <Button
                     type="button"
-                    disabled={busy || supply.items.length === 0}
-                    onClick={() => void onSubmit()}
+                    disabled={busy || !canReceive || editingItemId != null}
+                    onClick={() => void onReceive()}
                   >
-                    Отправить поставщику
+                    Провести на склад
                   </Button>
                 ) : null}
-                {receivable ? (
-                  <Button type="button" disabled={busy} onClick={() => void onCreateReceipt()}>
-                    Создать приёмку
+                {draft ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    disabled={busy}
+                    onClick={() => void onAnnul()}
+                  >
+                    Аннулировать
                   </Button>
                 ) : null}
                 <Link href={`${base}/warehouses/${supply.warehouseId}/inventory`}>
@@ -478,23 +616,17 @@ export default function SupplyDetailPage() {
                     Остатки склада
                   </Button>
                 </Link>
+                <Link href={`${base}/supplies`}>
+                  <Button type="button" variant="ghost">
+                    К списку
+                  </Button>
+                </Link>
               </div>
-            </Section>
-            <Section>
-              <Card title="Приёмки">
-                <ul className="list-stack">
-                  {receipts.map((r) => (
-                    <li key={r.id}>
-                      <Link href={`${base}/supplies/${supplyId}/receipts/${r.id}`}>
-                        <div className="meta-row">
-                          <strong>{r.number}</strong>
-                          <StatusBadge status={r.status} />
-                        </div>
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              </Card>
+              {draft && supply.items.length > 0 && !canReceive ? (
+                <p style={{ marginTop: 12, fontSize: 'var(--text-sm)', color: 'var(--color-muted)' }}>
+                  Чтобы провести, у каждой позиции должны быть количество и себестоимость.
+                </p>
+              ) : null}
             </Section>
           </>
         ) : null}

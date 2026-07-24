@@ -44,6 +44,7 @@ export function NavIcon({ label }: { label: string }): ReactNode {
           <path d="M3.3 7 12 12l8.7-5M12 22V12" />
         </svg>
       );
+    case 'Приёмки':
     case 'Поставки':
       return (
         <svg {...svgProps}>

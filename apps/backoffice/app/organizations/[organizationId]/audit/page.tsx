@@ -42,7 +42,7 @@ export default function AuditPage() {
       <PageContainer>
         <PageHeader
           title="Журнал аудита"
-          description="Только добавление: события безопасности и бизнеса"
+          description="Все действия пользователей по заказам, продажам, приёмкам и безопасности"
           breadcrumbs={[
             { label: 'Организации', href: '/organizations' },
             { label: 'Организация', href: `/organizations/${params.organizationId}` },

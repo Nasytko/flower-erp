@@ -121,7 +121,7 @@ export default function StoreDetailPage() {
                   variant="secondary"
                   onClick={() => router.push(`${base}/supplies`)}
                 >
-                  Поставки
+                  Приёмки
                 </Button>
                 {auth.hasPermission('inventory:read') ? (
                   <Button type="button" variant="secondary" onClick={() => router.push(`${base}/stock`)}>
@@ -224,7 +224,7 @@ export default function StoreDetailPage() {
                   ) : null}
                   <Link href={`${base}/orders`}>Очередь заказов</Link>
                   <Link href={`${base}/sales`}>Продажи</Link>
-                  <Link href={`${base}/supplies`}>Поставки и приёмка</Link>
+                  <Link href={`${base}/supplies`}>Приёмки</Link>
                   {auth.hasPermission('write-offs:read') ? <Link href={`${base}/write-offs`}>Списания</Link> : null}
                   {auth.hasPermission('transfers:read') ? <Link href={`${base}/transfers`}>Перемещения</Link> : null}
                   {auth.hasPermission('inventory-counts:read') ? <Link href={`${base}/inventory-counts`}>Инвентаризации</Link> : null}

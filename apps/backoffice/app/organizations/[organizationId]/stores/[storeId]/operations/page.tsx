@@ -151,7 +151,7 @@ export default function OperationsPage() {
                   tone="warning"
                 />
                 <MetricCard
-                  label="Поставки ожидают приёмки"
+                  label="Приёмки ожидают проведения"
                   value={data.kpis.suppliesAwaitingReceipt}
                   href={`${base}/supplies`}
                 />

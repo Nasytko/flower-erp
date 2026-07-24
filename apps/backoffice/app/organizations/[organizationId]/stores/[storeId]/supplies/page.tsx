@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useState, type FormEvent } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { Button, Card, Input } from '@flower/ui';
+import { Button, Card } from '@flower/ui';
 import { ApiClientError } from '@flower/api-client';
 import { getApiClient } from '@/lib/api-client';
 import { PageContainer } from '@/components/layout/page-container';
@@ -11,6 +11,17 @@ import { PageHeader } from '@/components/layout/page-header';
 import { Section } from '@/components/layout/section';
 import { EmptyState, ErrorState, LoadingState } from '@/components/layout/states';
 import { StatusBadge } from '@/components/layout/status-badge';
+import { Field } from '@/components/layout/field';
+import { FancySelect } from '@/components/layout/fancy-select';
+
+type SupplyRow = {
+  id: string;
+  number: string;
+  status: string;
+  supplierId: string;
+  warehouseId: string;
+  supplier?: { name: string; code: string };
+};
 
 export default function SuppliesPage() {
   const params = useParams<{ organizationId: string; storeId: string }>();
@@ -18,15 +29,16 @@ export default function SuppliesPage() {
   const { organizationId, storeId } = params;
   const base = `/organizations/${organizationId}/stores/${storeId}`;
 
-  const [items, setItems] = useState<
-    Array<{ id: string; number: string; status: string; supplierId: string; warehouseId: string }>
-  >([]);
-  const [suppliers, setSuppliers] = useState<Array<{ id: string; name: string; code: string }>>([]);
+  const [items, setItems] = useState<SupplyRow[]>([]);
+  const [suppliers, setSuppliers] = useState<Array<{ id: string; name: string; code: string }>>(
+    [],
+  );
   const [warehouseId, setWarehouseId] = useState('');
   const [supplierId, setSupplierId] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const [showCreate, setShowCreate] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -75,55 +87,75 @@ export default function SuppliesPage() {
     <main>
       <PageContainer>
         <PageHeader
-          title="Поставки"
-          description="Черновики поставок → отправка поставщику → приёмка. Без прямого изменения остатков."
+          title="Приёмки"
+          description="Фиксируйте приход товара на склад: позиции, количество и себестоимость — затем проведите на остатки."
           breadcrumbs={[
             { label: 'Организации', href: '/organizations' },
             { label: 'Организация', href: `/organizations/${organizationId}` },
             { label: 'Магазин', href: base },
-            { label: 'Поставки' },
+            { label: 'Приёмки' },
           ]}
+          actions={
+            <Button type="button" onClick={() => setShowCreate((v) => !v)}>
+              {showCreate ? 'Скрыть' : 'Новая приёмка'}
+            </Button>
+          }
         />
+
+        {showCreate ? (
+          <Section>
+            <Card title="Новая приёмка">
+              <form onSubmit={onCreate} className="form-grid">
+                <Field label="Поставщик" required>
+                  <FancySelect
+                    value={supplierId}
+                    onChange={setSupplierId}
+                    options={suppliers.map((s) => ({
+                      value: s.id,
+                      label: s.name,
+                      hint: s.code,
+                    }))}
+                    required
+                    aria-label="Поставщик"
+                  />
+                </Field>
+                {!warehouseId ? (
+                  <ErrorState message="Нет склада в магазине. Создайте склад в настройках." />
+                ) : null}
+                <Button type="submit" disabled={creating || !supplierId || !warehouseId}>
+                  {creating ? 'Создание…' : 'Создать и заполнить'}
+                </Button>
+              </form>
+            </Card>
+          </Section>
+        ) : null}
+
         <Section>
           <Card title="Список">
             {loading ? <LoadingState /> : null}
             {error ? <ErrorState message={error} /> : null}
-            {!loading && items.length === 0 ? <EmptyState message="Поставок пока нет." /> : null}
+            {!loading && items.length === 0 ? (
+              <EmptyState message="Приёмок пока нет. Создайте первую — добавьте товары и проведите на склад." />
+            ) : null}
             <ul className="list-stack">
               {items.map((item) => (
                 <li key={item.id}>
                   <Link href={`${base}/supplies/${item.id}`}>
                     <div className="meta-row">
-                      <strong>{item.number}</strong>
+                      <div>
+                        <strong>{item.number}</strong>
+                        {item.supplier?.name ? (
+                          <div style={{ fontSize: 'var(--text-sm)', color: 'var(--color-muted)' }}>
+                            {item.supplier.name}
+                          </div>
+                        ) : null}
+                      </div>
                       <StatusBadge status={item.status} />
                     </div>
                   </Link>
                 </li>
               ))}
             </ul>
-          </Card>
-        </Section>
-        <Section>
-          <Card title="Создать поставку">
-            <form onSubmit={onCreate} className="form-grid">
-              <select
-                value={supplierId}
-                onChange={(e) => setSupplierId(e.target.value)}
-                required
-                aria-label="Поставщик"
-                style={{ minHeight: 40, borderRadius: 6, border: '1px solid var(--color-border)', padding: 8 }}
-              >
-                {suppliers.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name} ({s.code})
-                  </option>
-                ))}
-              </select>
-              <Input value={warehouseId} readOnly aria-label="ID склада" />
-              <Button type="submit" disabled={creating || !supplierId || !warehouseId}>
-                {creating ? 'Создание…' : 'Создать DRAFT'}
-              </Button>
-            </form>
           </Card>
         </Section>
       </PageContainer>

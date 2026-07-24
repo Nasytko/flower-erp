@@ -18,9 +18,11 @@ import {
   ListSuppliesQueryDto,
   ReceiptItemDto,
   ReceiptParamsDto,
+  ReceiveSupplyDto,
   StoreParamsDto,
   SupplyItemDto,
   SupplyParamsDto,
+  UpdateSupplyItemDto,
 } from './supply.dto';
 
 @ApiTags('supply')
@@ -54,6 +56,15 @@ export class SupplyController {
     return this.supplies.addSupplyItem({ ...params, ...body });
   }
 
+  @Post('supplies/:supplyId/items/:itemId/update')
+  @RequirePermissions('supply:create')
+  updateSupplyItem(
+    @Param() params: SupplyParamsDto & { itemId: string },
+    @Body() body: UpdateSupplyItemDto,
+  ) {
+    return this.supplies.updateSupplyItem({ ...params, ...body });
+  }
+
   @Post('supplies/:supplyId/items/:itemId/remove')
   @RequirePermissions('supply:create')
   @HttpCode(HttpStatus.NO_CONTENT)
@@ -65,6 +76,16 @@ export class SupplyController {
   @RequirePermissions('supply:submit')
   submit(@Param() params: SupplyParamsDto) {
     return this.supplies.submitSupply(params);
+  }
+
+  @Post('supplies/:supplyId/receive')
+  @RequirePermissions('supply:receive')
+  receive(
+    @Param() params: SupplyParamsDto,
+    @Body() body: ReceiveSupplyDto,
+    @Headers('idempotency-key') idempotencyKey?: string,
+  ) {
+    return this.receipts.receiveFromSupply({ ...params, ...body, idempotencyKey });
   }
 
   @Post('supplies/:supplyId/annul')

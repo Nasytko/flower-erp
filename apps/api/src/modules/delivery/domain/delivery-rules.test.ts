@@ -134,9 +134,9 @@ test('ready / transit / deliver transitions', () => {
       hasExternalReference: false,
     }),
   );
-  assert.throws(() =>
+  assert.doesNotThrow(() =>
     assertCanStartTransit({
-      status: DeliveryStatus.ASSIGNED,
+      status: DeliveryStatus.READY_FOR_DISPATCH,
       method: DeliveryMethod.OWN_COURIER,
       hasActiveAssignment: false,
       hasExternalReference: false,

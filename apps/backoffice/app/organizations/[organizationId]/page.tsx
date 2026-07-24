@@ -92,6 +92,14 @@ export default function OrganizationDetailPage() {
               >
                 Открыть справочники
               </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => router.push(`/organizations/${organizationId}/audit`)}
+                style={{ marginLeft: 8 }}
+              >
+                Журнал аудита
+              </Button>
             </Card>
           </Section>
         ) : null}

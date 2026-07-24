@@ -16,17 +16,20 @@ export const STATUS_LABELS_RU: Record<string, string> = {
   COMPLETED: 'Завершено',
   ANNULLED: 'Аннулировано',
   CONFIRMED: 'Подтверждено',
-  SUBMITTED_TO_SUPPLIER: 'Отправлено поставщику',
-  PARTIALLY_RECEIVED: 'Частично принято',
-  RECEIVED: 'Принято',
+  SUBMITTED_TO_SUPPLIER: 'В работе',
+  PARTIALLY_RECEIVED: 'Частично оприходовано',
+  RECEIVED: 'Оприходовано',
 
   // Orders / workspace
   RESERVED: 'Зарезервировано',
   PARTIALLY_RESERVED: 'Частичный резерв',
-  IN_PREPARATION: 'В подготовке',
+  IN_PREPARATION: 'Собирается',
   OVERDUE: 'Просрочено',
   DEFICIT: 'Нехватка',
   UNASSIGNED: 'Без назначения',
+  ASSEMBLING: 'Собирается',
+  IN_DELIVERY: 'Передали в доставку',
+  HANDED_OVER: 'Передали в доставку',
 
   // Item types / policies
   FLOWER: 'Цветок',
@@ -84,10 +87,10 @@ export const STATUS_LABELS_RU: Record<string, string> = {
 
   // Delivery (shared badge)
   PLANNED: 'Запланировано',
-  READY_FOR_DISPATCH: 'К отправке',
-  ASSIGNED: 'Назначено',
-  IN_TRANSIT: 'В пути',
-  DELIVERED: 'Доставлено',
+  READY_FOR_DISPATCH: 'К передаче',
+  ASSIGNED: 'К передаче',
+  IN_TRANSIT: 'Передали в доставку',
+  DELIVERED: 'Доставили',
   PROBLEM: 'Проблема',
 };
 

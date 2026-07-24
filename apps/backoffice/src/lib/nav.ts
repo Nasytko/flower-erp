@@ -44,7 +44,7 @@ export const PRIMARY_NAV: NavItem[] = [
   },
   {
     href: '/organizations/{orgId}/stores/{storeId}/supplies',
-    label: 'Поставки',
+    label: 'Приёмки',
     permission: 'supply:read',
     storeScoped: true,
   },

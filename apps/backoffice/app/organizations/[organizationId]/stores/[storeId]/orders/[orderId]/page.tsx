@@ -1,13 +1,14 @@
 ﻿'use client';
 
 import Link from 'next/link';
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useParams } from 'next/navigation';
 import { Button, Card, Input } from '@flower/ui';
-import { ApiClientError } from '@flower/api-client';
+import { ApiClientError, type DeliveryJobDto } from '@flower/api-client';
 import { getApiClient } from '@/lib/api-client';
 import { useAuth } from '@/components/auth-provider';
 import { AutoNumberNote, Field } from '@/components/layout/field';
+import { FancySelect } from '@/components/layout/fancy-select';
 import {
   PaymentSplitEditor,
   createEmptyPaymentLine,
@@ -20,6 +21,7 @@ import { Section } from '@/components/layout/section';
 import { ErrorState, LoadingState } from '@/components/layout/states';
 import { StatusBadge } from '@/components/layout/status-badge';
 import { statusLabelRu } from '@/lib/status-labels-ru';
+import { deliveryStatusLabel } from '@/lib/delivery-labels';
 
 type OrderDetail = Awaited<ReturnType<ReturnType<typeof getApiClient>['getOrder']>>;
 type PaymentSummary = Awaited<ReturnType<ReturnType<typeof getApiClient>['getOrderPaymentSummary']>>;
@@ -27,20 +29,12 @@ type PaymentMethod = Awaited<
   ReturnType<ReturnType<typeof getApiClient>['listPaymentMethods']>
 >[number];
 
-function newIdempotencyKey() {
-  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return crypto.randomUUID();
-  return `pay_${Date.now()}_${Math.random().toString(16).slice(2)}`;
-}
+type LifecycleStep = 'DRAFT' | 'ASSEMBLING' | 'READY' | 'IN_DELIVERY' | 'DONE';
 
-const WORKFLOW_STEPS = [
-  'DRAFT',
-  'CONFIRMED',
-  'PARTIALLY_RESERVED',
-  'RESERVED',
-  'IN_PREPARATION',
-  'READY',
-  'COMPLETED',
-] as const;
+function newIdempotencyKey(prefix = 'ord') {
+  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return crypto.randomUUID();
+  return `${prefix}_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+}
 
 const OCCASIONS = [
   { value: 'BIRTHDAY', label: 'День рождения' },
@@ -53,14 +47,31 @@ const OCCASIONS = [
   { value: 'OTHER', label: 'Другое' },
 ] as const;
 
-function workflowTone(step: string, reached: boolean, isCurrent: boolean): string {
-  if (!reached && !isCurrent) return 'neutral';
-  if (step === 'COMPLETED' || step === 'READY') return 'success';
-  if (step === 'RESERVED') return 'info';
-  if (step === 'PARTIALLY_RESERVED') return 'warning';
-  if (step === 'IN_PREPARATION') return 'accent';
-  if (step === 'CONFIRMED' || step === 'DRAFT') return 'warning';
-  return 'neutral';
+const LIFECYCLE_LABELS: Record<LifecycleStep, string> = {
+  DRAFT: 'Черновик',
+  ASSEMBLING: 'Собирается',
+  READY: 'Готов',
+  IN_DELIVERY: 'В доставке',
+  DONE: 'Готово',
+};
+
+function resolveLifecycle(
+  order: OrderDetail,
+  delivery: DeliveryJobDto | null,
+): LifecycleStep {
+  if (order.status === 'CANCELLED') return 'DRAFT';
+  if (order.status === 'COMPLETED' || delivery?.status === 'DELIVERED') return 'DONE';
+  if (
+    delivery &&
+    (delivery.status === 'IN_TRANSIT' ||
+      delivery.handedOverAt ||
+      delivery.status === 'READY_FOR_DISPATCH')
+  ) {
+    if (delivery.status === 'IN_TRANSIT' || delivery.handedOverAt) return 'IN_DELIVERY';
+  }
+  if (order.status === 'READY') return 'READY';
+  if (order.status === 'DRAFT') return 'DRAFT';
+  return 'ASSEMBLING';
 }
 
 export default function OrderDetailPage() {
@@ -70,12 +81,12 @@ export default function OrderDetailPage() {
   const base = `/organizations/${organizationId}/stores/${storeId}`;
 
   const [order, setOrder] = useState<OrderDetail | null>(null);
+  const [delivery, setDelivery] = useState<DeliveryJobDto | null>(null);
   const [items, setItems] = useState<Array<{ id: string; name: string; code: string }>>([]);
   const [itemId, setItemId] = useState('');
   const [plannedQuantity, setPlannedQuantity] = useState('1');
   const [actualItemId, setActualItemId] = useState('');
   const [actualQuantity, setActualQuantity] = useState('1');
-  const [membershipId, setMembershipId] = useState('');
   const [commentMessage, setCommentMessage] = useState('');
   const [paymentSummary, setPaymentSummary] = useState<PaymentSummary | null>(null);
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
@@ -83,12 +94,10 @@ export default function OrderDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [linkedDeliveryId, setLinkedDeliveryId] = useState<string | null>(null);
-  const [linkedDeliveryNumber, setLinkedDeliveryNumber] = useState<string | null>(null);
-  const [createDeliveryOpen, setCreateDeliveryOpen] = useState(false);
 
   const canReadPayments = auth.hasPermission('payments:read');
   const canReadDelivery = auth.hasPermission('delivery:read');
+  const canAudit = auth.hasPermission('audit:read');
 
   async function load() {
     setLoading(true);
@@ -112,11 +121,6 @@ export default function OrderDetailPage() {
       setOrder(detail);
       setItems(catalog.items);
       setPaymentSummary(summary);
-      const linked = deliveries.find(
-        (d) => d.orderId === orderId && d.status !== 'CANCELLED',
-      );
-      setLinkedDeliveryId(linked?.id ?? null);
-      setLinkedDeliveryNumber(linked?.number ?? null);
       setPaymentMethods(methods);
       if (methods[0]) {
         setPaymentLines((prev) =>
@@ -129,8 +133,15 @@ export default function OrderDetailPage() {
         setItemId((prev) => prev || catalog.items[0]!.id);
         setActualItemId((prev) => prev || catalog.items[0]!.id);
       }
-      if (detail.activeAssignment?.membershipId) {
-        setMembershipId(detail.activeAssignment.membershipId);
+
+      const linked = deliveries.find(
+        (d) => d.orderId === orderId && d.status !== 'CANCELLED',
+      );
+      if (linked) {
+        const full = await client.getDelivery(organizationId, storeId, linked.id);
+        setDelivery(full);
+      } else {
+        setDelivery(null);
       }
     } catch (err) {
       setError(err instanceof ApiClientError ? err.message : 'Не удалось загрузить');
@@ -156,28 +167,6 @@ export default function OrderDetailPage() {
     } finally {
       setBusy(false);
     }
-  }
-
-  async function resolveMyMembershipId(): Promise<string> {
-    if (!auth.user?.login) {
-      throw new ApiClientError({
-        message: 'Нет пользователя сессии',
-        code: 'UNAUTHENTICATED',
-        status: 401,
-        requestId: 'local',
-      });
-    }
-    const users = await getApiClient().listUsers(organizationId);
-    const me = users.find((u) => u.login === auth.user!.login);
-    if (!me?.membershipId) {
-      throw new ApiClientError({
-        message: 'Участник не найден для текущего пользователя',
-        code: 'NOT_FOUND',
-        status: 404,
-        requestId: 'local',
-      });
-    }
-    return me.membershipId;
   }
 
   async function onAddCompositionItem(event: FormEvent) {
@@ -235,13 +224,121 @@ export default function OrderDetailPage() {
             organizationId,
             storeId,
             created.id,
-            newIdempotencyKey(),
+            newIdempotencyKey('pay'),
           );
         }
       }
       setPaymentLines([createEmptyPaymentLine(paymentMethods[0]?.id ?? '')]);
     });
   }
+
+  async function handOverToDelivery() {
+    if (!delivery) return;
+    await run(async () => {
+      const client = getApiClient();
+      let job = delivery;
+      if (job.status === 'DRAFT') {
+        job = await client.planDelivery(organizationId, storeId, job.id, {
+          expectedVersion: job.version,
+        });
+      }
+      if (job.status === 'PLANNED' || job.status === 'ASSIGNED') {
+        job = await client.markDeliveryReadyForDispatch(organizationId, storeId, job.id, {
+          expectedVersion: job.version,
+        });
+      }
+      if (!job.handedOverAt) {
+        job = await client.handoverDelivery(organizationId, storeId, job.id, {
+          expectedVersion: job.version,
+        });
+      }
+      if (job.status !== 'IN_TRANSIT' && job.status !== 'DELIVERED') {
+        await client.startDeliveryTransit(organizationId, storeId, job.id, {
+          expectedVersion: job.version,
+        });
+      }
+    });
+  }
+
+  async function markDelivered() {
+    if (!delivery) return;
+    await run(async () => {
+      const client = getApiClient();
+      let job = delivery;
+      if (job.status !== 'IN_TRANSIT' && job.status !== 'DELIVERED') {
+        if (job.status === 'DRAFT') {
+          job = await client.planDelivery(organizationId, storeId, job.id, {
+            expectedVersion: job.version,
+          });
+        }
+        if (job.status === 'PLANNED' || job.status === 'ASSIGNED') {
+          job = await client.markDeliveryReadyForDispatch(organizationId, storeId, job.id, {
+            expectedVersion: job.version,
+          });
+        }
+        if (!job.handedOverAt) {
+          job = await client.handoverDelivery(organizationId, storeId, job.id, {
+            expectedVersion: job.version,
+          });
+        }
+        if (job.status !== 'IN_TRANSIT') {
+          job = await client.startDeliveryTransit(organizationId, storeId, job.id, {
+            expectedVersion: job.version,
+          });
+        }
+      }
+      await client.markDeliveryDelivered(
+        organizationId,
+        storeId,
+        job.id,
+        { expectedVersion: job.version },
+        { idempotencyKey: newIdempotencyKey('deliver') },
+      );
+    });
+  }
+
+  async function startAssembling() {
+    await run(async () => {
+      const client = getApiClient();
+      const status = order?.status;
+      if (status === 'DRAFT') {
+        await client.confirmOrder(organizationId, storeId, orderId);
+      }
+      const fresh = await client.getOrder(organizationId, storeId, orderId);
+      if (
+        fresh.status === 'CONFIRMED' ||
+        fresh.status === 'PARTIALLY_RESERVED' ||
+        fresh.status === 'RESERVED'
+      ) {
+        if (auth.hasPermission('orders:reserve') && fresh.status === 'CONFIRMED') {
+          await client.reserveOrder(organizationId, storeId, orderId);
+        }
+        const afterReserve = await client.getOrder(organizationId, storeId, orderId);
+        if (
+          (afterReserve.status === 'RESERVED' ||
+            afterReserve.status === 'PARTIALLY_RESERVED') &&
+          auth.hasPermission('orders:prepare')
+        ) {
+          await client.startOrderPreparation(organizationId, storeId, orderId);
+        }
+      } else if (
+        (fresh.status === 'RESERVED' || fresh.status === 'PARTIALLY_RESERVED') &&
+        auth.hasPermission('orders:prepare')
+      ) {
+        await client.startOrderPreparation(organizationId, storeId, orderId);
+      }
+    });
+  }
+
+  const lifecycle = useMemo(
+    () => (order ? resolveLifecycle(order, delivery) : null),
+    [order, delivery],
+  );
+
+  const lifecycleSteps: LifecycleStep[] =
+    order?.type === 'DELIVERY'
+      ? ['DRAFT', 'ASSEMBLING', 'READY', 'IN_DELIVERY', 'DONE']
+      : ['DRAFT', 'ASSEMBLING', 'READY', 'DONE'];
 
   if (!auth.hasPermission('orders:read')) {
     return <p className="page-state">Доступ запрещён</p>;
@@ -250,20 +347,31 @@ export default function OrderDetailPage() {
   const client = getApiClient();
   const draft = order?.status === 'DRAFT';
   const inPrep = order?.status === 'IN_PREPARATION';
-  const currentIdx = order ? WORKFLOW_STEPS.indexOf(order.status as (typeof WORKFLOW_STEPS)[number]) : -1;
+  const currentStepIdx = lifecycle ? lifecycleSteps.indexOf(lifecycle) : -1;
 
   return (
     <main>
       <PageContainer>
         <PageHeader
           title={order ? `Заказ ${order.number}` : 'Заказ'}
-          description="Заказ к времени. Когда готов и передан клиенту — оформляется продажа. Номер системы не меняется."
+          description="Кто, когда, состав. Адрес доставки берётся из заказа. Курьера не назначаем — только статусы."
           breadcrumbs={[
             { label: 'Магазин', href: base },
             { label: 'Заказы', href: `${base}/orders` },
             { label: order?.number ?? 'Карточка' },
           ]}
-          actions={order ? <StatusBadge status={order.status} /> : undefined}
+          actions={
+            <div className="page-header__actions">
+              {order ? <StatusBadge status={order.status} /> : null}
+              {canAudit ? (
+                <Link href={`/organizations/${organizationId}/audit`}>
+                  <Button type="button" variant="ghost">
+                    Аудит
+                  </Button>
+                </Link>
+              ) : null}
+            </div>
+          }
         />
 
         {loading ? <LoadingState /> : null}
@@ -271,33 +379,147 @@ export default function OrderDetailPage() {
 
         {order ? (
           <>
-            <div className="order-workflow" aria-label="Статусы заказа">
-              {WORKFLOW_STEPS.map((step) => {
-                const stepIdx = WORKFLOW_STEPS.indexOf(step);
-                const reached =
-                  order.status === 'CANCELLED'
-                    ? false
-                    : currentIdx >= 0 && stepIdx >= 0 && stepIdx <= currentIdx;
-                const isCurrent = order.status === step;
+            <div className="order-lifecycle" aria-label="Этапы заказа">
+              {lifecycleSteps.map((step, idx) => {
+                const reached = order.status !== 'CANCELLED' && currentStepIdx >= idx;
+                const isCurrent = lifecycle === step;
                 return (
-                  <span
+                  <div
                     key={step}
-                    className={`status-badge status-badge--${workflowTone(
-                      step,
-                      reached,
-                      isCurrent,
-                    )}${isCurrent ? ' order-workflow__current' : ''}`}
+                    className={`order-lifecycle__step${reached ? ' order-lifecycle__step--done' : ''}${isCurrent ? ' order-lifecycle__step--current' : ''}`}
                   >
-                    {statusLabelRu(step)}
-                  </span>
+                    <span className="order-lifecycle__dot" />
+                    <span className="order-lifecycle__label">
+                      {step === 'DONE'
+                        ? order.type === 'DELIVERY'
+                          ? 'Доставили'
+                          : 'Выдан'
+                        : LIFECYCLE_LABELS[step]}
+                    </span>
+                  </div>
                 );
               })}
               {order.status === 'CANCELLED' ? <StatusBadge status="CANCELLED" /> : null}
-              {order.hasDeficit ? <StatusBadge status="DEFICIT" /> : null}
             </div>
 
             <Section>
-              <Card title="Клиент / референс / сроки">
+              <Card title="Что делать дальше">
+                <div className="order-next-actions">
+                  {draft && auth.hasPermission('orders:confirm') ? (
+                    <Button type="button" disabled={busy} onClick={() => void startAssembling()}>
+                      Подтвердить и начать сборку
+                    </Button>
+                  ) : null}
+                  {!draft &&
+                  !inPrep &&
+                  order.status !== 'READY' &&
+                  order.status !== 'COMPLETED' &&
+                  order.status !== 'CANCELLED' &&
+                  auth.hasPermission('orders:prepare') ? (
+                    <Button type="button" disabled={busy} onClick={() => void startAssembling()}>
+                      Взять в сборку
+                    </Button>
+                  ) : null}
+                  {inPrep && auth.hasPermission('orders:prepare') ? (
+                    <Button
+                      type="button"
+                      disabled={busy}
+                      onClick={() =>
+                        void run(() => client.markOrderReady(organizationId, storeId, orderId))
+                      }
+                    >
+                      Букет готов
+                    </Button>
+                  ) : null}
+                  {order.status === 'READY' &&
+                  order.type === 'DELIVERY' &&
+                  delivery &&
+                  delivery.status !== 'IN_TRANSIT' &&
+                  delivery.status !== 'DELIVERED' &&
+                  auth.hasPermission('delivery:dispatch') ? (
+                    <Button type="button" disabled={busy} onClick={() => void handOverToDelivery()}>
+                      Передали в доставку
+                    </Button>
+                  ) : null}
+                  {order.type === 'DELIVERY' &&
+                  delivery &&
+                  delivery.status === 'IN_TRANSIT' &&
+                  auth.hasPermission('delivery:complete') ? (
+                    <Button type="button" disabled={busy} onClick={() => void markDelivered()}>
+                      Доставили
+                    </Button>
+                  ) : null}
+                  {order.status === 'READY' && auth.hasPermission('sales:create') ? (
+                    <Link href={`${base}/sales/new?fromOrder=${orderId}`}>
+                      <Button type="button">Оформить продажу</Button>
+                    </Link>
+                  ) : null}
+                  {order.status === 'READY' &&
+                  order.type === 'PICKUP' &&
+                  auth.hasPermission('orders:prepare') ? (
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      disabled={busy}
+                      onClick={() =>
+                        void run(() => client.completeOrder(organizationId, storeId, orderId))
+                      }
+                    >
+                      Выдали клиенту
+                    </Button>
+                  ) : null}
+                  {order.status !== 'COMPLETED' &&
+                  order.status !== 'CANCELLED' &&
+                  auth.hasPermission('orders:cancel') ? (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      disabled={busy}
+                      onClick={() =>
+                        void run(() => client.cancelOrder(organizationId, storeId, orderId))
+                      }
+                    >
+                      Отменить заказ
+                    </Button>
+                  ) : null}
+                  {auth.hasPermission('orders:assign') && !order.activeAssignment ? (
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      disabled={busy}
+                      onClick={() =>
+                        void run(async () => {
+                          const users = await client.listUsers(organizationId);
+                          const me = users.find((u) => u.login === auth.user?.login);
+                          if (!me?.membershipId) {
+                            throw new ApiClientError({
+                              message: 'Не найден участник текущего пользователя',
+                              code: 'NOT_FOUND',
+                              status: 404,
+                              requestId: 'local',
+                            });
+                          }
+                          await client.assignFlorist(organizationId, storeId, orderId, {
+                            membershipId: me.membershipId,
+                          });
+                        })
+                      }
+                    >
+                      Назначить себе
+                    </Button>
+                  ) : null}
+                </div>
+                {order.activeAssignment ? (
+                  <p className="field__hint" style={{ marginTop: 12 }}>
+                    Флорист назначен · с{' '}
+                    {new Date(order.activeAssignment.assignedAt).toLocaleString('ru-RU')}
+                  </p>
+                ) : null}
+              </Card>
+            </Section>
+
+            <Section>
+              <Card title="Клиент и срок">
                 <AutoNumberNote label="Номер заказа" value={order.number} />
                 {draft && auth.hasPermission('orders:update') ? (
                   <form
@@ -313,8 +535,6 @@ export default function OrderDetailPage() {
                           readyAt: String(form.get('readyAt') || '') || null,
                           type: String(form.get('type') || order.type),
                           occasion: String(form.get('occasion') || order.occasion),
-                          referenceUrl: String(form.get('referenceUrl') || '') || null,
-                          referenceComment: String(form.get('referenceComment') || '') || null,
                           plannedPrice: String(form.get('plannedPrice') || '') || null,
                         }),
                       );
@@ -322,12 +542,16 @@ export default function OrderDetailPage() {
                   >
                     <Field label="Способ получения" required>
                       <select name="type" className="field-control" defaultValue={order.type}>
-                        <option value="PICKUP">Самовывоз из магазина к времени</option>
-                        <option value="DELIVERY">Доставка клиенту</option>
+                        <option value="PICKUP">Самовывоз</option>
+                        <option value="DELIVERY">Доставка</option>
                       </select>
                     </Field>
-                    <Field label="Повод" required>
-                      <select name="occasion" className="field-control" defaultValue={order.occasion}>
+                    <Field label="Повод">
+                      <select
+                        name="occasion"
+                        className="field-control"
+                        defaultValue={order.occasion}
+                      >
                         {OCCASIONS.map((o) => (
                           <option key={o.value} value={o.value}>
                             {o.label}
@@ -336,237 +560,165 @@ export default function OrderDetailPage() {
                       </select>
                     </Field>
                     <Field label="Получатель">
-                      <Input
-                        name="recipientName"
-                        defaultValue={order.recipientName ?? ''}
-                        placeholder="Анна"
-                      />
+                      <Input name="recipientName" defaultValue={order.recipientName ?? ''} />
                     </Field>
-                    <Field label="Телефон получателя">
+                    <Field label="Телефон">
                       <Input
                         name="recipientPhone"
                         defaultValue={order.recipientPhone ?? ''}
-                        placeholder="+375 …"
                         inputMode="tel"
                       />
                     </Field>
-                    <Field
-                      label={
-                        order.type === 'DELIVERY'
-                          ? 'К какому времени доставить'
-                          : 'К какому времени готов'
-                      }
-                    >
+                    <Field label={order.type === 'DELIVERY' ? 'Время доставки' : 'Время готовности'}>
                       <Input
                         name="readyAt"
                         type="datetime-local"
                         defaultValue={
-                          order.readyAt ? new Date(order.readyAt).toISOString().slice(0, 16) : ''
+                          order.readyAt
+                            ? new Date(order.readyAt).toISOString().slice(0, 16)
+                            : ''
                         }
-                      />
-                    </Field>
-                    <Field label="Ссылка на референс">
-                      <Input
-                        name="referenceUrl"
-                        defaultValue={order.referenceUrl ?? ''}
-                        placeholder="https://…"
-                      />
-                    </Field>
-                    <Field label="Комментарий к референсу">
-                      <Input
-                        name="referenceComment"
-                        defaultValue={order.referenceComment ?? ''}
-                        placeholder="Что учесть во флористике"
                       />
                     </Field>
                     <Field label="Плановая цена, BYN">
                       <Input
                         name="plannedPrice"
                         defaultValue={order.plannedPrice ?? ''}
-                        placeholder="0.00"
                         inputMode="decimal"
                       />
                     </Field>
                     <Field label="Комментарий">
-                      <Input
-                        name="comment"
-                        defaultValue={order.comment ?? ''}
-                        placeholder="Заметки для команды"
-                      />
+                      <Input name="comment" defaultValue={order.comment ?? ''} />
                     </Field>
                     <Button type="submit" disabled={busy}>
-                      Сохранить черновик
+                      Сохранить
                     </Button>
                   </form>
                 ) : (
-                  <div className="stack-form">
-                    <div className="meta-row">
-                      <span>{statusLabelRu(order.type)}</span>
-                      <span>{statusLabelRu(order.occasion)}</span>
-                      <span>{order.recipientName ?? '—'}</span>
-                      <span>{order.recipientPhone ?? '—'}</span>
-                      <span>
-                        {order.readyAt ? new Date(order.readyAt).toLocaleString() : 'без срока'}
-                      </span>
+                  <div className="order-facts">
+                    <div>
+                      <span className="order-facts__label">Получение</span>
+                      <strong>{statusLabelRu(order.type)}</strong>
                     </div>
-                    {order.customerNameSnapshot || order.customerPhoneSnapshot ? (
-                      <p>
-                        Клиент: {order.customerNameSnapshot ?? '—'}{' '}
-                        {order.customerPhoneSnapshot ?? ''}
-                      </p>
+                    <div>
+                      <span className="order-facts__label">Получатель</span>
+                      <strong>{order.recipientName ?? '—'}</strong>
+                    </div>
+                    <div>
+                      <span className="order-facts__label">Телефон</span>
+                      <strong>{order.recipientPhone ?? '—'}</strong>
+                    </div>
+                    <div>
+                      <span className="order-facts__label">Срок</span>
+                      <strong>
+                        {order.readyAt
+                          ? new Date(order.readyAt).toLocaleString('ru-RU')
+                          : 'не указан'}
+                      </strong>
+                    </div>
+                    {order.plannedPrice ? (
+                      <div>
+                        <span className="order-facts__label">Цена</span>
+                        <strong>{order.plannedPrice} BYN</strong>
+                      </div>
                     ) : null}
-                    {order.plannedPrice ? <p>Плановая цена: {order.plannedPrice}</p> : null}
-                    {order.referenceUrl ? (
-                      <p>
-                        Ref:{' '}
-                        <a href={order.referenceUrl} target="_blank" rel="noreferrer">
-                          {order.referenceUrl}
-                        </a>
-                      </p>
+                    {order.comment ? (
+                      <div className="order-facts__wide">
+                        <span className="order-facts__label">Комментарий</span>
+                        <strong>{order.comment}</strong>
+                      </div>
                     ) : null}
-                    {order.referenceComment ? <p>{order.referenceComment}</p> : null}
-                    {order.comment ? <p>{order.comment}</p> : null}
                   </div>
                 )}
               </Card>
             </Section>
 
-            <Section>
-              <Card title="Исполнение (fulfillment)">
-                <div className="meta-row">
-                  <StatusBadge status={order.type} />
-                  <span>{order.type === 'DELIVERY' ? 'Доставка' : 'Самовывоз'}</span>
-                </div>
-                {order.type === 'DELIVERY' && canReadDelivery ? (
-                  <div className="stack-form" style={{ marginTop: 12 }}>
-                    {linkedDeliveryId ? (
-                      <p>
-                        Доставка:{' '}
-                        <Link href={`${base}/deliveries/${linkedDeliveryId}`}>
-                          {linkedDeliveryNumber ?? linkedDeliveryId}
-                        </Link>
+            {order.type === 'DELIVERY' ? (
+              <Section>
+                <Card title="Доставка">
+                  {delivery ? (
+                    <div className="stack-form">
+                      <div className="meta-row">
+                        <StatusBadge status={delivery.status} />
+                        <span>{deliveryStatusLabel(delivery.status)}</span>
+                      </div>
+                      <p className="order-address">
+                        <strong>{delivery.displayAddress || delivery.addressLine}</strong>
                       </p>
-                    ) : auth.hasPermission('delivery:create') ? (
-                      <>
-                        {!createDeliveryOpen ? (
-                          <Button
-                            type="button"
-                            disabled={busy}
-                            onClick={() => setCreateDeliveryOpen(true)}
-                          >
-                            Создать доставку
-                          </Button>
-                        ) : (
-                          <form
-                            className="stack-form"
-                            onSubmit={(event) => {
-                              event.preventDefault();
-                              const form = new FormData(event.currentTarget);
-                              const deliveryDate = String(form.get('deliveryDate') || '');
-                              const windowStartLocal = String(form.get('windowStart') || '');
-                              const windowEndLocal = String(form.get('windowEnd') || '');
-                              void run(async () => {
-                                const created = await getApiClient().createDeliveryFromOrder(
-                                  organizationId,
-                                  storeId,
-                                  orderId,
-                                  {
-                                    method: String(form.get('method') || 'OWN_COURIER'),
-                                    deliveryDate: new Date(deliveryDate).toISOString(),
-                                    windowStart: new Date(windowStartLocal).toISOString(),
-                                    windowEnd: new Date(windowEndLocal).toISOString(),
-                                    addressLine: String(form.get('addressLine') || ''),
-                                    city: String(form.get('city') || ''),
-                                    recipientName:
-                                      String(form.get('recipientName') || '') ||
-                                      order.recipientName,
-                                    recipientPhone:
-                                      String(form.get('recipientPhone') || '') ||
-                                      order.recipientPhone,
-                                  },
-                                );
-                                setLinkedDeliveryId(created.id);
-                                setLinkedDeliveryNumber(created.number);
-                                setCreateDeliveryOpen(false);
-                              });
-                            }}
-                          >
-                            <Field label="Адрес" required>
-                              <Input
-                                name="addressLine"
-                                placeholder="ул. Независимости, 10"
-                                required
-                                defaultValue=""
-                              />
-                            </Field>
-                            <Field label="Город" hint="Пусто = город магазина">
-                              <Input name="city" placeholder="Как у магазина" defaultValue="" />
-                            </Field>
+                      <p className="field__hint" style={{ margin: 0 }}>
+                        Адрес задан при создании заказа. Курьера не назначаем — только статусы
+                        «передали» / «доставили».
+                      </p>
+                      {auth.hasPermission('delivery:update') &&
+                      !['DELIVERED', 'CANCELLED', 'IN_TRANSIT'].includes(delivery.status) ? (
+                        <form
+                          className="stack-form"
+                          onSubmit={(event) => {
+                            event.preventDefault();
+                            const form = new FormData(event.currentTarget);
+                            void run(() =>
+                              getApiClient().updateDeliveryAddress(
+                                organizationId,
+                                storeId,
+                                delivery.id,
+                                {
+                                  expectedVersion: delivery.version,
+                                  addressLine: String(form.get('addressLine') || ''),
+                                  city: String(form.get('city') || ''),
+                                  recipientName:
+                                    String(form.get('recipientName') || '') || undefined,
+                                  recipientPhone:
+                                    String(form.get('recipientPhone') || '') || undefined,
+                                },
+                              ),
+                            );
+                          }}
+                        >
+                          <Field label="Адрес">
+                            <Input
+                              name="addressLine"
+                              defaultValue={delivery.addressLine}
+                              required
+                            />
+                          </Field>
+                          <Field label="Город">
+                            <Input name="city" defaultValue={delivery.city} required />
+                          </Field>
+                          <Field label="Получатель">
                             <Input
                               name="recipientName"
-                              placeholder="Получатель"
-                              defaultValue={order.recipientName ?? ''}
+                              defaultValue={delivery.recipientName}
                             />
+                          </Field>
+                          <Field label="Телефон">
                             <Input
                               name="recipientPhone"
-                              placeholder="Телефон"
-                              defaultValue={order.recipientPhone ?? ''}
+                              defaultValue={delivery.recipientPhone}
                             />
-                            <Input
-                              name="deliveryDate"
-                              type="hidden"
-                              defaultValue={
-                                order.readyAt
-                                  ? new Date(order.readyAt).toISOString().slice(0, 10)
-                                  : new Date().toISOString().slice(0, 10)
-                              }
-                            />
-                            <Input
-                              name="windowStart"
-                              type="hidden"
-                              defaultValue={
-                                order.readyAt
-                                  ? new Date(order.readyAt).toISOString().slice(0, 16)
-                                  : new Date().toISOString().slice(0, 16)
-                              }
-                            />
-                            <Input
-                              name="windowEnd"
-                              type="hidden"
-                              defaultValue={
-                                order.readyAt
-                                  ? new Date(new Date(order.readyAt).getTime() + 2 * 3600_000)
-                                      .toISOString()
-                                      .slice(0, 16)
-                                  : new Date(Date.now() + 2 * 3600_000).toISOString().slice(0, 16)
-                              }
-                            />
-                            <input type="hidden" name="method" value="OWN_COURIER" />
-                            <div className="delivery-action-row">
-                              <Button type="submit" disabled={busy}>
-                                Создать доставку
-                              </Button>
-                              <Button
-                                type="button"
-                                variant="secondary"
-                                onClick={() => setCreateDeliveryOpen(false)}
-                              >
-                                Отмена
-                              </Button>
-                            </div>
-                          </form>
-                        )}
-                      </>
-                    ) : (
-                      <p>Доставка ещё не создана.</p>
-                    )}
-                  </div>
-                ) : null}
-              </Card>
-            </Section>
+                          </Field>
+                          <Button type="submit" variant="secondary" disabled={busy}>
+                            Обновить адрес
+                          </Button>
+                        </form>
+                      ) : null}
+                      <Link href={`${base}/deliveries/${delivery.id}`}>
+                        <Button type="button" variant="ghost">
+                          Открыть карточку доставки
+                        </Button>
+                      </Link>
+                    </div>
+                  ) : (
+                    <p className="field__hint">
+                      Доставка ещё не создана. Обычно она появляется автоматически при создании
+                      заказа с адресом.
+                    </p>
+                  )}
+                </Card>
+              </Section>
+            ) : null}
 
             <Section>
-              <Card title="Плановый состав">
+              <Card title="Состав">
                 <ul className="list-stack">
                   {(order.composition?.items ?? []).map((line) => (
                     <li key={line.id}>
@@ -574,7 +726,6 @@ export default function OrderDetailPage() {
                         <strong>
                           {line.item?.name ?? line.itemId} × {line.plannedQuantity}
                         </strong>
-                        <span>резерв {line.reservedQuantity ?? '0'}</span>
                         {line.deficitQuantity && line.deficitQuantity !== '0' ? (
                           <StatusBadge status="DEFICIT" />
                         ) : null}
@@ -582,172 +733,94 @@ export default function OrderDetailPage() {
                     </li>
                   ))}
                 </ul>
+                {(order.composition?.items ?? []).length === 0 ? (
+                  <p className="field__hint">Добавьте позиции для сборки.</p>
+                ) : null}
                 {draft && auth.hasPermission('orders:update') ? (
-                  <form onSubmit={onAddCompositionItem} className="stack-form" style={{ marginTop: 16 }}>
-                    <select value={itemId} onChange={(e) => setItemId(e.target.value)}>
-                      {items.map((item) => (
-                        <option key={item.id} value={item.id}>
-                          {item.name} ({item.code})
-                        </option>
-                      ))}
-                    </select>
+                  <form
+                    onSubmit={onAddCompositionItem}
+                    className="stack-form"
+                    style={{ marginTop: 16 }}
+                  >
+                    <FancySelect
+                      value={itemId}
+                      onChange={setItemId}
+                      options={items.map((item) => ({
+                        value: item.id,
+                        label: item.name,
+                        hint: item.code,
+                      }))}
+                      aria-label="Товар"
+                    />
                     <Input
                       value={plannedQuantity}
                       onChange={(e) => setPlannedQuantity(e.target.value)}
                       placeholder="Количество"
+                      inputMode="decimal"
                     />
                     <Button type="submit" disabled={busy || !itemId}>
-                      Добавить позицию
+                      Добавить
                     </Button>
                   </form>
                 ) : null}
-              </Card>
-            </Section>
 
-            {inPrep || order.actualComposition ? (
-              <Section>
-                <Card title="Фактический состав">
-                  {order.actualComposition?.frozenAt ? (
-                    <p style={{ color: 'var(--color-muted)', fontSize: 'var(--text-sm)' }}>
-                      Заморожен {new Date(order.actualComposition.frozenAt).toLocaleString()}
-                    </p>
-                  ) : null}
-                  <ul className="list-stack">
-                    {(order.actualComposition?.items ?? []).map((line) => (
-                      <li key={line.id}>
-                        <div className="meta-row">
+                {inPrep || order.actualComposition ? (
+                  <div style={{ marginTop: 20 }}>
+                    <h3 className="order-subheading">Факт при сборке</h3>
+                    <ul className="list-stack">
+                      {(order.actualComposition?.items ?? []).map((line) => (
+                        <li key={line.id}>
                           <strong>
                             {line.item?.name ?? line.itemId} × {line.actualQuantity}
                           </strong>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                  {inPrep &&
-                  !order.actualComposition?.frozenAt &&
-                  auth.hasPermission('orders:prepare') ? (
-                    <form
-                      onSubmit={onSetActualFromForm}
-                      className="stack-form"
-                      style={{ marginTop: 16 }}
-                    >
-                      <select
-                        value={actualItemId}
-                        onChange={(e) => setActualItemId(e.target.value)}
+                        </li>
+                      ))}
+                    </ul>
+                    {inPrep &&
+                    !order.actualComposition?.frozenAt &&
+                    auth.hasPermission('orders:prepare') ? (
+                      <form
+                        onSubmit={onSetActualFromForm}
+                        className="stack-form"
+                        style={{ marginTop: 12 }}
                       >
-                        {items.map((item) => (
-                          <option key={item.id} value={item.id}>
-                            {item.name} ({item.code})
-                          </option>
-                        ))}
-                      </select>
-                      <Input
-                        value={actualQuantity}
-                        onChange={(e) => setActualQuantity(e.target.value)}
-                        placeholder="Факт. количество"
-                      />
-                      <Button type="submit" disabled={busy || !actualItemId}>
-                        Сохранить позицию факта
-                      </Button>
-                    </form>
-                  ) : null}
-                </Card>
-              </Section>
-            ) : null}
-
-            <Section>
-              <Card title="Назначение флориста">
-                <div className="stack-form">
-                  {order.activeAssignment ? (
-                    <div className="meta-row">
-                      <span>membership: {order.activeAssignment.membershipId}</span>
-                      <span>
-                        с {new Date(order.activeAssignment.assignedAt).toLocaleString()}
-                      </span>
-                    </div>
-                  ) : (
-                    <p style={{ margin: 0, color: 'var(--color-muted)' }}>Не назначен</p>
-                  )}
-                  {auth.hasPermission('orders:assign') ? (
-                    <>
-                      <Input
-                        value={membershipId}
-                        onChange={(e) => setMembershipId(e.target.value)}
-                        placeholder="membershipId"
-                      />
-                      <div className="page-header__actions">
-                        <Button
-                          type="button"
-                          disabled={busy || !membershipId}
-                          onClick={() =>
-                            void run(() =>
-                              client.assignFlorist(organizationId, storeId, orderId, {
-                                membershipId,
-                              }),
-                            )
-                          }
-                        >
-                          Назначить
+                        <FancySelect
+                          value={actualItemId}
+                          onChange={setActualItemId}
+                          options={items.map((item) => ({
+                            value: item.id,
+                            label: item.name,
+                            hint: item.code,
+                          }))}
+                          aria-label="Факт товар"
+                        />
+                        <Input
+                          value={actualQuantity}
+                          onChange={(e) => setActualQuantity(e.target.value)}
+                          placeholder="Факт. количество"
+                          inputMode="decimal"
+                        />
+                        <Button type="submit" disabled={busy || !actualItemId}>
+                          Сохранить факт
                         </Button>
-                        <Button
-                          type="button"
-                          variant="secondary"
-                          disabled={busy}
-                          onClick={() =>
-                            void run(async () => {
-                              const mid = await resolveMyMembershipId();
-                              setMembershipId(mid);
-                              await client.assignFlorist(organizationId, storeId, orderId, {
-                                membershipId: mid,
-                              });
-                            })
-                          }
-                        >
-                          Назначить себя
-                        </Button>
-                        {order.activeAssignment ? (
-                          <Button
-                            type="button"
-                            variant="secondary"
-                            disabled={busy}
-                            onClick={() =>
-                              void run(() =>
-                                client.releaseAssignment(organizationId, storeId, orderId, {
-                                  reason: 'Released from order admin',
-                                }),
-                              )
-                            }
-                          >
-                            Снять назначение
-                          </Button>
-                        ) : null}
-                      </div>
-                    </>
-                  ) : null}
-                </div>
+                      </form>
+                    ) : null}
+                  </div>
+                ) : null}
               </Card>
             </Section>
 
             {canReadPayments ? (
               <Section>
                 <Card title="Оплата">
-                  <p className="form-lead">
-                    Можно принять предоплату одним или несколькими способами (например карта
-                    сейчас, наличные при выдаче). Остаток закроется при оформлении продажи.
-                  </p>
                   {paymentSummary ? (
-                    <div className="stack-form">
-                      <div className="meta-row">
-                        <StatusBadge status={paymentSummary.status} />
-                        <span>Итого: {paymentSummary.totalAmount}</span>
-                        <span>Оплачено: {paymentSummary.paidAmount}</span>
-                        <span>Возврат: {paymentSummary.refundedAmount}</span>
-                        <span>К доплате: {paymentSummary.balanceDue}</span>
-                      </div>
+                    <div className="meta-row">
+                      <StatusBadge status={paymentSummary.status} />
+                      <span>Итого: {paymentSummary.totalAmount}</span>
+                      <span>Оплачено: {paymentSummary.paidAmount}</span>
+                      <span>К доплате: {paymentSummary.balanceDue}</span>
                     </div>
-                  ) : (
-                    <p style={{ margin: 0, color: 'var(--color-muted)' }}>Сводка недоступна.</p>
-                  )}
+                  ) : null}
                   {auth.hasPermission('payments:create') &&
                   auth.hasPermission('payments:complete') &&
                   order.status !== 'DRAFT' &&
@@ -766,7 +839,7 @@ export default function OrderDetailPage() {
                         }
                         required
                         disabled={busy}
-                        label="Предоплата / оплата"
+                        label="Предоплата"
                       />
                       <Button
                         type="submit"
@@ -776,127 +849,17 @@ export default function OrderDetailPage() {
                       </Button>
                     </form>
                   ) : null}
-                  <p style={{ margin: '12px 0 0' }}>
-                    <Link href={`${base}/payments`}>Все платежи магазина</Link>
-                  </p>
                 </Card>
               </Section>
             ) : null}
 
             <Section>
-              <Card title="Действия">
-                <div className="page-header__actions">
-                  {order.status === 'READY' && auth.hasPermission('sales:create') ? (
-                    <Link href={`${base}/sales/new?fromOrder=${orderId}`}>
-                      <Button type="button">Оформить продажу</Button>
-                    </Link>
-                  ) : null}
-                  {draft && auth.hasPermission('orders:confirm') ? (
-                    <Button
-                      type="button"
-                      disabled={busy}
-                      onClick={() =>
-                        void run(() => client.confirmOrder(organizationId, storeId, orderId))
-                      }
-                    >
-                      Подтвердить
-                    </Button>
-                  ) : null}
-                  {(order.status === 'CONFIRMED' ||
-                    order.status === 'PARTIALLY_RESERVED' ||
-                    order.status === 'RESERVED') &&
-                  auth.hasPermission('orders:reserve') ? (
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      disabled={busy}
-                      onClick={() =>
-                        void run(() => client.reserveOrder(organizationId, storeId, orderId))
-                      }
-                    >
-                      Резервировать
-                    </Button>
-                  ) : null}
-                  {(order.status === 'RESERVED' || order.status === 'PARTIALLY_RESERVED') &&
-                  auth.hasPermission('orders:prepare') ? (
-                    <Button
-                      type="button"
-                      disabled={busy}
-                      onClick={() =>
-                        void run(() =>
-                          client.startOrderPreparation(organizationId, storeId, orderId),
-                        )
-                      }
-                    >
-                      В работу
-                    </Button>
-                  ) : null}
-                  {inPrep && auth.hasPermission('orders:prepare') ? (
-                    <Button
-                      type="button"
-                      disabled={busy}
-                      onClick={() =>
-                        void run(() => client.markOrderReady(organizationId, storeId, orderId))
-                      }
-                    >
-                      Готов
-                    </Button>
-                  ) : null}
-                  {order.status === 'READY' && auth.hasPermission('orders:prepare') ? (
-                    <Button
-                      type="button"
-                      disabled={busy}
-                      onClick={() =>
-                        void run(() => client.completeOrder(organizationId, storeId, orderId))
-                      }
-                    >
-                      Завершить
-                    </Button>
-                  ) : null}
-                  {order.status !== 'COMPLETED' &&
-                  order.status !== 'CANCELLED' &&
-                  auth.hasPermission('orders:cancel') ? (
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      disabled={busy}
-                      onClick={() =>
-                        void run(() => client.cancelOrder(organizationId, storeId, orderId))
-                      }
-                    >
-                      Отменить
-                    </Button>
-                  ) : null}
-                </div>
-              </Card>
-            </Section>
-
-            <Section>
-              <Card title="Таймлайн">
-                <ul className="list-stack">
-                  {(order.timeline ?? []).map((event) => (
-                    <li key={event.id}>
-                      <div className="meta-row">
-                        <StatusBadge status={event.type} />
-                        <span>{new Date(event.occurredAt).toLocaleString()}</span>
-                      </div>
-                      {event.message ? <p style={{ margin: '4px 0 0' }}>{event.message}</p> : null}
-                    </li>
-                  ))}
-                </ul>
-              </Card>
-            </Section>
-
-            <Section>
-              <Card title="Комментарии">
+              <Card title="Заметки">
                 <ul className="list-stack">
                   {(order.comments ?? []).map((c) => (
                     <li key={c.id}>
                       <div className="meta-row">
-                        <span>{new Date(c.createdAt).toLocaleString()}</span>
-                        <span style={{ color: 'var(--color-muted)', fontSize: 'var(--text-sm)' }}>
-                          {c.authorMembershipId.slice(0, 8)}…
-                        </span>
+                        <span>{new Date(c.createdAt).toLocaleString('ru-RU')}</span>
                       </div>
                       <p style={{ margin: '4px 0 0' }}>{c.message}</p>
                     </li>
@@ -907,13 +870,23 @@ export default function OrderDetailPage() {
                     <Input
                       value={commentMessage}
                       onChange={(e) => setCommentMessage(e.target.value)}
-                      placeholder="Новый комментарий"
+                      placeholder="Короткая заметка для команды"
                     />
                     <Button type="submit" disabled={busy || !commentMessage.trim()}>
                       Добавить
                     </Button>
                   </form>
                 ) : null}
+                {canAudit ? (
+                  <p className="field__hint" style={{ marginTop: 16 }}>
+                    История действий пользователей — в{' '}
+                    <Link href={`/organizations/${organizationId}/audit`}>журнале аудита</Link>.
+                  </p>
+                ) : (
+                  <p className="field__hint" style={{ marginTop: 16 }}>
+                    История действий хранится в журнале аудита системы.
+                  </p>
+                )}
               </Card>
             </Section>
           </>
