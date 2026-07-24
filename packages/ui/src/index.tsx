@@ -102,11 +102,11 @@ export function Card({ title, children }: CardProps) {
   return (
     <section
       style={{
-        border: '1px solid var(--color-border, #d0dbd3)',
+        border: '1px solid var(--color-border, #e6ebe8)',
         borderRadius: 'var(--radius-lg, 24px)',
         padding: 'var(--space-5, 1.25rem)',
         background: 'var(--color-surface, #ffffff)',
-        boxShadow: 'var(--shadow-sm, none)',
+        boxShadow: 'var(--shadow-md, 0 8px 28px rgba(18, 24, 22, 0.07))',
         minWidth: 0,
       }}
     >

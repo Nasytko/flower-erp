@@ -6,8 +6,14 @@ import { Button, Card, Input } from '@flower/ui';
 import { ApiClientError } from '@flower/api-client';
 import { getApiClient } from '@/lib/api-client';
 import { useAuth } from '@/components/auth-provider';
-import { Field } from '@/components/layout/field';
+import { AutoNumberNote, Field } from '@/components/layout/field';
 import { MoneyBynInput, parseBynToApi } from '@/components/layout/money-byn-input';
+import {
+  PaymentSplitEditor,
+  createEmptyPaymentLine,
+  parsePaymentSplit,
+  type PaymentSplitLine,
+} from '@/components/layout/payment-split-editor';
 import { PageContainer } from '@/components/layout/page-container';
 import { PageHeader } from '@/components/layout/page-header';
 import { Section } from '@/components/layout/section';
@@ -20,6 +26,8 @@ type CatalogItem = {
   itemType: string;
   isSellable?: boolean;
 };
+
+type PaymentMethod = { id: string; name: string; code: string };
 
 type CompositionLine = { key: string; itemId: string; quantity: string };
 
@@ -72,9 +80,15 @@ function NewSalePageInner() {
   const [discountValue, setDiscountValue] = useState('');
   const [discountReason, setDiscountReason] = useState<string>('OTHER');
   const [comment, setComment] = useState('');
+  const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
+  const [paymentLines, setPaymentLines] = useState<PaymentSplitLine[]>([createEmptyPaymentLine()]);
+  const [orderBalanceDue, setOrderBalanceDue] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const canPay =
+    auth.hasPermission('payments:create') && auth.hasPermission('payments:complete');
 
   const filteredItems = useMemo(() => {
     const q = itemQuery.trim().toLowerCase();
@@ -115,8 +129,14 @@ function NewSalePageInner() {
         ? Promise.resolve({ items: [] as CatalogItem[] })
         : client.listItems(organizationId, { pageSize: 100, status: 'ACTIVE' }),
       fromOrderId ? client.getOrder(organizationId, storeId, fromOrderId) : Promise.resolve(null),
+      canPay
+        ? client.listPaymentMethods(organizationId, storeId, { activeOnly: true })
+        : Promise.resolve([] as PaymentMethod[]),
+      fromOrderId && canPay
+        ? client.getOrderPaymentSummary(organizationId, storeId, fromOrderId)
+        : Promise.resolve(null),
     ])
-      .then(([warehouses, catalog, order]) => {
+      .then(([warehouses, catalog, order, methods, orderPay]) => {
         if (cancelled) return;
         const defaultWh = warehouses.find((w) => w.isDefault) ?? warehouses[0];
         if (defaultWh) {
@@ -135,6 +155,11 @@ function NewSalePageInner() {
           setBouquetName(`Заказ ${order.number}`);
           setComment(order.comment ?? '');
         }
+        setPaymentMethods(methods);
+        if (methods[0]) {
+          setPaymentLines([createEmptyPaymentLine(methods[0].id)]);
+        }
+        setOrderBalanceDue(orderPay?.balanceDue ?? null);
       })
       .catch((err: unknown) => {
         if (cancelled) return;
@@ -146,7 +171,8 @@ function NewSalePageInner() {
     return () => {
       cancelled = true;
     };
-  }, [organizationId, storeId, auth, fromOrderId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [organizationId, storeId, auth, fromOrderId, canPay]);
 
   function discountPayload() {
     if (discountType === 'NONE' || !auth.hasPermission('sales:discount')) return undefined;
@@ -181,7 +207,7 @@ function NewSalePageInner() {
     }
     if (!bouquetName.trim()) {
       throw new ApiClientError({
-        message: 'Укажите название сборного букета',
+                        message: 'Укажите название букета',
         code: 'VALIDATION',
         status: 400,
         requestId: 'local',
@@ -212,6 +238,22 @@ function NewSalePageInner() {
         });
       }
 
+      const payments = canPay ? parsePaymentSplit(paymentLines) : [];
+      const balanceLeft = orderBalanceDue != null ? Number(orderBalanceDue) : null;
+      const needsPaymentNow =
+        canPay &&
+        (!fromOrderId || balanceLeft == null || Number.isNaN(balanceLeft) || balanceLeft > 0.0001);
+      if (needsPaymentNow && payments.length === 0) {
+        throw new ApiClientError({
+          message: fromOrderId
+            ? 'Укажите доплату (способ и сумму) или несколько способов. Если всё уже оплачено предоплатой — обновите страницу.'
+            : 'Укажите способ оплаты и сумму. Можно добавить несколько способов.',
+          code: 'VALIDATION',
+          status: 400,
+          requestId: 'local',
+        });
+      }
+
       const client = getApiClient();
       let saleId: string;
       if (fromOrderId) {
@@ -233,6 +275,25 @@ function NewSalePageInner() {
 
       if (auth.hasPermission('sales:complete')) {
         await client.completeSale(organizationId, storeId, saleId, newKey());
+        if (fromOrderId && auth.hasPermission('payments:complete')) {
+          try {
+            await client.allocateOrderPrepaymentsToSale(
+              organizationId,
+              storeId,
+              fromOrderId,
+              { saleId },
+              newKey(),
+            );
+          } catch {
+            // Prepayment allocation is best-effort; sale already completed.
+          }
+        }
+        for (const payment of payments) {
+          const created = await client.createSalePayment(organizationId, storeId, saleId, payment);
+          if (created.status === 'DRAFT') {
+            await client.completePayment(organizationId, storeId, created.id, newKey());
+          }
+        }
         router.push(`${base}/sales/${saleId}?completed=1`);
         return;
       }
@@ -249,21 +310,30 @@ function NewSalePageInner() {
 
   const canComplete = auth.hasPermission('sales:complete');
   const pricePreview = parseBynToApi(unitPrice);
+  const expectedPay =
+    fromOrderId && orderBalanceDue != null ? orderBalanceDue : pricePreview;
+  const paymentRequired =
+    canPay &&
+    canComplete &&
+    (!fromOrderId ||
+      orderBalanceDue == null ||
+      Number.isNaN(Number(orderBalanceDue)) ||
+      Number(orderBalanceDue) > 0.0001);
 
   return (
     <main>
       <PageContainer>
         <PageHeader
-          title={fromOrderId ? 'Продажа из заказа' : 'Сборный букет'}
+          title={fromOrderId ? 'Продажа из заказа' : 'Новая продажа'}
           description={
             fromOrderId
-              ? 'Продажа готового заказа: цена в BYN, списание состава заказа при завершении.'
-              : 'Соберите букет из цветов магазина, укажите цену в BYN и продайте — остатки спишутся автоматически.'
+              ? 'Заказ готов — оформляем продажу: оплата и списание со склада. Номер назначит система.'
+              : 'Продажа в магазине без предварительного заказа. Номер назначит система.'
           }
           breadcrumbs={[
             { label: 'Магазин', href: base },
             { label: 'Продажи', href: `${base}/sales` },
-            { label: fromOrderId ? 'Из заказа' : 'Сборный букет' },
+            { label: fromOrderId ? 'Из заказа' : 'Новая' },
           ]}
         />
 
@@ -272,26 +342,35 @@ function NewSalePageInner() {
 
         {!loading ? (
           <Section>
-            <Card title={fromOrderId ? 'Из заказа' : 'Состав и цена'}>
+            <Card title={fromOrderId ? 'Из заказа' : 'Букет для продажи'}>
               {!fromOrderId ? (
-                <p className="form-lead">
-                  Списание идёт со склада магазина
-                  {warehouseLabel ? (
-                    <>
-                      : <strong>{warehouseLabel}</strong>
-                    </>
-                  ) : (
-                    '.'
-                  )}{' '}
-                  Выбирать склад не нужно.
-                </p>
+                <div className="concept-callout">
+                  <strong>Продажа</strong>
+                  <p>
+                    Клиент забирает букет сейчас. Укажите состав, цену и способ оплаты (можно
+                    несколько). Склад спишется сразу
+                    {warehouseLabel ? (
+                      <>
+                        {' '}
+                        (<strong>{warehouseLabel}</strong>)
+                      </>
+                    ) : null}
+                    .
+                  </p>
+                </div>
               ) : (
-                <p className="form-lead">
-                  Проверьте цену. После продажи остатки спишутся по фактическому составу заказа.
-                </p>
+                <div className="concept-callout">
+                  <strong>Заказ → продажа</strong>
+                  <p>
+                    Когда заказ готов и передаётся клиенту, оформляется продажа. Укажите оплату
+                    (можно добрать остаток другим способом) — состав заказа спишется со склада.
+                  </p>
+                </div>
               )}
 
               <form onSubmit={onSubmit} className="stack-form">
+                <AutoNumberNote label="Номер продажи" />
+
                 <Field
                   label={fromOrderId ? 'Название' : 'Название букета'}
                   tooltip="Так продажа сохранится в истории магазина"
@@ -488,17 +567,36 @@ function NewSalePageInner() {
                   />
                 </Field>
 
-                <Button type="submit" disabled={busy || (!fromOrderId && !warehouseId)}>
+                {canPay && canComplete ? (
+                  <PaymentSplitEditor
+                    methods={paymentMethods}
+                    lines={paymentLines}
+                    onChange={setPaymentLines}
+                    expectedAmount={expectedPay}
+                    required={paymentRequired}
+                    disabled={busy}
+                    label={fromOrderId ? 'Доплата при выдаче' : 'Оплата'}
+                  />
+                ) : null}
+
+                <Button
+                  type="submit"
+                  disabled={
+                    busy ||
+                    (!fromOrderId && !warehouseId) ||
+                    (paymentRequired && paymentMethods.length === 0)
+                  }
+                >
                   {busy
-                    ? 'Продаём…'
+                    ? 'Оформляем…'
                     : canComplete
-                      ? 'Продать и списать со склада'
+                      ? 'Оформить продажу'
                       : 'Создать черновик продажи'}
                 </Button>
                 {canComplete ? (
                   <p className="field__hint">
-                    После нажатия продажа сразу завершится, а состав букета спишется со склада
-                    магазина.
+                    Продажа завершится, состав спишется со склада
+                    {canPay ? ', оплата зафиксируется по указанным способам' : ''}.
                   </p>
                 ) : null}
               </form>

@@ -7,6 +7,8 @@ export const ru = {
   menu: 'Меню',
   openNav: 'Открыть меню',
   closeNav: 'Закрыть меню',
+  expandNav: 'Показать названия разделов',
+  collapseNav: 'Свернуть меню до иконок',
   close: 'Закрыть',
   logout: 'Выйти',
   loginTitle: 'Вход',

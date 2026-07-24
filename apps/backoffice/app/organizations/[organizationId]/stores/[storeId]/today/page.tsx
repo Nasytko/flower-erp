@@ -1,6 +1,6 @@
 ﻿'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { Button, Card } from '@flower/ui';
@@ -8,7 +8,6 @@ import { ApiClientError, type WorkspaceTodayDto } from '@flower/api-client';
 import { getApiClient } from '@/lib/api-client';
 import { useAuth } from '@/components/auth-provider';
 import { PageContainer } from '@/components/layout/page-container';
-import { PageHeader } from '@/components/layout/page-header';
 import { Section } from '@/components/layout/section';
 import { EmptyState, ErrorState, LoadingState } from '@/components/layout/states';
 import {
@@ -27,6 +26,16 @@ const PRIMARY_ACTION_LABEL: Record<string, string> = {
   CREATE_SALE: 'Создать продажу',
   VIEW: 'Открыть',
   NONE: 'Открыть',
+};
+
+type QuickAction = {
+  id: string;
+  label: string;
+  description: string;
+  href?: string;
+  onClick?: () => void;
+  permission?: string | string[];
+  tone?: 'accent' | 'muted';
 };
 
 export default function TodayWorkspacePage() {
@@ -53,7 +62,9 @@ export default function TodayWorkspacePage() {
       setData(today);
       setCapturedAt(Date.now());
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Не удалось загрузить рабочее пространство');
+      setError(
+        err instanceof ApiClientError ? err.message : 'Не удалось загрузить рабочее пространство',
+      );
     } finally {
       setLoading(false);
     }
@@ -116,87 +127,153 @@ export default function TodayWorkspacePage() {
     return `${base}/orders?filter=${encodeURIComponent(filter)}`;
   }
 
-  function sectionCards(
-    title: string,
-    cards: WorkspaceTodayDto['sections']['soon'],
-  ) {
-    if (!data) return null;
-    return (
-      <Section>
-        <Card title={title}>
-          {cards.length === 0 ? (
-            <EmptyState message="Пока ничего нет." />
-          ) : (
-            <div className="order-card-list">
-              {cards.map((card) => (
-                <OrderCard
-                  key={card.id}
-                  number={card.number}
-                  status={card.status}
-                  customerName={card.customerNameSnapshot}
-                  occasion={card.occasion}
-                  urgency={card.urgency}
-                  hasDeficit={card.hasDeficit}
-                  href={`${base}/work-orders/${card.id}`}
-                  countdown={
-                    <CountdownBadge
-                      readyAt={card.readyAt}
-                      serverNow={data.serverNow}
-                      clientCapturedAt={capturedAt}
-                    />
-                  }
-                  primaryActionLabel={PRIMARY_ACTION_LABEL[card.primaryAction] ?? 'Open'}
-                  primaryDisabled={busy}
-                  onPrimaryAction={() => void runPrimary(card.id, card.primaryAction)}
-                />
-              ))}
-            </div>
-          )}
-        </Card>
-      </Section>
-    );
-  }
+  const canClaimNext =
+    auth.hasPermission('orders:assign') && auth.hasPermission('orders:prepare');
+
+  const todayLabel = useMemo(
+    () =>
+      new Date().toLocaleDateString('ru-RU', {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long',
+      }),
+    [],
+  );
+
+  const quickActions = useMemo((): QuickAction[] => {
+    const actions: QuickAction[] = [
+      {
+        id: 'sale',
+        label: 'Новая продажа',
+        description: 'Выдача и оплата в магазине',
+        href: `${base}/sales/new`,
+        permission: 'sales:create',
+        tone: 'accent',
+      },
+      {
+        id: 'order',
+        label: 'Новый заказ',
+        description: 'К времени: самовывоз или доставка',
+        href: `${base}/orders`,
+        permission: 'orders:create',
+      },
+      {
+        id: 'supply',
+        label: 'Поставка',
+        description: 'Приёмка и поставки',
+        href: `${base}/supplies`,
+        permission: 'supply:read',
+      },
+      {
+        id: 'delivery',
+        label: 'Доставка',
+        description: 'Маршруты и курьеры',
+        href: `${base}/deliveries`,
+        permission: 'delivery:read',
+      },
+      {
+        id: 'stock',
+        label: 'Склад',
+        description: 'Остатки магазина',
+        href: `${base}/stock`,
+        permission: 'inventory:read',
+      },
+      {
+        id: 'claim',
+        label: 'Взять следующий',
+        description: 'Следующий заказ в работу',
+        onClick: () => void claimNext(),
+        permission: ['orders:assign', 'orders:prepare'],
+      },
+    ];
+
+    return actions.filter((action) => {
+      if (!action.permission) return true;
+      if (Array.isArray(action.permission)) {
+        return action.permission.every((code) => auth.hasPermission(code));
+      }
+      return auth.hasPermission(action.permission);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [auth, base]);
+
+  const priorityQueue = useMemo(() => {
+    if (!data) return [];
+    const seen = new Set<string>();
+    const merged = [
+      ...data.sections.overdue,
+      ...data.sections.soon,
+      ...data.sections.unassigned,
+      ...data.sections.inPreparation,
+      ...data.sections.ready,
+    ];
+    return merged.filter((card) => {
+      if (seen.has(card.id)) return false;
+      seen.add(card.id);
+      return true;
+    }).slice(0, 8);
+  }, [data]);
 
   if (!canRead) {
     return (
       <main>
         <PageContainer>
-          <ErrorState message="Доступ запрещён: требуется workspace:read или orders:read." />
+          <ErrorState message="Доступ запрещён: требуется доступ к рабочему месту или заказам." />
         </PageContainer>
       </main>
     );
   }
 
-  const canClaimNext =
-    auth.hasPermission('orders:assign') && auth.hasPermission('orders:prepare');
-
   return (
     <main>
       <PageContainer>
-        <PageHeader
-          title="Сегодня"
-          description="Очередь магазина на сегодня: что просрочено, что скоро и что можно взять в работу"
-          breadcrumbs={[
-            { label: 'Магазин', href: base },
-            { label: 'Сегодня' },
-          ]}
-          actions={
-            <div className="page-header__actions">
-              {canClaimNext ? (
-                <Button type="button" disabled={busy} onClick={() => void claimNext()}>
-                  Взять следующий
-                </Button>
-              ) : null}
-              <Button type="button" variant="secondary" disabled={busy} onClick={() => void load()}>
-                Обновить
-              </Button>
-            </div>
-          }
-        />
+        <header className="hub-header">
+          <div>
+            <p className="hub-header__date">{todayLabel}</p>
+            <h1 className="hub-header__title">Сегодня</h1>
+            <p className="hub-header__subtitle">
+              Единая панель магазина: продажа, заказы, поставки и очередь на смену.
+            </p>
+          </div>
+          <div className="page-header__actions">
+            <Button type="button" variant="secondary" disabled={busy} onClick={() => void load()}>
+              Обновить
+            </Button>
+          </div>
+        </header>
 
-        {loading ? <LoadingState message="Загрузка рабочего пространства…" /> : null}
+        {loading ? <LoadingState message="Загрузка панели…" /> : null}
         {error ? <ErrorState message={error} /> : null}
         {message ? <InlineAlert tone="info">{message}</InlineAlert> : null}
+
+        <Section>
+          <div className="hub-quick">
+            {quickActions.map((action) => {
+              const className =
+                action.tone === 'accent' ? 'hub-quick__card hub-quick__card--accent' : 'hub-quick__card';
+              if (action.href) {
+                return (
+                  <Link key={action.id} href={action.href} className={className}>
+                    <strong>{action.label}</strong>
+                    <span>{action.description}</span>
+                  </Link>
+                );
+              }
+              return (
+                <button
+                  key={action.id}
+                  type="button"
+                  className={className}
+                  disabled={busy}
+                  onClick={action.onClick}
+                >
+                  <strong>{action.label}</strong>
+                  <span>{action.description}</span>
+                </button>
+              );
+            })}
+          </div>
+        </Section>
 
         {!loading && !error && data ? (
           <>
@@ -205,7 +282,7 @@ export default function TodayWorkspacePage() {
                 <MetricCard
                   label="Просрочены"
                   value={data.counters.overdue.count}
-                  hint="Нужно закрыть в первую очередь"
+                  hint="Закрыть в первую очередь"
                   href={filterHref(data.counters.overdue.filterLink)}
                   tone="danger"
                   tint={1}
@@ -221,14 +298,14 @@ export default function TodayWorkspacePage() {
                 <MetricCard
                   label="В подготовке"
                   value={data.counters.inPreparation.count}
-                  hint="Уже в работе у флористов"
+                  hint="Уже в работе"
                   href={filterHref(data.counters.inPreparation.filterLink)}
                   tint={3}
                 />
                 <MetricCard
                   label="Готовы"
                   value={data.counters.ready.count}
-                  hint="Можно выдавать или доставлять"
+                  hint="Можно выдавать"
                   href={filterHref(data.counters.ready.filterLink)}
                   tone="success"
                   tint={4}
@@ -236,124 +313,132 @@ export default function TodayWorkspacePage() {
               </div>
             </Section>
 
-            {data.attentionItems.length > 0 ||
-            data.lowStockWarnings.length > 0 ||
-            data.counters.unassigned.count > 0 ||
-            data.counters.partiallyReserved.count > 0 ? (
+            <div className="hub-layout">
               <Section>
-                <Card title="Требует внимания">
-                  <div className="attention-list">
-                    {data.counters.unassigned.count > 0 ? (
-                      <InlineAlert tone="info" title="Без назначения">
-                        {data.counters.unassigned.count} заказ(ов) без флориста.{' '}
-                        <Link href={filterHref(data.counters.unassigned.filterLink)}>Открыть список</Link>
-                      </InlineAlert>
+                <Card title="Очередь на смену">
+                  {priorityQueue.length === 0 ? (
+                    <EmptyState message="На сейчас очередь пуста — можно заняться продажей или поставкой." />
+                  ) : (
+                    <div className="order-card-list">
+                      {priorityQueue.map((card) => (
+                        <OrderCard
+                          key={card.id}
+                          number={card.number}
+                          status={card.status}
+                          customerName={card.customerNameSnapshot}
+                          occasion={card.occasion}
+                          urgency={card.urgency}
+                          hasDeficit={card.hasDeficit}
+                          href={`${base}/work-orders/${card.id}`}
+                          countdown={
+                            <CountdownBadge
+                              readyAt={card.readyAt}
+                              serverNow={data.serverNow}
+                              clientCapturedAt={capturedAt}
+                            />
+                          }
+                          primaryActionLabel={PRIMARY_ACTION_LABEL[card.primaryAction] ?? 'Открыть'}
+                          primaryDisabled={busy}
+                          onPrimaryAction={() => void runPrimary(card.id, card.primaryAction)}
+                        />
+                      ))}
+                    </div>
+                  )}
+                  <div className="hub-card-footer">
+                    <Link href={`${base}/orders`}>Все заказы</Link>
+                    {canClaimNext ? (
+                      <Button type="button" disabled={busy} onClick={() => void claimNext()}>
+                        Взять следующий
+                      </Button>
                     ) : null}
-                    {data.counters.partiallyReserved.count > 0 ? (
-                      <InlineAlert tone="warning" title="Нехватка состава">
-                        {data.counters.partiallyReserved.count} заказ(ов) с дефицитом позиций.{' '}
-                        <Link href={filterHref(data.counters.partiallyReserved.filterLink)}>
-                          Открыть список
-                        </Link>
-                      </InlineAlert>
-                    ) : null}
-                    {data.attentionItems.slice(0, data.sectionLimit).map((item) => (
-                      <AttentionItem
-                        key={item.id}
-                        severity={item.severity}
-                        title={item.title}
-                        reason={item.reason}
-                        recommendedAction={item.recommendedAction}
-                        ageMinutes={item.ageMinutes}
-                        href={
-                          item.entityType === 'ORDER'
-                            ? `${base}/work-orders/${item.entityId}`
-                            : item.filterLink
-                              ? filterHref(item.filterLink)
-                              : null
-                        }
-                      />
-                    ))}
-                    {data.lowStockWarnings.slice(0, data.sectionLimit).map((warning) => (
-                      <InlineAlert
-                        key={`${warning.itemId}-${warning.warehouseId}`}
-                        tone="warning"
-                        title={`Мало на складе: ${warning.itemName}`}
-                      >
-                        {warning.itemCode}: доступно {warning.availableQuantity} (порог{' '}
-                        {warning.threshold}). <Link href={`${base}/stock`}>Открыть склад</Link>
-                      </InlineAlert>
-                    ))}
                   </div>
                 </Card>
               </Section>
-            ) : null}
 
-            {data.quickActions.length > 0 ? (
-              <Section>
-                <Card title="Быстрые действия">
-                  <div className="page-header__actions">
-                    {data.quickActions.map((action) => {
-                      if (action.code === 'CLAIM_NEXT') {
-                        return (
-                          <Button
-                            key={action.code}
-                            type="button"
-                            disabled={busy || !canClaimNext}
-                            onClick={() => void claimNext()}
+              <div className="hub-side">
+                <Section>
+                  <Card title="Требует внимания">
+                    {data.attentionItems.length === 0 &&
+                    data.lowStockWarnings.length === 0 &&
+                    data.counters.unassigned.count === 0 &&
+                    data.counters.partiallyReserved.count === 0 ? (
+                      <EmptyState message="Критичных отклонений нет." />
+                    ) : (
+                      <div className="attention-list">
+                        {data.counters.unassigned.count > 0 ? (
+                          <InlineAlert tone="info" title="Без назначения">
+                            {data.counters.unassigned.count} заказ(ов).{' '}
+                            <Link href={filterHref(data.counters.unassigned.filterLink)}>
+                              Открыть
+                            </Link>
+                          </InlineAlert>
+                        ) : null}
+                        {data.counters.partiallyReserved.count > 0 ? (
+                          <InlineAlert tone="warning" title="Нехватка состава">
+                            {data.counters.partiallyReserved.count} заказ(ов).{' '}
+                            <Link href={filterHref(data.counters.partiallyReserved.filterLink)}>
+                              Открыть
+                            </Link>
+                          </InlineAlert>
+                        ) : null}
+                        {data.attentionItems.slice(0, 4).map((item) => (
+                          <AttentionItem
+                            key={item.id}
+                            severity={item.severity}
+                            title={item.title}
+                            reason={item.reason}
+                            recommendedAction={item.recommendedAction}
+                            ageMinutes={item.ageMinutes}
+                            href={
+                              item.entityType === 'ORDER'
+                                ? `${base}/work-orders/${item.entityId}`
+                                : item.filterLink
+                                  ? filterHref(item.filterLink)
+                                  : null
+                            }
+                          />
+                        ))}
+                        {data.lowStockWarnings.slice(0, 3).map((warning) => (
+                          <InlineAlert
+                            key={`${warning.itemId}-${warning.warehouseId}`}
+                            tone="warning"
+                            title={`Мало: ${warning.itemName}`}
                           >
-                            {action.label}
-                          </Button>
-                        );
-                      }
-                      if (action.code === 'CREATE_ORDER') {
-                        return (
-                          <Button
-                            key={action.code}
-                            type="button"
-                            variant="secondary"
-                            onClick={() => router.push(`${base}/orders`)}
-                          >
-                            {action.label}
-                          </Button>
-                        );
-                      }
-                      if (action.code === 'CREATE_SALE') {
-                        return (
-                          <Button
-                            key={action.code}
-                            type="button"
-                            variant="secondary"
-                            onClick={() => router.push(`${base}/sales/new`)}
-                          >
-                            {action.label}
-                          </Button>
-                        );
-                      }
-                      if (action.code === 'RECEIVE_SUPPLY') {
-                        return (
-                          <Button
-                            key={action.code}
-                            type="button"
-                            variant="secondary"
-                            onClick={() => router.push(`${base}/supplies`)}
-                          >
-                            {action.label}
-                          </Button>
-                        );
-                      }
-                      return null;
-                    })}
-                  </div>
-                </Card>
-              </Section>
-            ) : null}
+                            Доступно {warning.availableQuantity} (порог {warning.threshold}).{' '}
+                            <Link href={`${base}/stock`}>Склад</Link>
+                          </InlineAlert>
+                        ))}
+                      </div>
+                    )}
+                  </Card>
+                </Section>
 
-            {sectionCards('Скоро', data.sections.soon)}
-            {sectionCards('В подготовке', data.sections.inPreparation)}
-            {sectionCards('Без назначения', data.sections.unassigned)}
-            {sectionCards('Готовы', data.sections.ready)}
-            {sectionCards('Просрочены', data.sections.overdue)}
+                <Section>
+                  <Card title="Ещё разделы">
+                    <ul className="hub-links">
+                      <li>
+                        <Link href={`${base}/sales`}>Продажи и история</Link>
+                      </li>
+                      <li>
+                        <Link href={`${base}/payments`}>Оплаты</Link>
+                      </li>
+                      {auth.hasPermission('master-data:read') ? (
+                        <li>
+                          <Link href={`/organizations/${organizationId}/master-data`}>
+                            Справочники
+                          </Link>
+                        </li>
+                      ) : null}
+                      {auth.hasPermission('users:read') ? (
+                        <li>
+                          <Link href={`/organizations/${organizationId}/users`}>Настройки</Link>
+                        </li>
+                      ) : null}
+                    </ul>
+                  </Card>
+                </Section>
+              </div>
+            </div>
           </>
         ) : null}
       </PageContainer>

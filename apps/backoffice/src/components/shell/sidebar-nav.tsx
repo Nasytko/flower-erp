@@ -19,7 +19,7 @@ export function SidebarNav({
   variant = 'rail',
 }: {
   onNavigate?: () => void;
-  variant?: 'rail' | 'drawer';
+  variant?: 'rail' | 'expanded' | 'drawer';
 }) {
   const pathname = usePathname();
   const auth = useAuth();

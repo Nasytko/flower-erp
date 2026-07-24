@@ -1,18 +1,18 @@
 :root {
-  /* Surfaces — soft studio canvas like reference */
-  --color-background: #f4f6f5;
-  --color-foreground: #101914;
+  /* Surfaces — white canvas, cards float on it */
+  --color-background: #ffffff;
+  --color-foreground: #121816;
   --color-surface: #ffffff;
-  --color-surface-muted: #e8eee9;
-  --color-surface-sidebar: #0b2a1c;
-  --color-sidebar-foreground: #dceee4;
-  --color-sidebar-muted: #7fa893;
-  --color-sidebar-active: #b8f06e;
-  --color-sidebar-active-fg: #0b2a1c;
+  --color-surface-muted: #f3f5f4;
+  --color-surface-sidebar: #ffffff;
+  --color-sidebar-foreground: #3a4a42;
+  --color-sidebar-muted: #7a8b82;
+  --color-sidebar-active: #c6f26d;
+  --color-sidebar-active-fg: #121816;
 
   /* Borders / focus */
-  --color-border: #d7e0da;
-  --color-border-strong: #b4c4ba;
+  --color-border: #e6ebe8;
+  --color-border-strong: #c9d3cd;
   --color-focus-ring: #2f9e55;
 
   /* Brand — forest + lime */
@@ -21,14 +21,14 @@
   --color-primary-active: #104f2b;
   --color-primary-foreground: #ffffff;
   --color-primary-soft: #e3f5ea;
-  --color-accent: #b8f06e;
+  --color-accent: #c6f26d;
   --color-accent-soft: #eefbd9;
 
   /* Soft KPI tints */
-  --color-kpi-1: #eef2ff;
-  --color-kpi-2: #e8f7ef;
-  --color-kpi-3: #fff1e8;
-  --color-kpi-4: #f3eaff;
+  --color-kpi-1: #eee8ff;
+  --color-kpi-2: #e5f3ff;
+  --color-kpi-3: #e9f8ef;
+  --color-kpi-4: #fff1e6;
 
   /* Semantic */
   --color-destructive: #b42318;
@@ -39,12 +39,12 @@
   --color-success-soft: #e3f5ea;
   --color-info: #175cd3;
   --color-info-soft: #eff4ff;
-  --color-muted: #5d6f65;
+  --color-muted: #6b7a72;
 
-  /* Elevation — soft cards */
-  --shadow-sm: 0 2px 8px rgba(16, 25, 20, 0.04);
-  --shadow-md: 0 10px 28px rgba(16, 25, 20, 0.08);
-  --shadow-lg: 0 20px 48px rgba(16, 25, 20, 0.12);
+  /* Elevation — clear card separation on white */
+  --shadow-sm: 0 2px 10px rgba(18, 24, 22, 0.04);
+  --shadow-md: 0 8px 28px rgba(18, 24, 22, 0.07);
+  --shadow-lg: 0 18px 44px rgba(18, 24, 22, 0.1);
 
   /* Typography */
   --font-sans: var(--font-manrope), 'Segoe UI', system-ui, sans-serif;
@@ -71,16 +71,18 @@
   --space-8: 2rem;
   --space-10: 2.5rem;
 
-  /* Radius — highly rounded like reference */
+  /* Radius */
   --radius-sm: 12px;
   --radius-md: 18px;
   --radius-lg: 24px;
   --radius-pill: 999px;
 
-  /* Layout — compact icon rail */
-  --sidebar-width: 92px;
-  --header-height: 68px;
-  --content-max-width: 1320px;
+  /* Layout */
+  --sidebar-width-collapsed: 88px;
+  --sidebar-width-expanded: 248px;
+  --sidebar-width: var(--sidebar-width-collapsed);
+  --header-height: 72px;
+  --content-max-width: 1360px;
   --page-padding: var(--space-5);
 
   /* Motion */

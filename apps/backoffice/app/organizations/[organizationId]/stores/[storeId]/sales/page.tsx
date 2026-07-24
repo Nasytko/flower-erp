@@ -75,7 +75,7 @@ export default function SalesPage() {
       <PageContainer>
         <PageHeader
           title="Продажи"
-          description="Сборные букеты магазина и продажи из готовых заказов. Цены в BYN."
+          description="Продажа — выдача букета клиенту с оплатой и списанием со склада. Номер присваивается автоматически."
           breadcrumbs={[
             { label: 'Магазин', href: base },
             { label: 'Продажи' },
@@ -83,11 +83,25 @@ export default function SalesPage() {
           actions={
             canCreate ? (
               <Button type="button" onClick={() => router.push(`${base}/sales/new`)}>
-                Сборный букет
+                Новая продажа
               </Button>
             ) : undefined
           }
         />
+
+        <Section>
+          <div className="concept-callout">
+            <strong>Продажа и заказ</strong>
+            <p>
+              <strong>Продажа</strong> — клиент получает букет сейчас в магазине. Укажите способ
+              оплаты (можно несколько: карта + наличные).
+            </p>
+            <p>
+              <strong>Заказ</strong> — готовим к времени (самовывоз или доставка). Когда заказ
+              готов и передаётся клиенту, из него оформляется продажа.
+            </p>
+          </div>
+        </Section>
 
         <Section>
           {loading ? <LoadingState /> : null}
@@ -96,14 +110,14 @@ export default function SalesPage() {
 
         {canCreate ? (
           <Section>
-            <Card title="Сборные готовые букеты">
+            <Card title="Быстрая продажа">
               <p className="form-lead">
-                Соберите букет из цветов текущего магазина, укажите цену в BYN и продайте одним
-                действием — состав спишется со склада автоматически.
+                Соберите букет, укажите оплату и оформите продажу. Номер документа система назначит
+                сама.
               </p>
               <div className="page-header__actions">
                 <Button type="button" onClick={() => router.push(`${base}/sales/new`)}>
-                  Продать сборный букет
+                  Новая продажа
                 </Button>
               </div>
             </Card>
@@ -114,8 +128,8 @@ export default function SalesPage() {
           <Section>
             <Card title="Готовые заказы без продажи">
               <p className="form-lead">
-                Заказы READY можно быстро превратить в продажу — остатки спишутся по фактическому
-                составу.
+                Заказы со статусом «Готово» можно оформить как продажу — с оплатой и списанием по
+                фактическому составу.
               </p>
               <ul className="list-stack">
                 {readyOrders.map((order) => (
@@ -133,7 +147,7 @@ export default function SalesPage() {
                             router.push(`${base}/sales/new?fromOrder=${order.id}`)
                           }
                         >
-                          Продать
+                          Оформить продажу
                         </Button>
                       ) : null}
                     </div>
@@ -147,7 +161,7 @@ export default function SalesPage() {
         <Section>
           <Card title="История продаж">
             {!loading && sales.length === 0 ? (
-              <EmptyState message="Продаж пока нет. Начните со сборного букета." />
+              <EmptyState message="Продаж пока нет. Оформите новую продажу." />
             ) : null}
             <ul className="list-stack">
               {sales.map((sale) => (

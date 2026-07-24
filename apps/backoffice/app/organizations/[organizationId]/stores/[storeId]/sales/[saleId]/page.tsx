@@ -7,8 +7,13 @@ import { Button, Card } from '@flower/ui';
 import { ApiClientError } from '@flower/api-client';
 import { getApiClient } from '@/lib/api-client';
 import { useAuth } from '@/components/auth-provider';
-import { Field } from '@/components/layout/field';
-import { MoneyBynInput, parseBynToApi } from '@/components/layout/money-byn-input';
+import { AutoNumberNote, Field } from '@/components/layout/field';
+import {
+  PaymentSplitEditor,
+  createEmptyPaymentLine,
+  parsePaymentSplit,
+  type PaymentSplitLine,
+} from '@/components/layout/payment-split-editor';
 import { PageContainer } from '@/components/layout/page-container';
 import { PageHeader } from '@/components/layout/page-header';
 import { Section } from '@/components/layout/section';
@@ -55,8 +60,7 @@ function SaleDetailPageInner() {
   const [consumption, setConsumption] = useState<Consumption>(null);
   const [paymentSummary, setPaymentSummary] = useState<PaymentSummary | null>(null);
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
-  const [payMethodId, setPayMethodId] = useState('');
-  const [payAmount, setPayAmount] = useState('');
+  const [paymentLines, setPaymentLines] = useState<PaymentSplitLine[]>([createEmptyPaymentLine()]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -92,7 +96,11 @@ function SaleDetailPageInner() {
       setPaymentSummary(summary);
       setPaymentMethods(methods);
       if (methods[0]) {
-        setPayMethodId((prev) => prev || methods[0]!.id);
+        setPaymentLines((prev) =>
+          prev.length === 1 && !prev[0]!.methodId && !prev[0]!.amount
+            ? [createEmptyPaymentLine(methods[0]!.id)]
+            : prev,
+        );
       }
     } catch (err) {
       setError(err instanceof ApiClientError ? err.message : 'Не удалось загрузить');
@@ -145,18 +153,17 @@ function SaleDetailPageInner() {
 
   async function onAddPayment(event: FormEvent) {
     event.preventDefault();
-    const amount = parseBynToApi(payAmount);
-    if (!payMethodId || !amount) return;
+    const payments = parsePaymentSplit(paymentLines);
+    if (payments.length === 0) return;
     await run(async () => {
       const client = getApiClient();
-      const payment = await client.createSalePayment(organizationId, storeId, saleId, {
-        methodId: payMethodId,
-        amount,
-      });
-      if (auth.hasPermission('payments:complete') && payment.status === 'DRAFT') {
-        await client.completePayment(organizationId, storeId, payment.id, newIdempotencyKey());
+      for (const payment of payments) {
+        const created = await client.createSalePayment(organizationId, storeId, saleId, payment);
+        if (auth.hasPermission('payments:complete') && created.status === 'DRAFT') {
+          await client.completePayment(organizationId, storeId, created.id, newIdempotencyKey());
+        }
       }
-      setPayAmount('');
+      setPaymentLines([createEmptyPaymentLine(paymentMethods[0]?.id ?? '')]);
     });
   }
 
@@ -185,7 +192,11 @@ function SaleDetailPageInner() {
       <PageContainer>
         <PageHeader
           title={sale ? `Продажа ${sale.number}` : 'Продажа'}
-          description="Черновик → завершена → при необходимости аннулирование. Списание со склада — при завершении."
+          description={
+            sale?.orderId
+              ? 'Продажа по заказу. Номер присвоен системой и не меняется.'
+              : 'Продажа в магазине. Номер присвоен системой и не меняется.'
+          }
           breadcrumbs={[
             { label: 'Магазин', href: base },
             { label: 'Продажи', href: `${base}/sales` },
@@ -209,6 +220,7 @@ function SaleDetailPageInner() {
             <Section>
               <Card title="Сводка">
                 <div className="stack-form">
+                  <AutoNumberNote label="Номер продажи" value={sale.number} />
                   <div className="meta-row">
                     <StatusBadge status={sale.type} />
                     <StatusBadge status={sale.salesChannel} />
@@ -311,36 +323,20 @@ function SaleDetailPageInner() {
                   auth.hasPermission('payments:complete') &&
                   sale.status === 'COMPLETED' ? (
                     <form onSubmit={onAddPayment} className="stack-form" style={{ marginTop: 16 }}>
-                      <Field
-                        label="Способ оплаты"
-                        tooltip="Выберите, как покупатель оплачивает букет"
+                      <PaymentSplitEditor
+                        methods={paymentMethods}
+                        lines={paymentLines}
+                        onChange={setPaymentLines}
+                        expectedAmount={paymentSummary?.balanceDue ?? sale.netAmount}
                         required
-                      >
-                        <select
-                          className="field-control"
-                          value={payMethodId}
-                          onChange={(e) => setPayMethodId(e.target.value)}
-                          required
-                        >
-                          {paymentMethods.map((method) => (
-                            <option key={method.id} value={method.id}>
-                              {method.name}
-                            </option>
-                          ))}
-                        </select>
-                      </Field>
-                      <Field
-                        label="Сумма оплаты"
-                        tooltip="Сумма в белорусских рублях и копейках"
-                        required
-                      >
-                        <MoneyBynInput value={payAmount} onChange={setPayAmount} required />
-                      </Field>
+                        disabled={busy}
+                        label="Добавить оплату"
+                      />
                       <Button
                         type="submit"
-                        disabled={busy || !payMethodId || !parseBynToApi(payAmount)}
+                        disabled={busy || parsePaymentSplit(paymentLines).length === 0}
                       >
-                        Добавить оплату
+                        Зафиксировать оплату
                       </Button>
                     </form>
                   ) : null}

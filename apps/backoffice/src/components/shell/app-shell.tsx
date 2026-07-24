@@ -9,6 +9,7 @@ import { t } from '@/i18n/ru';
 import { resolveNavWorkspace, resolveStoreHomePath } from '@/lib/nav';
 import { DesktopSidebar } from './desktop-sidebar';
 import { MobileDrawer } from './mobile-drawer';
+import { SidebarProvider, useSidebar } from './sidebar-context';
 import { WorkspaceSwitcher } from './workspace-switcher';
 import { WorkspaceContextSync } from './workspace-context-sync';
 import { CommandPalette } from '@/components/workspace/command-palette';
@@ -17,9 +18,10 @@ function openCommandPalette() {
   window.dispatchEvent(new CustomEvent('flower:command-palette'));
 }
 
-export function AppShell({ children }: { children: ReactNode }) {
+function AppShellInner({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const auth = useAuth();
+  const { expanded } = useSidebar();
   const [mobileOpen, setMobileOpen] = useState(false);
   const closeMobile = useCallback(() => setMobileOpen(false), []);
 
@@ -45,7 +47,9 @@ export function AppShell({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div className="shell">
+    <div
+      className={expanded ? 'shell shell--sidebar-expanded' : 'shell shell--sidebar-collapsed'}
+    >
       <WorkspaceContextSync />
       <DesktopSidebar />
       <MobileDrawer open={mobileOpen} onClose={closeMobile} />
@@ -94,5 +98,13 @@ export function AppShell({ children }: { children: ReactNode }) {
       <div className="shell__main">{children}</div>
       <CommandPalette />
     </div>
+  );
+}
+
+export function AppShell({ children }: { children: ReactNode }) {
+  return (
+    <SidebarProvider>
+      <AppShellInner>{children}</AppShellInner>
+    </SidebarProvider>
   );
 }

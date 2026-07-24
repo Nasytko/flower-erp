@@ -7,11 +7,19 @@ import { Button, Card, Input } from '@flower/ui';
 import { ApiClientError } from '@flower/api-client';
 import { getApiClient } from '@/lib/api-client';
 import { useAuth } from '@/components/auth-provider';
+import { AutoNumberNote, Field } from '@/components/layout/field';
+import {
+  PaymentSplitEditor,
+  createEmptyPaymentLine,
+  parsePaymentSplit,
+  type PaymentSplitLine,
+} from '@/components/layout/payment-split-editor';
 import { PageContainer } from '@/components/layout/page-container';
 import { PageHeader } from '@/components/layout/page-header';
 import { Section } from '@/components/layout/section';
 import { ErrorState, LoadingState } from '@/components/layout/states';
 import { StatusBadge } from '@/components/layout/status-badge';
+import { statusLabelRu } from '@/lib/status-labels-ru';
 
 type OrderDetail = Awaited<ReturnType<ReturnType<typeof getApiClient>['getOrder']>>;
 type PaymentSummary = Awaited<ReturnType<ReturnType<typeof getApiClient>['getOrderPaymentSummary']>>;
@@ -35,14 +43,14 @@ const WORKFLOW_STEPS = [
 ] as const;
 
 const OCCASIONS = [
-  'BIRTHDAY',
-  'WEDDING',
-  'ROMANTIC',
-  'CORPORATE',
-  'FUNERAL',
-  'MOTHER_DAY',
-  'NEW_YEAR',
-  'OTHER',
+  { value: 'BIRTHDAY', label: 'День рождения' },
+  { value: 'WEDDING', label: 'Свадьба' },
+  { value: 'ROMANTIC', label: 'Романтика' },
+  { value: 'CORPORATE', label: 'Корпоратив' },
+  { value: 'FUNERAL', label: 'Траур' },
+  { value: 'MOTHER_DAY', label: 'День матери' },
+  { value: 'NEW_YEAR', label: 'Новый год' },
+  { value: 'OTHER', label: 'Другое' },
 ] as const;
 
 function workflowTone(step: string, reached: boolean, isCurrent: boolean): string {
@@ -71,8 +79,7 @@ export default function OrderDetailPage() {
   const [commentMessage, setCommentMessage] = useState('');
   const [paymentSummary, setPaymentSummary] = useState<PaymentSummary | null>(null);
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
-  const [prepayMethodId, setPrepayMethodId] = useState('');
-  const [prepayAmount, setPrepayAmount] = useState('');
+  const [paymentLines, setPaymentLines] = useState<PaymentSplitLine[]>([createEmptyPaymentLine()]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -112,7 +119,11 @@ export default function OrderDetailPage() {
       setLinkedDeliveryNumber(linked?.number ?? null);
       setPaymentMethods(methods);
       if (methods[0]) {
-        setPrepayMethodId((prev) => prev || methods[0]!.id);
+        setPaymentLines((prev) =>
+          prev.length === 1 && !prev[0]!.methodId && !prev[0]!.amount
+            ? [createEmptyPaymentLine(methods[0]!.id)]
+            : prev,
+        );
       }
       if (catalog.items[0]) {
         setItemId((prev) => prev || catalog.items[0]!.id);
@@ -213,22 +224,22 @@ export default function OrderDetailPage() {
 
   async function onAddPrepayment(event: FormEvent) {
     event.preventDefault();
-    if (!prepayMethodId || !prepayAmount.trim()) return;
+    const payments = parsePaymentSplit(paymentLines);
+    if (payments.length === 0) return;
     await run(async () => {
       const client = getApiClient();
-      const payment = await client.createOrderPayment(organizationId, storeId, orderId, {
-        methodId: prepayMethodId,
-        amount: prepayAmount.trim(),
-      });
-      if (auth.hasPermission('payments:complete') && payment.status === 'DRAFT') {
-        await client.completePayment(
-          organizationId,
-          storeId,
-          payment.id,
-          newIdempotencyKey(),
-        );
+      for (const payment of payments) {
+        const created = await client.createOrderPayment(organizationId, storeId, orderId, payment);
+        if (auth.hasPermission('payments:complete') && created.status === 'DRAFT') {
+          await client.completePayment(
+            organizationId,
+            storeId,
+            created.id,
+            newIdempotencyKey(),
+          );
+        }
       }
-      setPrepayAmount('');
+      setPaymentLines([createEmptyPaymentLine(paymentMethods[0]?.id ?? '')]);
     });
   }
 
@@ -246,13 +257,11 @@ export default function OrderDetailPage() {
       <PageContainer>
         <PageHeader
           title={order ? `Заказ ${order.number}` : 'Заказ'}
-          description="Черновик → Подтверждение → Частично зарезервирован → Подготовка → Готов → Завершён"
+          description="Заказ к времени. Когда готов и передан клиенту — оформляется продажа. Номер системы не меняется."
           breadcrumbs={[
-            { label: 'Организации', href: '/organizations' },
-            { label: 'Организация', href: `/organizations/${organizationId}` },
             { label: 'Магазин', href: base },
             { label: 'Заказы', href: `${base}/orders` },
-            { label: order?.number ?? 'Order' },
+            { label: order?.number ?? 'Карточка' },
           ]}
           actions={order ? <StatusBadge status={order.status} /> : undefined}
         />
@@ -279,7 +288,7 @@ export default function OrderDetailPage() {
                       isCurrent,
                     )}${isCurrent ? ' order-workflow__current' : ''}`}
                   >
-                    {step}
+                    {statusLabelRu(step)}
                   </span>
                 );
               })}
@@ -289,6 +298,7 @@ export default function OrderDetailPage() {
 
             <Section>
               <Card title="Клиент / референс / сроки">
+                <AutoNumberNote label="Номер заказа" value={order.number} />
                 {draft && auth.hasPermission('orders:update') ? (
                   <form
                     className="stack-form"
@@ -310,54 +320,80 @@ export default function OrderDetailPage() {
                       );
                     }}
                   >
-                    <select name="type" defaultValue={order.type}>
-                      <option value="PICKUP">Самовывоз</option>
-                      <option value="DELIVERY">Доставка</option>
-                    </select>
-                    <select name="occasion" defaultValue={order.occasion}>
-                      {OCCASIONS.map((o) => (
-                        <option key={o} value={o}>
-                          {o}
-                        </option>
-                      ))}
-                    </select>
-                    <Input
-                      name="recipientName"
-                      defaultValue={order.recipientName ?? ''}
-                      placeholder="Получатель"
-                    />
-                    <Input
-                      name="recipientPhone"
-                      defaultValue={order.recipientPhone ?? ''}
-                      placeholder="Телефон"
-                    />
-                    <Input
-                      name="readyAt"
-                      type="datetime-local"
-                      defaultValue={
-                        order.readyAt ? new Date(order.readyAt).toISOString().slice(0, 16) : ''
+                    <Field label="Способ получения" required>
+                      <select name="type" className="field-control" defaultValue={order.type}>
+                        <option value="PICKUP">Самовывоз из магазина к времени</option>
+                        <option value="DELIVERY">Доставка клиенту</option>
+                      </select>
+                    </Field>
+                    <Field label="Повод" required>
+                      <select name="occasion" className="field-control" defaultValue={order.occasion}>
+                        {OCCASIONS.map((o) => (
+                          <option key={o.value} value={o.value}>
+                            {o.label}
+                          </option>
+                        ))}
+                      </select>
+                    </Field>
+                    <Field label="Получатель">
+                      <Input
+                        name="recipientName"
+                        defaultValue={order.recipientName ?? ''}
+                        placeholder="Анна"
+                      />
+                    </Field>
+                    <Field label="Телефон получателя">
+                      <Input
+                        name="recipientPhone"
+                        defaultValue={order.recipientPhone ?? ''}
+                        placeholder="+375 …"
+                        inputMode="tel"
+                      />
+                    </Field>
+                    <Field
+                      label={
+                        order.type === 'DELIVERY'
+                          ? 'К какому времени доставить'
+                          : 'К какому времени готов'
                       }
-                    />
-                    <Input
-                      name="referenceUrl"
-                      defaultValue={order.referenceUrl ?? ''}
-                      placeholder="URL референса"
-                    />
-                    <Input
-                      name="referenceComment"
-                      defaultValue={order.referenceComment ?? ''}
-                      placeholder="Комментарий к референсу"
-                    />
-                    <Input
-                      name="plannedPrice"
-                      defaultValue={order.plannedPrice ?? ''}
-                      placeholder="Плановая цена"
-                    />
-                    <Input
-                      name="comment"
-                      defaultValue={order.comment ?? ''}
-                      placeholder="Комментарий"
-                    />
+                    >
+                      <Input
+                        name="readyAt"
+                        type="datetime-local"
+                        defaultValue={
+                          order.readyAt ? new Date(order.readyAt).toISOString().slice(0, 16) : ''
+                        }
+                      />
+                    </Field>
+                    <Field label="Ссылка на референс">
+                      <Input
+                        name="referenceUrl"
+                        defaultValue={order.referenceUrl ?? ''}
+                        placeholder="https://…"
+                      />
+                    </Field>
+                    <Field label="Комментарий к референсу">
+                      <Input
+                        name="referenceComment"
+                        defaultValue={order.referenceComment ?? ''}
+                        placeholder="Что учесть во флористике"
+                      />
+                    </Field>
+                    <Field label="Плановая цена, BYN">
+                      <Input
+                        name="plannedPrice"
+                        defaultValue={order.plannedPrice ?? ''}
+                        placeholder="0.00"
+                        inputMode="decimal"
+                      />
+                    </Field>
+                    <Field label="Комментарий">
+                      <Input
+                        name="comment"
+                        defaultValue={order.comment ?? ''}
+                        placeholder="Заметки для команды"
+                      />
+                    </Field>
                     <Button type="submit" disabled={busy}>
                       Сохранить черновик
                     </Button>
@@ -365,8 +401,8 @@ export default function OrderDetailPage() {
                 ) : (
                   <div className="stack-form">
                     <div className="meta-row">
-                      <span>{order.type}</span>
-                      <span>{order.occasion}</span>
+                      <span>{statusLabelRu(order.type)}</span>
+                      <span>{statusLabelRu(order.occasion)}</span>
                       <span>{order.recipientName ?? '—'}</span>
                       <span>{order.recipientPhone ?? '—'}</span>
                       <span>
@@ -686,6 +722,10 @@ export default function OrderDetailPage() {
             {canReadPayments ? (
               <Section>
                 <Card title="Оплата">
+                  <p className="form-lead">
+                    Можно принять предоплату одним или несколькими способами (например карта
+                    сейчас, наличные при выдаче). Остаток закроется при оформлении продажи.
+                  </p>
                   {paymentSummary ? (
                     <div className="stack-form">
                       <div className="meta-row">
@@ -708,28 +748,22 @@ export default function OrderDetailPage() {
                       className="stack-form"
                       style={{ marginTop: 16 }}
                     >
-                      <select
-                        value={prepayMethodId}
-                        onChange={(e) => setPrepayMethodId(e.target.value)}
+                      <PaymentSplitEditor
+                        methods={paymentMethods}
+                        lines={paymentLines}
+                        onChange={setPaymentLines}
+                        expectedAmount={
+                          paymentSummary?.balanceDue ?? order.plannedPrice ?? undefined
+                        }
                         required
-                      >
-                        {paymentMethods.map((method) => (
-                          <option key={method.id} value={method.id}>
-                            {method.name} ({method.code})
-                          </option>
-                        ))}
-                      </select>
-                      <Input
-                        placeholder="Сумма предоплаты"
-                        value={prepayAmount}
-                        onChange={(e) => setPrepayAmount(e.target.value)}
-                        required
+                        disabled={busy}
+                        label="Предоплата / оплата"
                       />
                       <Button
                         type="submit"
-                        disabled={busy || !prepayMethodId || !prepayAmount.trim()}
+                        disabled={busy || parsePaymentSplit(paymentLines).length === 0}
                       >
-                        Добавить предоплату
+                        Зафиксировать оплату
                       </Button>
                     </form>
                   ) : null}
@@ -745,7 +779,7 @@ export default function OrderDetailPage() {
                 <div className="page-header__actions">
                   {order.status === 'READY' && auth.hasPermission('sales:create') ? (
                     <Link href={`${base}/sales/new?fromOrder=${orderId}`}>
-                      <Button type="button">Создать продажу</Button>
+                      <Button type="button">Оформить продажу</Button>
                     </Link>
                   ) : null}
                   {draft && auth.hasPermission('orders:confirm') ? (

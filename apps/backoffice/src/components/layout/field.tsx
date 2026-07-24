@@ -13,7 +13,10 @@ type FieldProps = {
   children: ReactNode;
 };
 
-/** Labeled control wrapper so forms are understandable without placeholder-only UX. */
+/**
+ * Standard form field: label on top, control below, optional hint/tooltip.
+ * Prefer this over placeholder-only inputs across Backoffice.
+ */
 export function Field({ label, hint, tooltip, htmlFor, required, children }: FieldProps) {
   return (
     <div className="field">
@@ -31,11 +34,7 @@ export function Field({ label, hint, tooltip, htmlFor, required, children }: Fie
         </label>
         {tooltip ? (
           <span className="field-tip">
-            <button
-              type="button"
-              className="field-tip__btn"
-              aria-label={`Подсказка: ${label}`}
-            >
+            <button type="button" className="field-tip__btn" aria-label={`Подсказка: ${label}`}>
               ?
             </button>
             <span className="field-tip__bubble" role="tooltip">
@@ -44,8 +43,29 @@ export function Field({ label, hint, tooltip, htmlFor, required, children }: Fie
           </span>
         ) : null}
       </div>
-      {children}
+      <div className="field__control">{children}</div>
       {hint ? <p className="field__hint">{hint}</p> : null}
+    </div>
+  );
+}
+
+/** Read-only document number block — numbers are system-assigned. */
+export function AutoNumberNote({
+  label = 'Номер документа',
+  value,
+}: {
+  label?: string;
+  value?: string | null;
+}) {
+  return (
+    <div className="field field--readonly">
+      <div className="field__label-row">
+        <span className="field__label">{label}</span>
+      </div>
+      <div className="field__readonly">
+        {value?.trim() ? value : 'Присвоится автоматически после сохранения'}
+      </div>
+      <p className="field__hint">Номер выдаёт система. Изменить его нельзя.</p>
     </div>
   );
 }

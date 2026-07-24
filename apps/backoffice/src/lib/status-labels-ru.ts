@@ -36,8 +36,10 @@ export const STATUS_LABELS_RU: Record<string, string> = {
   WAREHOUSE: 'Склад',
 
   // Sales
-  DIRECT: 'Сборный букет',
+  DIRECT: 'В магазине',
   ORDER_BASED: 'Из заказа',
+  PICKUP: 'Самовывоз',
+  DELIVERY: 'Доставка',
   STORE: 'Магазин',
   WEBSITE: 'Сайт',
   PHONE: 'Телефон',
@@ -50,6 +52,15 @@ export const STATUS_LABELS_RU: Record<string, string> = {
   MANAGER_DECISION: 'Решение менеджера',
   PERCENT: 'Процент',
   FIXED: 'Фиксированная',
+
+  // Order occasions
+  BIRTHDAY: 'День рождения',
+  WEDDING: 'Свадьба',
+  ROMANTIC: 'Романтика',
+  CORPORATE: 'Корпоратив',
+  FUNERAL: 'Траур',
+  MOTHER_DAY: 'День матери',
+  NEW_YEAR: 'Новый год',
 
   // Sale inventory source
   ORDER_ACTUAL_COMPOSITION: 'Состав заказа',
@@ -82,7 +93,7 @@ export const STATUS_LABELS_RU: Record<string, string> = {
 
 const TIMELINE_MESSAGE_RU: Record<string, string> = {
   'Sale created from order': 'Продажа создана из заказа',
-  'Direct sale created': 'Создана продажа сборного букета',
+  'Direct sale created': 'Создана продажа',
   'Sale completed': 'Продажа завершена',
   'Sale annulled': 'Продажа аннулирована',
 };
