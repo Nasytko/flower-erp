@@ -12,8 +12,15 @@ import {
   PRIMARY_NAV,
   resolveNavWorkspace,
 } from '@/lib/nav';
+import { NavIcon } from './nav-icons';
 
-export function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
+export function SidebarNav({
+  onNavigate,
+  variant = 'rail',
+}: {
+  onNavigate?: () => void;
+  variant?: 'rail' | 'drawer';
+}) {
   const pathname = usePathname();
   const auth = useAuth();
   const workspace = useMemo(
@@ -28,26 +35,39 @@ export function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
     workspace.storeId,
   );
 
+  const settings = items.filter((item) => item.label === 'Настройки');
+  const primary = items.filter((item) => item.label !== 'Настройки');
+
   const needsStoreHint =
     !workspace.storeId && countStoreScopedEligible(PRIMARY_NAV, auth.hasPermission) > 0;
 
+  function renderLink(item: (typeof items)[number]) {
+    const active = isNavItemActive(pathname, item.href);
+    return (
+      <Link
+        key={`${item.label}:${item.href}`}
+        href={item.href}
+        className={
+          item.label === 'Настройки' ? 'shell__nav-link shell__nav-link--settings' : 'shell__nav-link'
+        }
+        aria-current={active ? 'page' : undefined}
+        aria-label={item.label}
+        title={item.label}
+        onClick={onNavigate}
+      >
+        <span className="shell__nav-icon">
+          <NavIcon label={item.label} />
+        </span>
+        <span className="shell__nav-text">{item.label}</span>
+      </Link>
+    );
+  }
+
   return (
-    <nav className="shell__nav" aria-label={t('navigate')}>
+    <nav className={`shell__nav shell__nav--${variant}`} aria-label={t('navigate')}>
       {needsStoreHint ? <p className="shell__nav-hint">{t('selectStoreHint')}</p> : null}
-      {items.map((item) => {
-        const active = isNavItemActive(pathname, item.href);
-        return (
-          <Link
-            key={`${item.label}:${item.href}`}
-            href={item.href}
-            className="shell__nav-link"
-            aria-current={active ? 'page' : undefined}
-            onClick={onNavigate}
-          >
-            {item.label}
-          </Link>
-        );
-      })}
+      <div className="shell__nav-primary">{primary.map(renderLink)}</div>
+      {settings.length > 0 ? <div className="shell__nav-footer">{settings.map(renderLink)}</div> : null}
     </nav>
   );
 }

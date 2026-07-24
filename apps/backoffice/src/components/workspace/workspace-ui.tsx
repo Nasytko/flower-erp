@@ -6,25 +6,36 @@ import Link from 'next/link';
 type MetricCardProps = {
   label: string;
   value: number | string;
+  hint?: string;
   href?: string;
   tone?: 'default' | 'warning' | 'danger' | 'success';
+  tint?: 1 | 2 | 3 | 4;
 };
 
-export function MetricCard({ label, value, href, tone = 'default' }: MetricCardProps) {
+export function MetricCard({
+  label,
+  value,
+  hint,
+  href,
+  tone = 'default',
+  tint = 1,
+}: MetricCardProps) {
+  const className = `metric-card metric-card--${tone} metric-card--tint-${tint}`;
   const content = (
     <>
-      <span className="metric-card__value">{value}</span>
       <span className="metric-card__label">{label}</span>
+      <span className="metric-card__value">{value}</span>
+      {hint ? <span className="metric-card__hint">{hint}</span> : null}
     </>
   );
   if (href) {
     return (
-      <Link href={href} className={`metric-card metric-card--${tone}`}>
+      <Link href={href} className={className}>
         {content}
       </Link>
     );
   }
-  return <div className={`metric-card metric-card--${tone}`}>{content}</div>;
+  return <div className={className}>{content}</div>;
 }
 
 type CountdownBadgeProps = {

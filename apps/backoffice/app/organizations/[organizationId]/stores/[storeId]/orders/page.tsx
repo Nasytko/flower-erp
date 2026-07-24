@@ -7,6 +7,7 @@ import { Button, Card, Input } from '@flower/ui';
 import { ApiClientError } from '@flower/api-client';
 import { getApiClient } from '@/lib/api-client';
 import { useAuth } from '@/components/auth-provider';
+import { Field } from '@/components/layout/field';
 import { PageContainer } from '@/components/layout/page-container';
 import { PageHeader } from '@/components/layout/page-header';
 import { Section } from '@/components/layout/section';
@@ -18,14 +19,14 @@ type DashOrder = { id: string; number: string; status: string; readyAt?: string 
 type CustomerOption = { id: string; name: string; phone: string; status: string };
 
 const OCCASIONS = [
-  'BIRTHDAY',
-  'WEDDING',
-  'ROMANTIC',
-  'CORPORATE',
-  'FUNERAL',
-  'MOTHER_DAY',
-  'NEW_YEAR',
-  'OTHER',
+  { value: 'BIRTHDAY', label: 'День рождения' },
+  { value: 'WEDDING', label: 'Свадьба' },
+  { value: 'ROMANTIC', label: 'Романтика' },
+  { value: 'CORPORATE', label: 'Корпоратив' },
+  { value: 'FUNERAL', label: 'Траур' },
+  { value: 'MOTHER_DAY', label: 'День матери' },
+  { value: 'NEW_YEAR', label: 'Новый год' },
+  { value: 'OTHER', label: 'Другое' },
 ] as const;
 
 export default function OrdersPage() {
@@ -178,54 +179,92 @@ export default function OrdersPage() {
         {canCreate ? (
           <Section>
             <Card title="Новый заказ">
+              <p className="form-lead">
+                Заполните, кому и к какому времени нужен букет. Черновик можно уточнить после создания.
+              </p>
               <form onSubmit={onCreate} className="stack-form">
                 {customers.length > 0 ? (
-                  <select value={customerId} onChange={(e) => setCustomerId(e.target.value)}>
-                    <option value="">Клиент (опционально)</option>
-                    {customers.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name} — {c.phone}
+                  <Field
+                    label="Клиент"
+                    hint="Необязательно: выберите постоянного клиента или оставьте пустым"
+                  >
+                    <select
+                      className="field-control"
+                      value={customerId}
+                      onChange={(e) => setCustomerId(e.target.value)}
+                    >
+                      <option value="">Без привязки к клиенту</option>
+                      {customers.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name} — {c.phone}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                ) : null}
+                <Field label="Повод" hint="Помогает флористу подобрать стиль букета" required>
+                  <select
+                    className="field-control"
+                    value={occasion}
+                    onChange={(e) => setOccasion(e.target.value)}
+                  >
+                    {OCCASIONS.map((o) => (
+                      <option key={o.value} value={o.value}>
+                        {o.label}
                       </option>
                     ))}
                   </select>
-                ) : null}
-                <select value={occasion} onChange={(e) => setOccasion(e.target.value)}>
-                  {OCCASIONS.map((o) => (
-                    <option key={o} value={o}>
-                      {o}
-                    </option>
-                  ))}
-                </select>
-                <Input
-                  placeholder="Получатель"
-                  value={recipientName}
-                  onChange={(e) => setRecipientName(e.target.value)}
-                />
-                <Input
-                  placeholder="Телефон"
-                  value={recipientPhone}
-                  onChange={(e) => setRecipientPhone(e.target.value)}
-                />
-                <Input
-                  type="datetime-local"
-                  value={readyAt}
-                  onChange={(e) => setReadyAt(e.target.value)}
-                />
-                <Input
-                  placeholder="URL референса"
-                  value={referenceUrl}
-                  onChange={(e) => setReferenceUrl(e.target.value)}
-                />
-                <Input
-                  placeholder="Комментарий к референсу"
-                  value={referenceComment}
-                  onChange={(e) => setReferenceComment(e.target.value)}
-                />
-                <Input
-                  placeholder="Плановая цена"
-                  value={plannedPrice}
-                  onChange={(e) => setPlannedPrice(e.target.value)}
-                />
+                </Field>
+                <Field label="Получатель" hint="Имя человека, которому доставят букет" required>
+                  <Input
+                    value={recipientName}
+                    onChange={(e) => setRecipientName(e.target.value)}
+                    placeholder="Анна"
+                    required
+                  />
+                </Field>
+                <Field label="Телефон получателя" hint="Для связи курьера или магазина">
+                  <Input
+                    value={recipientPhone}
+                    onChange={(e) => setRecipientPhone(e.target.value)}
+                    placeholder="+7 …"
+                    inputMode="tel"
+                  />
+                </Field>
+                <Field
+                  label="Готовность к"
+                  hint="Дата и время, когда букет должен быть готов"
+                  required
+                >
+                  <Input
+                    type="datetime-local"
+                    value={readyAt}
+                    onChange={(e) => setReadyAt(e.target.value)}
+                    required
+                  />
+                </Field>
+                <Field label="Ссылка на референс" hint="Необязательно: фото или Pinterest">
+                  <Input
+                    value={referenceUrl}
+                    onChange={(e) => setReferenceUrl(e.target.value)}
+                    placeholder="https://…"
+                  />
+                </Field>
+                <Field label="Комментарий к референсу" hint="Что важно повторить или изменить">
+                  <Input
+                    value={referenceComment}
+                    onChange={(e) => setReferenceComment(e.target.value)}
+                    placeholder="Больше пионов, без хризантем"
+                  />
+                </Field>
+                <Field label="Плановая цена, ₽" hint="Ориентир для клиента; можно уточнить позже">
+                  <Input
+                    value={plannedPrice}
+                    onChange={(e) => setPlannedPrice(e.target.value)}
+                    placeholder="4500"
+                    inputMode="decimal"
+                  />
+                </Field>
                 <Button type="submit" disabled={creating || !warehouseId}>
                   {creating ? 'Создание…' : 'Создать черновик'}
                 </Button>

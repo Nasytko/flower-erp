@@ -25,8 +25,8 @@ const PRIMARY_ACTION_LABEL: Record<string, string> = {
   EDIT_ACTUAL: 'Изменить факт',
   MARK_READY: 'Отметить готовым',
   CREATE_SALE: 'Создать продажу',
-  VIEW: 'Open',
-  NONE: 'Open',
+  VIEW: 'Открыть',
+  NONE: 'Открыть',
 };
 
 export default function TodayWorkspacePage() {
@@ -175,7 +175,7 @@ export default function TodayWorkspacePage() {
       <PageContainer>
         <PageHeader
           title="Сегодня"
-          description="Рабочее место флориста: очередь на сегодня"
+          description="Очередь магазина на сегодня: что просрочено, что скоро и что можно взять в работу"
           breadcrumbs={[
             { label: 'Магазин', href: base },
             { label: 'Сегодня' },
@@ -201,53 +201,62 @@ export default function TodayWorkspacePage() {
         {!loading && !error && data ? (
           <>
             <Section>
-              <div className="metric-grid">
+              <div className="metric-grid metric-grid--essential">
                 <MetricCard
                   label="Просрочены"
                   value={data.counters.overdue.count}
+                  hint="Нужно закрыть в первую очередь"
                   href={filterHref(data.counters.overdue.filterLink)}
                   tone="danger"
+                  tint={1}
                 />
                 <MetricCard
                   label="Скоро"
                   value={data.counters.soon.count}
+                  hint="Готовность в ближайшие часы"
                   href={filterHref(data.counters.soon.filterLink)}
                   tone="warning"
-                />
-                <MetricCard
-                  label="Без назначения"
-                  value={data.counters.unassigned.count}
-                  href={filterHref(data.counters.unassigned.filterLink)}
+                  tint={2}
                 />
                 <MetricCard
                   label="В подготовке"
                   value={data.counters.inPreparation.count}
+                  hint="Уже в работе у флористов"
                   href={filterHref(data.counters.inPreparation.filterLink)}
+                  tint={3}
                 />
                 <MetricCard
                   label="Готовы"
                   value={data.counters.ready.count}
+                  hint="Можно выдавать или доставлять"
                   href={filterHref(data.counters.ready.filterLink)}
                   tone="success"
-                />
-                <MetricCard
-                  label="Сегодня"
-                  value={data.counters.today.count}
-                  href={filterHref(data.counters.today.filterLink)}
-                />
-                <MetricCard
-                  label="Нехватка"
-                  value={data.counters.partiallyReserved.count}
-                  href={filterHref(data.counters.partiallyReserved.filterLink)}
-                  tone="warning"
+                  tint={4}
                 />
               </div>
             </Section>
 
-            {data.attentionItems.length > 0 || data.lowStockWarnings.length > 0 ? (
+            {data.attentionItems.length > 0 ||
+            data.lowStockWarnings.length > 0 ||
+            data.counters.unassigned.count > 0 ||
+            data.counters.partiallyReserved.count > 0 ? (
               <Section>
                 <Card title="Требует внимания">
                   <div className="attention-list">
+                    {data.counters.unassigned.count > 0 ? (
+                      <InlineAlert tone="info" title="Без назначения">
+                        {data.counters.unassigned.count} заказ(ов) без флориста.{' '}
+                        <Link href={filterHref(data.counters.unassigned.filterLink)}>Открыть список</Link>
+                      </InlineAlert>
+                    ) : null}
+                    {data.counters.partiallyReserved.count > 0 ? (
+                      <InlineAlert tone="warning" title="Нехватка состава">
+                        {data.counters.partiallyReserved.count} заказ(ов) с дефицитом позиций.{' '}
+                        <Link href={filterHref(data.counters.partiallyReserved.filterLink)}>
+                          Открыть список
+                        </Link>
+                      </InlineAlert>
+                    ) : null}
                     {data.attentionItems.slice(0, data.sectionLimit).map((item) => (
                       <AttentionItem
                         key={item.id}
@@ -269,11 +278,10 @@ export default function TodayWorkspacePage() {
                       <InlineAlert
                         key={`${warning.itemId}-${warning.warehouseId}`}
                         tone="warning"
-                        title={`Low stock: ${warning.itemName}`}
+                        title={`Мало на складе: ${warning.itemName}`}
                       >
-                        Операционное предупреждение — {warning.itemCode}: доступно{' '}
-                        {warning.availableQuantity} (threshold {warning.threshold}).{' '}
-                        <Link href={`${base}/stock`}>View stock</Link>
+                        {warning.itemCode}: доступно {warning.availableQuantity} (порог{' '}
+                        {warning.threshold}). <Link href={`${base}/stock`}>Открыть склад</Link>
                       </InlineAlert>
                     ))}
                   </div>
@@ -341,9 +349,9 @@ export default function TodayWorkspacePage() {
               </Section>
             ) : null}
 
-            {sectionCards('Urgent', data.sections.soon)}
+            {sectionCards('Скоро', data.sections.soon)}
             {sectionCards('В подготовке', data.sections.inPreparation)}
-            {sectionCards('Unassigned', data.sections.unassigned)}
+            {sectionCards('Без назначения', data.sections.unassigned)}
             {sectionCards('Готовы', data.sections.ready)}
             {sectionCards('Просрочены', data.sections.overdue)}
           </>

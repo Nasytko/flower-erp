@@ -23,10 +23,13 @@ export function DesktopSidebar() {
 
   return (
     <aside className="shell__sidebar" aria-label={t('backoffice')}>
-      <Link href={homeHref} className="shell__brand">
-        {t('brand')}
+      <Link href={homeHref} className="shell__brand" aria-label={t('brand')} title={t('brand')}>
+        <span className="shell__brand-mark" aria-hidden="true">
+          F
+        </span>
+        <span className="shell__brand-text">{t('brand')}</span>
       </Link>
-      <SidebarNav />
+      <SidebarNav variant="rail" />
     </aside>
   );
 }

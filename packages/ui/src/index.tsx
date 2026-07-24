@@ -39,9 +39,9 @@ export function Button({ variant = 'primary', style, type = 'button', onFocus, o
       }}
       style={{
         ...variantStyles[variant],
-        borderRadius: 'var(--radius-sm, 8px)',
-        padding: '10px 16px',
-        minHeight: 42,
+        borderRadius: 'var(--radius-md, 18px)',
+        padding: '12px 18px',
+        minHeight: 44,
         fontWeight: 600,
         fontSize: 'var(--text-sm, 0.875rem)',
         fontFamily: 'inherit',
@@ -79,9 +79,9 @@ export function Input({ onFocus, onBlur, style, ...props }: InputProps) {
         width: '100%',
         boxSizing: 'border-box',
         border: '1px solid var(--color-border, #d0dbd3)',
-        borderRadius: 'var(--radius-sm, 8px)',
-        padding: '10px 12px',
-        minHeight: 42,
+        borderRadius: 'var(--radius-md, 18px)',
+        padding: '12px 14px',
+        minHeight: 44,
         fontSize: 'var(--text-sm, 0.875rem)',
         fontFamily: 'inherit',
         background: 'var(--color-surface, #ffffff)',
@@ -103,7 +103,7 @@ export function Card({ title, children }: CardProps) {
     <section
       style={{
         border: '1px solid var(--color-border, #d0dbd3)',
-        borderRadius: 'var(--radius-md, 12px)',
+        borderRadius: 'var(--radius-lg, 24px)',
         padding: 'var(--space-5, 1.25rem)',
         background: 'var(--color-surface, #ffffff)',
         boxShadow: 'var(--shadow-sm, none)',
