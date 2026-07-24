@@ -48,13 +48,13 @@ apps/api
 ├── inventory         Batches, movements, balances, policies, reservations
 ├── orders            Order, OrderItem, fulfillment
 ├── sales             Sale, SaleItem, Shift
-├── payments          Payment (owned by finance or sales-facing façade — see module-map)
+├── payments          Payment (sales-facing façade — see module-map)
 ├── delivery          Delivery linked to Order
-├── finance           Expenses, tax, management P&L / cash flow projections
-├── notifications     In-app notifications only (v1)
 ├── analytics         Read-model queries, dashboard/report projections
 └── audit             AuditLog append-only trail
 ```
+
+**Deferred (no Nest modules yet):** management `finance` (expenses/tax/P&L), persisted `notifications` inbox, outbound `integrations`, and a separate `production` BC. Domain docs may still describe target shapes; do not add empty Nest scaffolds.
 
 `Dashboard` and `Reports` are **not** operational bounded contexts. They are read/query capabilities over analytics projections and must not mutate business modules.
 

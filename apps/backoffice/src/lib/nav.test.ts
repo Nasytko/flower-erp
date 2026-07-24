@@ -38,10 +38,7 @@ Object.defineProperty(globalThis, 'window', {
 
 test('organizations link is active on nested store routes', () => {
   assert.equal(isNavItemActive('/organizations', '/organizations'), true);
-  assert.equal(
-    isNavItemActive('/organizations/org-1/stores/store-1', '/organizations'),
-    true,
-  );
+  assert.equal(isNavItemActive('/organizations/org-1/stores/store-1', '/organizations'), true);
   assert.equal(isNavItemActive('/', '/organizations'), false);
 });
 
@@ -56,23 +53,30 @@ test('parseStoreRoute extracts org and store ids', () => {
   });
 });
 
-test('PRIMARY_NAV includes today, operations, stock, supplies, delivery, master-data', () => {
+test('PRIMARY_NAV is flat nine-item IA', () => {
   const labels = PRIMARY_NAV.map((item) => item.label);
-  assert.ok(labels.includes('Сегодня'));
-  assert.ok(labels.includes('Операции'));
-  assert.ok(labels.includes('Остатки'));
-  assert.ok(labels.includes('Поставки'));
-  assert.ok(labels.includes('Заказы'));
-  assert.ok(labels.includes('Доставка'));
-  assert.ok(labels.includes('Справочники'));
-  assert.ok(labels.includes('Курьеры'));
-  assert.equal(labels.includes('Dashboard'), false);
-  const ordersIdx = labels.indexOf('Заказы');
-  const deliveryIdx = labels.indexOf('Доставка');
-  assert.ok(ordersIdx >= 0 && deliveryIdx === ordersIdx + 1);
-  const master = PRIMARY_NAV.find((item) => item.label === 'Справочники');
-  assert.equal(master?.group, 'catalog');
-  assert.equal(master?.permission, 'master-data:read');
+  assert.deepEqual(labels, [
+    'Сегодня',
+    'Заказы',
+    'Продажи',
+    'Склад',
+    'Поставки',
+    'Доставка',
+    'Финансы',
+    'Справочники',
+    'Настройки',
+  ]);
+  assert.equal(labels.includes('Обзор'), false);
+  assert.equal(labels.includes('Операции'), false);
+  assert.equal(labels.includes('Оплаты'), false);
+  assert.equal(labels.includes('Остатки'), false);
+  assert.equal(labels.includes('Списания'), false);
+  assert.equal(labels.includes('Перемещения'), false);
+  assert.equal(labels.includes('Инвентаризации'), false);
+  assert.equal(labels.includes('Клиенты'), false);
+  assert.equal(labels.includes('Пользователи'), false);
+  assert.equal(labels.includes('Организации'), false);
+  assert.equal(labels.includes('Сессии'), false);
 });
 
 test('store-scoped Delivery nav resolves with delivery:read', () => {
@@ -112,13 +116,39 @@ test('store-scoped Today nav resolves with workspace:read', () => {
   assert.equal(filtered[0]?.href, '/organizations/org-1/stores/store-1/today');
 });
 
+test('Финансы resolves to payments route', () => {
+  const finance = PRIMARY_NAV.find((item) => item.label === 'Финансы');
+  assert.ok(finance);
+  assert.equal(finance.permission, 'payments:read');
+  assert.equal(
+    resolveNavHref(finance, 'org-1', 'store-1'),
+    '/organizations/org-1/stores/store-1/payments',
+  );
+});
+
+test('Склад resolves to stock route', () => {
+  const stock = PRIMARY_NAV.find((item) => item.label === 'Склад');
+  assert.ok(stock);
+  assert.equal(stock.permission, 'inventory:read');
+  assert.equal(
+    resolveNavHref(stock, 'org-1', 'store-1'),
+    '/organizations/org-1/stores/store-1/stock',
+  );
+});
+
+test('Настройки resolves to users admin page', () => {
+  const settings = PRIMARY_NAV.find((item) => item.label === 'Настройки');
+  assert.ok(settings);
+  assert.equal(settings.permission, 'users:read');
+  assert.equal(resolveNavHref(settings, 'org-1', null), '/organizations/org-1/users');
+});
+
 test('store-scoped Sales nav resolves only with store context', () => {
   const salesItem = {
     href: '/organizations/{orgId}/stores/{storeId}/sales',
     label: 'Продажи',
     permission: 'sales:read',
     storeScoped: true,
-    group: 'work' as const,
   };
   assert.equal(resolveNavHref(salesItem, 'org-1', null), null);
   assert.equal(
@@ -135,29 +165,6 @@ test('store-scoped Sales nav resolves only with store context', () => {
   assert.equal(filtered[0]?.href, '/organizations/org-1/stores/store-1/sales');
 });
 
-test('store-scoped Payments nav resolves with permissions', () => {
-  const paymentsItem = {
-    href: '/organizations/{orgId}/stores/{storeId}/payments',
-    label: 'Оплаты',
-    permission: 'payments:read',
-    storeScoped: true,
-    group: 'work' as const,
-  };
-  assert.equal(resolveNavHref(paymentsItem, 'org-1', null), null);
-  assert.equal(
-    resolveNavHref(paymentsItem, 'org-1', 'store-1'),
-    '/organizations/org-1/stores/store-1/payments',
-  );
-  const filtered = filterNavByPermissions(
-    [paymentsItem],
-    (code) => code === 'payments:read',
-    'org-1',
-    'store-1',
-  );
-  assert.equal(filtered.length, 1);
-  assert.equal(filtered[0]?.href, '/organizations/org-1/stores/store-1/payments');
-});
-
 test('resolveNavActionShortcuts maps to PRIMARY_NAV routes', () => {
   const nav = filterNavByPermissions(PRIMARY_NAV, () => true, 'org-1', 'store-1');
   const actions = resolveNavActionShortcuts(nav);
@@ -169,27 +176,26 @@ test('resolveNavActionShortcuts maps to PRIMARY_NAV routes', () => {
   assert.equal(stock?.href, '/organizations/org-1/stores/store-1/stock');
 });
 
-test('resolveStoreHomePath prefers today for workspace-only', () => {
+test('resolveStoreHomePath prefers today when workspace:read', () => {
   assert.equal(
-    resolveStoreHomePath('org-1', 'store-1', (code) => code === 'workspace:read'),
+    resolveStoreHomePath('org-1', 'store-1', (code) =>
+      ['workspace:read', 'operations:read', 'delivery:read'].includes(code),
+    ),
     '/organizations/org-1/stores/store-1/today',
   );
 });
 
-test('resolveStoreHomePath prefers operations when operations:read', () => {
+test('resolveStoreHomePath prefers deliveries for delivery-only (courier)', () => {
   assert.equal(
-    resolveStoreHomePath('org-1', 'store-1', (code) =>
-      ['operations:read', 'workspace:read'].includes(code),
-    ),
-    '/',
+    resolveStoreHomePath('org-1', 'store-1', (code) => code === 'delivery:read'),
+    '/organizations/org-1/stores/store-1/deliveries',
   );
 });
 
-test('resolveStoreHomePath respects operations preference', () => {
-  // home preference is localStorage-backed; without it default is dashboard `/`
+test('resolveStoreHomePath falls back to store base without workspace/delivery', () => {
   assert.equal(
-    resolveStoreHomePath('org-1', 'store-1', (code) => code === 'operations:read'),
-    '/',
+    resolveStoreHomePath('org-1', 'store-1', () => false),
+    '/organizations/org-1/stores/store-1',
   );
 });
 

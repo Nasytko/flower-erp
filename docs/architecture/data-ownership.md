@@ -24,8 +24,8 @@ There is **no** shared God Repository wrapping the entire Prisma schema for busi
 | sales | sales, sale_lines, sale_discounts, sale_inventory_consumptions, sale_inventory_consumption_lines, sale_timeline_events, sale_annulments |
 | payments | payment_methods, payments, payment_allocations, payment_allocation_transfers, payment_refunds, payment_timeline_events, cash_accounts, cash_operations; may write `posting_idempotency_keys` for payment/refund idempotency scopes |
 | delivery | delivery_jobs, delivery_assignments, delivery_problems, delivery_timeline_events, courier_profiles, delivery_route_plans, delivery_route_stops; may write `posting_idempotency_keys` for deliver/cancel/resolve scopes |
-| finance | expenses, expense_categories, tax_rules, tax_accruals, tax_payments; finance projection tables if any |
-| notifications | (scaffold; no Notification table in v1 — ADR-026 calculated attention only) |
+| finance | **Deferred** — expenses, expense_categories, tax_rules, tax_accruals, tax_payments; finance projection tables if any (**no Nest module / tables yet**) |
+| notifications | **Deferred** — no Notification table (ADR-026 calculated attention only; **no Nest module**) |
 | analytics | optional report_snapshots / projection tables only; **no transactional write tables**. Workspace/Today/Operations use dedicated read-only SQL/Prisma in `analytics` (ADR-025) projecting orders/inventory/payments/sales/supply/transfers without importing write repositories. |
 
 ### Implemented in foundation slice

@@ -1,11 +1,13 @@
 # Domain Flow: Finance (Management)
 
-**Status:** Accepted  
-**Module:** `finance`
+**Status:** Deferred (target design — **no Nest `finance` module in codebase**)  
+**Module:** `finance` (planned)
 
 ## Responsibility
 
 Provide **management** finance: expenses, tax rules/accruals/payments, and read models for P&L, cash flow, and store profitability. Not a statutory General Ledger.
+
+Operational payments remain under the `payments` module until this BC is implemented.
 
 ## Boundaries
 

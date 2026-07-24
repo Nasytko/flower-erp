@@ -216,9 +216,9 @@ Payment may live as a subdirectory of `finance` in code layout, but is a **separ
 
 ---
 
-## 11. `finance`
+## 11. `finance` (deferred — no Nest module)
 
-Management finance — **not** statutory accounting (ADR-008).
+Management finance — **not** statutory accounting (ADR-008). **No Nest module, Prisma models, or API surface in the current codebase**; payments live under `payments`. Keep this section as the target BC map when the module is introduced.
 
 | Aspect | Definition |
 |--------|------------|
@@ -232,24 +232,22 @@ Management finance — **not** statutory accounting (ADR-008).
 | Posting | Expense and tax docs append-only after post |
 | Cancellation | Cancel expense / reverse accrual docs |
 | Audit | All finance document posts |
-| v1 | Expenses + categories + basic tax rules/accruals/payments; simple management reports as queries |
-| Deferred | Full GL, IFRS books, bank feeds |
+| Status | Deferred — do not reintroduce empty Nest scaffolds |
+| Deferred further | Full GL, IFRS books, bank feeds |
 
 ---
 
-## 12. `notifications`
+## 12. `notifications` (deferred — no Nest module)
+
+Persisted in-app notifications are deferred (ADR-026: calculated attention items instead). **No Nest module or Notification table.**
 
 | Aspect | Definition |
 |--------|------------|
-| Responsibility | In-app notification records and read/unread state |
-| Boundaries | No Telegram/Email/Push adapters in v1; no business decisions |
-| Main entities | `Notification` |
-| Allowed deps | none for writes from others except via event handlers subscribed to domain events |
-| Forbidden deps | posting inventory/finance |
-| Commands | `NotifyUser`, `MarkRead` |
-| Events | (consumes others; may emit `NotificationCreated`) |
-| v1 | Internal inbox |
-| Deferred | Channel adapters |
+| Responsibility | In-app notification records and read/unread state (future) |
+| Boundaries | No Telegram/Email/Push adapters until product need is proven |
+| Main entities | `Notification` (not implemented) |
+| Status | Deferred — do not reintroduce empty Nest scaffolds |
+| Deferred further | Channel adapters |
 
 ---
 
