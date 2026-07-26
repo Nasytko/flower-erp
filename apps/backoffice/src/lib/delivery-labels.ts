@@ -40,6 +40,10 @@ export function deliveryStatusLabel(status: string): string {
   return DELIVERY_STATUS_LABELS[status] ?? status;
 }
 
+export function deliveryMethodLabel(method: string): string {
+  return DELIVERY_METHOD_LABELS[method] ?? method;
+}
+
 export function formatWindow(windowStart: string, windowEnd: string): string {
   const start = new Date(windowStart);
   const end = new Date(windowEnd);
@@ -53,7 +57,5 @@ export function todayIsoDate(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-export function newIdempotencyKey(prefix = 'dlv'): string {
-  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return crypto.randomUUID();
-  return `${prefix}_${Date.now()}_${Math.random().toString(16).slice(2)}`;
-}
+/** @deprecated Import from `@/lib/idempotency` */
+export { newIdempotencyKey } from './idempotency';

@@ -13,6 +13,7 @@ import { SidebarProvider, useSidebar } from './sidebar-context';
 import { WorkspaceSwitcher } from './workspace-switcher';
 import { WorkspaceContextSync } from './workspace-context-sync';
 import { CommandPalette } from '@/components/workspace/command-palette';
+import { ToastProvider } from '@/components/ui/toast';
 
 function openCommandPalette() {
   window.dispatchEvent(new CustomEvent('flower:command-palette'));
@@ -104,7 +105,9 @@ function AppShellInner({ children }: { children: ReactNode }) {
 export function AppShell({ children }: { children: ReactNode }) {
   return (
     <SidebarProvider>
-      <AppShellInner>{children}</AppShellInner>
+      <ToastProvider>
+        <AppShellInner>{children}</AppShellInner>
+      </ToastProvider>
     </SidebarProvider>
   );
 }

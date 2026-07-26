@@ -1,3 +1,5 @@
+import { DELIVERY_STATUS_LABELS } from './delivery-labels';
+
 /** Russian labels for domain status codes shown in StatusBadge. */
 export const STATUS_LABELS_RU: Record<string, string> = {
   // Common / master data
@@ -84,15 +86,9 @@ export const STATUS_LABELS_RU: Record<string, string> = {
   SALE_UPDATED: 'Обновлена',
   SALE_PAYMENT_ADDED: 'Добавлена оплата',
   SALE_DISCOUNT_APPLIED: 'Применена скидка',
-
-  // Delivery (shared badge)
-  PLANNED: 'Запланировано',
-  READY_FOR_DISPATCH: 'К передаче',
-  ASSIGNED: 'К передаче',
-  IN_TRANSIT: 'Передали в доставку',
-  DELIVERED: 'Доставили',
-  PROBLEM: 'Проблема',
 };
+
+const DELIVERY_STATUS_CODES = new Set(Object.keys(DELIVERY_STATUS_LABELS));
 
 const TIMELINE_MESSAGE_RU: Record<string, string> = {
   'Sale created from order': 'Продажа создана из заказа',
@@ -102,6 +98,9 @@ const TIMELINE_MESSAGE_RU: Record<string, string> = {
 };
 
 export function statusLabelRu(status: string): string {
+  if (DELIVERY_STATUS_CODES.has(status)) {
+    return DELIVERY_STATUS_LABELS[status] ?? status;
+  }
   return STATUS_LABELS_RU[status] ?? status;
 }
 

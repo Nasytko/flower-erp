@@ -1,7 +1,11 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Inject } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../../../infrastructure/prisma/prisma.service';
 import { resolvePrismaClient } from '../../../infrastructure/persistence/prisma-transaction-context';
+import {
+  INVENTORY_RESERVATION_PORT,
+  type InventoryReservationPort,
+} from '../../inventory/application/ports/inventory-reservation.port';
 import type {
   OrderForSaleSnapshot,
   OrdersSalesPort,
@@ -9,7 +13,10 @@ import type {
 
 @Injectable()
 export class PrismaOrdersSalesAdapter implements OrdersSalesPort {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Inject(INVENTORY_RESERVATION_PORT) private readonly reservations: InventoryReservationPort,
+  ) {}
 
   private client() {
     return resolvePrismaClient(this.prisma);
@@ -159,6 +166,44 @@ export class PrismaOrdersSalesAdapter implements OrdersSalesPort {
         payload: { saleId: input.saleId },
         occurredAt: now,
       },
+    });
+  }
+
+  async reReserveOrderAfterSaleAnnul(input: {
+    organizationId: string;
+    storeId: string;
+    orderId: string;
+  }): Promise<void> {
+    const order = await this.client().order.findFirst({
+      where: {
+        id: input.orderId,
+        organizationId: input.organizationId,
+        storeId: input.storeId,
+        status: 'READY',
+      },
+      include: {
+        composition: {
+          include: {
+            items: {
+              select: { id: true, itemId: true, plannedQuantity: true },
+              orderBy: { sortOrder: 'asc' },
+            },
+          },
+        },
+      },
+    });
+    if (!order?.composition?.items.length) return;
+
+    await this.reservations.reserveComposition({
+      organizationId: order.organizationId,
+      storeId: order.storeId,
+      warehouseId: order.warehouseId,
+      orderId: order.id,
+      lines: order.composition.items.map((line) => ({
+        compositionItemId: line.id,
+        itemId: line.itemId,
+        quantity: line.plannedQuantity.toString(),
+      })),
     });
   }
 }

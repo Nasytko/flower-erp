@@ -188,7 +188,8 @@ export class PrismaInventoryPostingAdapter implements InventoryPostingPort {
             unitCost: nextCost,
             sourceDocumentType: 'GOODS_RECEIPT_ITEM',
             sourceDocumentId: command.goodsReceiptId,
-            sourceDocumentItemId: command.goodsReceiptItemId,
+            // Each correction is its own movement — goodsReceiptItemId is already used by RECEIPT.
+            sourceDocumentItemId: randomUUID(),
             occurredAt: command.occurredAt,
           },
         });

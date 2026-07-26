@@ -253,6 +253,8 @@ export function InlineAlert({ tone = 'info', title, children }: InlineAlertProps
   );
 }
 
+import { Dialog } from '@/components/ui/dialog';
+
 type ConfirmDialogProps = {
   open: boolean;
   title: string;
@@ -276,20 +278,15 @@ export function ConfirmDialog({
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) {
-  if (!open) return null;
   return (
-    <div className="confirm-dialog" role="presentation">
-      <button type="button" className="confirm-dialog__backdrop" aria-label="Закрыть" onClick={onCancel} />
-      <div
-        className="confirm-dialog__panel"
-        role="alertdialog"
-        aria-modal="true"
-        aria-labelledby="confirm-dialog-title"
-        aria-describedby="confirm-dialog-desc"
-      >
-        <h2 id="confirm-dialog-title">{title}</h2>
-        <p id="confirm-dialog-desc">{message}</p>
-        <div className="confirm-dialog__actions">
+    <Dialog
+      open={open}
+      onClose={onCancel}
+      title={title}
+      description={message}
+      variant="alertdialog"
+      footer={
+        <>
           <button type="button" className="confirm-dialog__btn" disabled={busy} onClick={onCancel}>
             {cancelLabel}
           </button>
@@ -305,8 +302,8 @@ export function ConfirmDialog({
           >
             {confirmLabel}
           </button>
-        </div>
-      </div>
-    </div>
+        </>
+      }
+    />
   );
 }

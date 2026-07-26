@@ -22,6 +22,7 @@ import { ErrorState, LoadingState } from '@/components/layout/states';
 import { StatusBadge } from '@/components/layout/status-badge';
 import { statusLabelRu } from '@/lib/status-labels-ru';
 import { deliveryStatusLabel } from '@/lib/delivery-labels';
+import { newIdempotencyKey } from '@/lib/idempotency';
 
 type OrderDetail = Awaited<ReturnType<ReturnType<typeof getApiClient>['getOrder']>>;
 type PaymentSummary = Awaited<ReturnType<ReturnType<typeof getApiClient>['getOrderPaymentSummary']>>;
@@ -30,11 +31,6 @@ type PaymentMethod = Awaited<
 >[number];
 
 type LifecycleStep = 'DRAFT' | 'ASSEMBLING' | 'READY' | 'IN_DELIVERY' | 'DONE';
-
-function newIdempotencyKey(prefix = 'ord') {
-  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return crypto.randomUUID();
-  return `${prefix}_${Date.now()}_${Math.random().toString(16).slice(2)}`;
-}
 
 const LIFECYCLE_LABELS: Record<LifecycleStep, string> = {
   DRAFT: 'Черновик',

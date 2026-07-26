@@ -42,7 +42,18 @@ export type ReverseIssueCommand = {
   occurredAt: Date;
 };
 
+export type IssueForOrderCompleteCommand = {
+  organizationId: string;
+  storeId: string;
+  warehouseId: string;
+  orderId: string;
+  lines: IssueSaleLine[];
+  idempotencyKey: string;
+  occurredAt: Date;
+};
+
 export interface InventoryIssuePort {
   issueForSale(command: IssueForSaleCommand): Promise<IssueForSaleResult>;
+  issueForOrderComplete(command: IssueForOrderCompleteCommand): Promise<IssueForSaleResult>;
   reverseIssue(command: ReverseIssueCommand): Promise<{ idempotentReplay: boolean }>;
 }

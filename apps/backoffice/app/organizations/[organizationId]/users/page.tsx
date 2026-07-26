@@ -1,6 +1,6 @@
 ﻿'use client';
 
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { getApiClient } from '@/lib/api-client';
 import { useAuth } from '@/components/auth-provider';
@@ -10,6 +10,9 @@ import { PageHeader } from '@/components/layout/page-header';
 import { Section } from '@/components/layout/section';
 import { ErrorState, LoadingState } from '@/components/layout/states';
 import { StatusBadge } from '@/components/layout/status-badge';
+import { SettingsLinks } from '@/components/layout/settings-links';
+import { useToast } from '@/components/ui/toast';
+import { formatApiErrorMessage } from '@/lib/format-api-error';
 
 type UserRow = {
   id: string;
@@ -29,6 +32,42 @@ export default function UsersPage() {
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [creating, setCreating] = useState(false);
+  const toast = useToast();
+  const base = `/organizations/${params.organizationId}`;
+  const settingsLinks = useMemo(
+    () =>
+      [
+        auth.hasPermission('users:read')
+          ? {
+              href: `${base}/roles`,
+              label: 'Роли',
+              description: 'Права доступа и системные роли',
+            }
+          : null,
+        auth.hasPermission('customers:read')
+          ? {
+              href: `${base}/customers`,
+              label: 'Клиенты',
+              description: 'База клиентов организации',
+            }
+          : null,
+        auth.hasPermission('audit:read')
+          ? {
+              href: `${base}/audit`,
+              label: 'Журнал действий',
+              description: 'Системный аудит изменений',
+            }
+          : null,
+        auth.hasPermission('sessions:read')
+          ? {
+              href: '/sessions',
+              label: 'Сессии',
+              description: 'Активные входы в систему',
+            }
+          : null,
+      ].filter((item): item is { href: string; label: string; description: string } => item != null),
+    [auth, base],
+  );
 
   async function load() {
     setLoading(true);
@@ -36,8 +75,8 @@ export default function UsersPage() {
     try {
       const rows = await getApiClient().listUsers(params.organizationId);
       setUsers(rows);
-    } catch {
-      setError('Не удалось загрузить пользователей');
+    } catch (err) {
+      setError(formatApiErrorMessage(err, 'Не удалось загрузить пользователей'));
     } finally {
       setLoading(false);
     }
@@ -58,9 +97,12 @@ export default function UsersPage() {
       setLogin('');
       setPassword('');
       setDisplayName('');
+      toast.success('Пользователь создан');
       await load();
-    } catch {
-      setError('Не удалось создать пользователя');
+    } catch (err) {
+      const message = formatApiErrorMessage(err, 'Не удалось создать пользователя');
+      setError(message);
+      toast.error(message);
     } finally {
       setCreating(false);
     }
@@ -86,6 +128,12 @@ export default function UsersPage() {
         />
         {loading ? <LoadingState /> : null}
         {error ? <ErrorState message={error} /> : null}
+
+        {settingsLinks.length > 0 ? (
+          <Section>
+            <SettingsLinks links={settingsLinks} />
+          </Section>
+        ) : null}
 
         {auth.hasPermission('users:manage') ? (
           <Section>

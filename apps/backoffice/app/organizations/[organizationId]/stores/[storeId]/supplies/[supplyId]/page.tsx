@@ -12,7 +12,17 @@ import { ErrorState, LoadingState } from '@/components/layout/states';
 import { StatusBadge } from '@/components/layout/status-badge';
 import { AutoNumberNote, Field } from '@/components/layout/field';
 import { FancySelect } from '@/components/layout/fancy-select';
+import { ConfirmDialog } from '@/components/workspace/workspace-ui';
+import { useToast } from '@/components/ui/toast';
+import { newIdempotencyKey } from '@/lib/idempotency';
 import { formatApiErrorMessage } from '@/lib/format-api-error';
+
+type PendingConfirm =
+  | { kind: 'receive' }
+  | { kind: 'annul' }
+  | { kind: 'remove'; line: SupplyLine }
+  | { kind: 'saveEdit'; line: SupplyLine }
+  | null;
 
 type CatalogItem = {
   id: string;
@@ -73,6 +83,8 @@ export default function SupplyDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [confirm, setConfirm] = useState<PendingConfirm>(null);
+  const toast = useToast();
   const [corrections, setCorrections] = useState<
     Array<{
       id: string;
@@ -146,40 +158,35 @@ export default function SupplyDetailPage() {
     setEditCost('');
   }
 
-  async function onSaveEdit(line: SupplyLine) {
+  async function onSaveEdit(line: SupplyLine, skipConfirm = false) {
+    if (!editQty.trim() || Number(editQty) <= 0) {
+      setError('Укажите количество больше нуля');
+      return;
+    }
+    if (!editCost.trim() || Number(editCost) < 0) {
+      setError('Укажите себестоимость за единицу (BYN)');
+      return;
+    }
+    const posted =
+      supply?.status === 'RECEIVED' || supply?.status === 'PARTIALLY_RECEIVED';
+    if (posted && !skipConfirm) {
+      setConfirm({ kind: 'saveEdit', line });
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
-      if (!editQty.trim() || Number(editQty) <= 0) {
-        setError('Укажите количество больше нуля');
-        setBusy(false);
-        return;
-      }
-      if (!editCost.trim() || Number(editCost) < 0) {
-        setError('Укажите себестоимость за единицу (BYN)');
-        setBusy(false);
-        return;
-      }
-      if (
-        supply?.status === 'RECEIVED' ||
-        supply?.status === 'PARTIALLY_RECEIVED'
-      ) {
-        const ok = window.confirm(
-          'Сохранить правку? Остатки на складе обновятся, а изменение появится в истории «было → стало».',
-        );
-        if (!ok) {
-          setBusy(false);
-          return;
-        }
-      }
       await getApiClient().updateSupplyItem(organizationId, storeId, supplyId, line.itemId, {
         orderedQuantity: editQty,
         plannedUnitPrice: editCost,
       });
       cancelEdit();
+      toast.success('Позиция сохранена');
       await load();
     } catch (err) {
-      setError(formatApiErrorMessage(err, 'Не удалось сохранить строку'));
+      const message = formatApiErrorMessage(err, 'Не удалось сохранить строку');
+      setError(message);
+      toast.error(message);
     } finally {
       setBusy(false);
     }
@@ -213,28 +220,37 @@ export default function SupplyDetailPage() {
       });
       setQty('1');
       setUnitCost('');
+      toast.success('Позиция добавлена');
       await load();
       requestAnimationFrame(() => {
         const el = document.getElementById(draftQtyId) as HTMLInputElement | null;
         el?.focus();
       });
     } catch (err) {
-      setError(formatApiErrorMessage(err, 'Не удалось добавить позицию'));
+      const message = formatApiErrorMessage(err, 'Не удалось добавить позицию');
+      setError(message);
+      toast.error(message);
     } finally {
       setBusy(false);
     }
   }
 
-  async function onRemoveLine(line: SupplyLine) {
-    if (!window.confirm(`Убрать «${line.item?.name ?? 'позицию'}» из приёмки?`)) return;
+  function onRemoveLine(line: SupplyLine) {
+    setConfirm({ kind: 'remove', line });
+  }
+
+  async function performRemoveLine(line: SupplyLine) {
     setBusy(true);
     setError(null);
     try {
       if (editingItemId === line.itemId) cancelEdit();
       await getApiClient().removeSupplyItem(organizationId, storeId, supplyId, line.itemId);
+      toast.success('Позиция убрана');
       await load();
     } catch (err) {
-      setError(formatApiErrorMessage(err, 'Не удалось удалить позицию'));
+      const message = formatApiErrorMessage(err, 'Не удалось удалить позицию');
+      setError(message);
+      toast.error(message);
     } finally {
       setBusy(false);
     }
@@ -272,14 +288,11 @@ export default function SupplyDetailPage() {
     }
   }
 
-  async function onReceive() {
-    if (
-      !window.confirm(
-        'Оприходовать все позиции на склад? После проведения можно будет исправить количество и себестоимость.',
-      )
-    ) {
-      return;
-    }
+  function onReceive() {
+    setConfirm({ kind: 'receive' });
+  }
+
+  async function performReceive() {
     setBusy(true);
     setError(null);
     try {
@@ -288,29 +301,89 @@ export default function SupplyDetailPage() {
         storeId,
         supplyId,
         { receivedAt: new Date().toISOString() },
-        crypto.randomUUID(),
+        newIdempotencyKey('supply'),
       );
+      toast.success('Приёмка проведена на склад');
       await load();
     } catch (err) {
-      setError(formatApiErrorMessage(err, 'Не удалось оприходовать'));
+      const message = formatApiErrorMessage(err, 'Не удалось оприходовать');
+      setError(message);
+      toast.error(message);
     } finally {
       setBusy(false);
     }
   }
 
-  async function onAnnul() {
-    if (!window.confirm('Аннулировать черновик приёмки?')) return;
+  function onAnnul() {
+    setConfirm({ kind: 'annul' });
+  }
+
+  async function performAnnul() {
     setBusy(true);
     setError(null);
     try {
       await getApiClient().annulSupply(organizationId, storeId, supplyId);
+      toast.success('Черновик аннулирован');
       await load();
     } catch (err) {
-      setError(formatApiErrorMessage(err, 'Не удалось аннулировать'));
+      const message = formatApiErrorMessage(err, 'Не удалось аннулировать');
+      setError(message);
+      toast.error(message);
     } finally {
       setBusy(false);
     }
   }
+
+  async function onConfirmDialog() {
+    if (!confirm) return;
+    const pending = confirm;
+    setConfirm(null);
+    if (pending.kind === 'receive') await performReceive();
+    if (pending.kind === 'annul') await performAnnul();
+    if (pending.kind === 'remove') await performRemoveLine(pending.line);
+    if (pending.kind === 'saveEdit') await onSaveEdit(pending.line, true);
+  }
+
+  function confirmDialogProps(): {
+    title: string;
+    message: string;
+    destructive?: boolean;
+    confirmLabel?: string;
+  } | null {
+    if (!confirm) return null;
+    if (confirm.kind === 'receive') {
+      return {
+        title: 'Провести на склад',
+        message:
+          'Оприходовать все позиции на склад? После проведения можно будет исправить количество и себестоимость.',
+        confirmLabel: 'Провести',
+      };
+    }
+    if (confirm.kind === 'annul') {
+      return {
+        title: 'Аннулировать приёмку',
+        message: 'Аннулировать черновик приёмки? Это действие нельзя отменить.',
+        destructive: true,
+        confirmLabel: 'Аннулировать',
+      };
+    }
+    if (confirm.kind === 'remove') {
+      return {
+        title: 'Убрать позицию',
+        message: `Убрать «${confirm.line.item?.name ?? 'позицию'}» из приёмки?`,
+        destructive: true,
+        confirmLabel: 'Убрать',
+      };
+    }
+    return {
+      title: 'Сохранить правку',
+      message:
+        'Остатки на складе обновятся, а изменение появится в истории «было → стало».',
+      confirmLabel: 'Сохранить',
+    };
+  }
+
+  const dialog = confirmDialogProps();
 
   const draft = supply?.status === 'DRAFT';
   const posted = supply?.status === 'RECEIVED' || supply?.status === 'PARTIALLY_RECEIVED';
@@ -767,6 +840,18 @@ export default function SupplyDetailPage() {
           </>
         ) : null}
       </PageContainer>
+      {dialog ? (
+        <ConfirmDialog
+          open={confirm != null}
+          title={dialog.title}
+          message={dialog.message}
+          confirmLabel={dialog.confirmLabel}
+          destructive={dialog.destructive}
+          busy={busy}
+          onConfirm={() => void onConfirmDialog()}
+          onCancel={() => setConfirm(null)}
+        />
+      ) : null}
     </main>
   );
 }

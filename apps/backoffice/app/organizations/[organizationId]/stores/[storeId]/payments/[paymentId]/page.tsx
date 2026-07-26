@@ -12,16 +12,12 @@ import { PageHeader } from '@/components/layout/page-header';
 import { Section } from '@/components/layout/section';
 import { ErrorState, LoadingState } from '@/components/layout/states';
 import { StatusBadge } from '@/components/layout/status-badge';
+import { newIdempotencyKey } from '@/lib/idempotency';
 
 type Payment = Awaited<ReturnType<ReturnType<typeof getApiClient>['getPayment']>>;
 type TimelineEvent = Awaited<ReturnType<ReturnType<typeof getApiClient>['getPaymentTimeline']>>[number];
 type Refund = Awaited<ReturnType<ReturnType<typeof getApiClient>['listPaymentRefunds']>>[number];
 type PaymentMethod = Awaited<ReturnType<ReturnType<typeof getApiClient>['listPaymentMethods']>>[number];
-
-function newIdempotencyKey() {
-  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return crypto.randomUUID();
-  return `pay_${Date.now()}_${Math.random().toString(16).slice(2)}`;
-}
 
 export default function PaymentDetailPage() {
   const params = useParams<{ organizationId: string; storeId: string; paymentId: string }>();

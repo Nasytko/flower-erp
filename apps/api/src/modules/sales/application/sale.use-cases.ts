@@ -576,6 +576,11 @@ export class SaleUseCases {
           orderId: sale.orderId,
           saleId: sale.id,
         });
+        await this.ordersSales.reReserveOrderAfterSaleAnnul({
+          organizationId: input.organizationId,
+          storeId: input.storeId,
+          orderId: sale.orderId,
+        });
       }
 
       await this.appendTimeline(annulled, 'INVENTORY_REVERSED', 'Inventory issue reversed', {

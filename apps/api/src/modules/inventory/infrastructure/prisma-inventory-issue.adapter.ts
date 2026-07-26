@@ -8,6 +8,7 @@ import {
 } from '../../../infrastructure/persistence/prisma-transaction-context';
 import type {
   InventoryIssuePort,
+  IssueForOrderCompleteCommand,
   IssueForSaleCommand,
   IssueForSaleResult,
   IssuedAllocation,
@@ -22,21 +23,58 @@ type Scope = {
   warehouseId: string;
 };
 
+type IssueStockCommand = Scope & {
+  sourceDocumentType: 'SALE' | 'ORDER';
+  sourceDocumentId: string;
+  idempotencyScope: string;
+  idempotencyKey: string;
+  occurredAt: Date;
+  lines: IssueForSaleCommand['lines'];
+};
+
 @Injectable()
 export class PrismaInventoryIssueAdapter implements InventoryIssuePort {
   constructor(private readonly prisma: PrismaService) {}
 
   async issueForSale(command: IssueForSaleCommand): Promise<IssueForSaleResult> {
+    return this.issueStock({
+      organizationId: command.organizationId,
+      storeId: command.storeId,
+      warehouseId: command.warehouseId,
+      sourceDocumentType: 'SALE',
+      sourceDocumentId: command.saleId,
+      idempotencyScope: 'sale-issue',
+      idempotencyKey: command.idempotencyKey,
+      occurredAt: command.occurredAt,
+      lines: command.lines,
+    });
+  }
+
+  async issueForOrderComplete(command: IssueForOrderCompleteCommand): Promise<IssueForSaleResult> {
+    return this.issueStock({
+      organizationId: command.organizationId,
+      storeId: command.storeId,
+      warehouseId: command.warehouseId,
+      sourceDocumentType: 'ORDER',
+      sourceDocumentId: command.orderId,
+      idempotencyScope: 'order-issue-complete',
+      idempotencyKey: command.idempotencyKey,
+      occurredAt: command.occurredAt,
+      lines: command.lines,
+    });
+  }
+
+  private async issueStock(command: IssueStockCommand): Promise<IssueForSaleResult> {
     const work = async (client: Client): Promise<IssueForSaleResult> => {
       const previous = await client.postingIdempotencyKey.findFirst({
         where: {
           organizationId: command.organizationId,
-          scope: 'sale-issue',
+          scope: command.idempotencyScope,
           key: command.idempotencyKey,
         },
       });
       if (previous) {
-        if (previous.documentId !== command.saleId) {
+        if (previous.documentId !== command.sourceDocumentId) {
           throw new ConflictException({
             code: 'IDEMPOTENCY_KEY_REUSED',
             message: 'Idempotency key belongs to another document',
@@ -82,7 +120,6 @@ export class PrismaInventoryIssueAdapter implements InventoryIssuePort {
             });
             const unitCost = batch.unitCost;
             const costAmount = take.mul(unitCost);
-            // Unique per slice: @@unique([organizationId, sourceDocumentType, sourceDocumentItemId, type])
             const sourceDocumentItemId = reservation.id;
 
             await client.inventoryMovement.create({
@@ -96,8 +133,8 @@ export class PrismaInventoryIssueAdapter implements InventoryIssuePort {
                 type: 'ISSUE',
                 quantity: take,
                 unitCost,
-                sourceDocumentType: 'SALE',
-                sourceDocumentId: command.saleId,
+                sourceDocumentType: command.sourceDocumentType,
+                sourceDocumentId: command.sourceDocumentId,
                 sourceDocumentItemId,
                 occurredAt: command.occurredAt,
               },
@@ -125,8 +162,8 @@ export class PrismaInventoryIssueAdapter implements InventoryIssuePort {
                 reservationId: reservation.id,
                 type: 'CONSUME',
                 quantity: take,
-                sourceDocumentType: 'SALE',
-                sourceDocumentId: command.saleId,
+                sourceDocumentType: command.sourceDocumentType,
+                sourceDocumentId: command.sourceDocumentId,
                 sourceDocumentItemId: reservation.orderItemId,
                 occurredAt: command.occurredAt,
               },
@@ -176,9 +213,9 @@ export class PrismaInventoryIssueAdapter implements InventoryIssuePort {
         data: {
           id: randomUUID(),
           organizationId: command.organizationId,
-          scope: 'sale-issue',
+          scope: command.idempotencyScope,
           key: command.idempotencyKey,
-          documentId: command.saleId,
+          documentId: command.sourceDocumentId,
         },
       });
 
@@ -310,13 +347,13 @@ export class PrismaInventoryIssueAdapter implements InventoryIssuePort {
 
   private async replayIssueResult(
     client: Client,
-    command: Pick<IssueForSaleCommand, 'organizationId' | 'saleId'>,
+    command: Pick<IssueStockCommand, 'organizationId' | 'sourceDocumentType' | 'sourceDocumentId'>,
   ): Promise<IssueForSaleResult> {
     const movements = await client.inventoryMovement.findMany({
       where: {
         organizationId: command.organizationId,
-        sourceDocumentType: 'SALE',
-        sourceDocumentId: command.saleId,
+        sourceDocumentType: command.sourceDocumentType,
+        sourceDocumentId: command.sourceDocumentId,
         type: 'ISSUE',
       },
       orderBy: { createdAt: 'asc' },
@@ -346,7 +383,7 @@ export class PrismaInventoryIssueAdapter implements InventoryIssuePort {
 
   private async releaseExcessReservations(
     client: Client,
-    command: IssueForSaleCommand,
+    command: IssueStockCommand,
     itemId: string,
     sourceIds: string[],
   ): Promise<void> {
@@ -378,8 +415,8 @@ export class PrismaInventoryIssueAdapter implements InventoryIssuePort {
           reservationId: reservation.id,
           type: 'RELEASE',
           quantity: reservation.quantity,
-          sourceDocumentType: 'SALE',
-          sourceDocumentId: command.saleId,
+          sourceDocumentType: command.sourceDocumentType,
+          sourceDocumentId: command.sourceDocumentId,
           sourceDocumentItemId: reservation.orderItemId,
           occurredAt: command.occurredAt,
         },
@@ -394,7 +431,7 @@ export class PrismaInventoryIssueAdapter implements InventoryIssuePort {
 
   private async issueFromFreeStock(
     client: Client,
-    command: IssueForSaleCommand,
+    command: IssueStockCommand,
     itemId: string,
     needed: Prisma.Decimal,
   ): Promise<IssuedAllocation[]> {
@@ -437,8 +474,8 @@ export class PrismaInventoryIssueAdapter implements InventoryIssuePort {
           type: 'ISSUE',
           quantity: take,
           unitCost: batch.unitCost,
-          sourceDocumentType: 'SALE',
-          sourceDocumentId: command.saleId,
+          sourceDocumentType: command.sourceDocumentType,
+          sourceDocumentId: command.sourceDocumentId,
           // Unique per ISSUE slice (@@unique on type+sourceDocumentItemId)
           sourceDocumentItemId: randomUUID(),
           occurredAt: command.occurredAt,

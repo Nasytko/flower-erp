@@ -20,6 +20,7 @@ import { ErrorState, LoadingState } from '@/components/layout/states';
 import { StatusBadge } from '@/components/layout/status-badge';
 import { formatApiError } from '@/lib/format-api-error';
 import { statusLabelRu, timelineMessageRu } from '@/lib/status-labels-ru';
+import { newIdempotencyKey } from '@/lib/idempotency';
 
 type SaleDetail = Awaited<ReturnType<ReturnType<typeof getApiClient>['getSale']>>;
 type TimelineEvent = Awaited<ReturnType<ReturnType<typeof getApiClient>['getSaleTimeline']>>[number];
@@ -28,11 +29,6 @@ type PaymentSummary = Awaited<ReturnType<ReturnType<typeof getApiClient>['getSal
 type PaymentMethod = Awaited<
   ReturnType<ReturnType<typeof getApiClient>['listPaymentMethods']>
 >[number];
-
-function newIdempotencyKey() {
-  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return crypto.randomUUID();
-  return `sale_${Date.now()}_${Math.random().toString(16).slice(2)}`;
-}
 
 export default function SaleDetailPage() {
   return (

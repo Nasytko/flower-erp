@@ -21,6 +21,10 @@ import {
   type ReserveCompositionResult,
 } from '../../inventory/application/ports/inventory-reservation.port';
 import {
+  INVENTORY_ISSUE_PORT,
+  type InventoryIssuePort,
+} from '../../inventory/application/ports/inventory-issue.port';
+import {
   DELIVERY_FULFILLMENT_PORT,
   type DeliveryFulfillmentPort,
 } from './ports/delivery-fulfillment.port';
@@ -122,6 +126,7 @@ export class OrderUseCases {
   constructor(
     @Inject(ORDER_REPOSITORY) private readonly orders: OrderRepository,
     @Inject(INVENTORY_RESERVATION_PORT) private readonly reservations: InventoryReservationPort,
+    @Inject(INVENTORY_ISSUE_PORT) private readonly inventoryIssue: InventoryIssuePort,
     @Inject(UNIT_OF_WORK) private readonly uow: UnitOfWork,
     @Inject(AUDIT_PORT) private readonly audit: AuditPort,
     @Inject(CLOCK_PORT) private readonly clock: ClockPort,
@@ -1271,13 +1276,36 @@ export class OrderUseCases {
         mapDomain(e);
       }
 
-      // No stock issue on COMPLETE (ADR-015)
+      const actual = order.actualComposition;
+      if (!actual?.frozenAt || actual.items.length < 1) {
+        throw new BadRequestException({
+          code: 'ORDER_NO_ACTUAL_COMPOSITION',
+          message: 'Order must have a frozen actual composition before handover',
+        });
+      }
+
+      const compositionItemIds = (order.composition?.items ?? []).map((line) => line.id);
+      const now = this.clock.now();
+      await this.inventoryIssue.issueForOrderComplete({
+        organizationId: order.organizationId,
+        storeId: order.storeId,
+        warehouseId: order.warehouseId,
+        orderId: order.id,
+        lines: actual.items.map((line) => ({
+          itemId: line.itemId,
+          quantity: line.actualQuantity,
+          reservationSourceItemIds: compositionItemIds,
+        })),
+        idempotencyKey: `order-complete-${order.id}`,
+        occurredAt: now,
+      });
+
       const updated = await this.orders.updateStatus(
         input.organizationId,
         input.storeId,
         input.orderId,
         OrderStatus.COMPLETED,
-        { completedAt: this.clock.now() },
+        { completedAt: now },
       );
 
       await this.appendTimeline(updated, 'COMPLETED', 'Order completed', null);

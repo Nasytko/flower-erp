@@ -295,11 +295,46 @@ export class SupplyUseCases {
           occurredAt: this.clock.now(),
         });
 
+        await this.recalculateSupplyStatus(input.organizationId, input.storeId, supply.id);
+
         return updated;
       });
     } catch (error) {
       domain(error);
     }
+  }
+
+  private async recalculateSupplyStatus(
+    organizationId: string,
+    storeId: string,
+    supplyId: string,
+  ): Promise<void> {
+    const supply = await this.requireSupply(organizationId, storeId, supplyId);
+    if (!supply.items.length) {
+      await this.supplies.updateSupplyStatus(supply.id, 'SUBMITTED_TO_SUPPLIER');
+      return;
+    }
+
+    let linesWithReceipt = 0;
+    let fullyReceivedLines = 0;
+    for (const line of supply.items) {
+      const received = await this.supplies.sumPostedBySupplyItem(organizationId, line.id);
+      if (compareQty(received, '0') > 0) {
+        linesWithReceipt += 1;
+      }
+      if (compareQty(received, line.orderedQuantity) >= 0) {
+        fullyReceivedLines += 1;
+      }
+    }
+
+    const nextStatus =
+      linesWithReceipt === 0
+        ? 'SUBMITTED_TO_SUPPLIER'
+        : fullyReceivedLines === supply.items.length
+          ? 'RECEIVED'
+          : 'PARTIALLY_RECEIVED';
+
+    await this.supplies.updateSupplyStatus(supply.id, nextStatus);
   }
 
   async listSupplyCorrections(

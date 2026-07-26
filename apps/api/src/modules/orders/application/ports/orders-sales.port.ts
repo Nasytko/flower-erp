@@ -45,4 +45,10 @@ export interface OrdersSalesPort {
     orderId: string;
     saleId: string;
   }): Promise<void>;
+
+  reReserveOrderAfterSaleAnnul(input: {
+    organizationId: string;
+    storeId: string;
+    orderId: string;
+  }): Promise<void>;
 }
