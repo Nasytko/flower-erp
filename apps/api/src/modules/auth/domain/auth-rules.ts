@@ -17,6 +17,28 @@ export const GENERIC_AUTH_FAILURE = {
   message: 'Invalid login or password',
 } as const;
 
+/** English keywords users type at login to confirm their role (lowercase). */
+export const ROLE_CHALLENGE_KEYWORDS = {
+  DIRECTOR: 'director',
+  FLORIST: 'florist',
+  COURIER: 'courier',
+} as const;
+
+export type RoleChallengeCode = keyof typeof ROLE_CHALLENGE_KEYWORDS;
+
+export function normalizeRoleChallenge(value: string): string {
+  return value.trim().toLowerCase();
+}
+
+export function matchesRoleChallenge(roleCodes: readonly string[], challenge: string): boolean {
+  const normalized = normalizeRoleChallenge(challenge);
+  if (!normalized) return false;
+  return roleCodes.some((code) => {
+    const keyword = ROLE_CHALLENGE_KEYWORDS[code as RoleChallengeCode];
+    return keyword === normalized;
+  });
+}
+
 export function assertOriginAllowed(origin: string | undefined, allowedOrigins: readonly string[]): void {
   if (!origin) return;
   if (!allowedOrigins.includes(origin)) {

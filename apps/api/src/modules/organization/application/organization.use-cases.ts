@@ -15,6 +15,11 @@ import {
   type WarehouseRepository,
 } from './ports/repositories';
 import {
+  DEFAULT_INTEGRATION_SETTINGS,
+  INTEGRATION_SETTINGS_REPOSITORY,
+  type IntegrationSettingsRepository,
+} from './ports/integration-settings.repository';
+import {
   DomainError,
   OrganizationStatus,
   StoreStatus,
@@ -79,6 +84,8 @@ export class OrganizationUseCases {
     private readonly stores: StoreRepository,
     @Inject(WAREHOUSE_REPOSITORY)
     private readonly warehouses: WarehouseRepository,
+    @Inject(INTEGRATION_SETTINGS_REPOSITORY)
+    private readonly integrationSettings: IntegrationSettingsRepository,
     @Inject(UNIT_OF_WORK)
     private readonly uow: UnitOfWork,
     @Inject(AUDIT_PORT)
@@ -427,4 +434,69 @@ export class OrganizationUseCases {
       mapDomainError(error);
     }
   }
+
+  async getIntegrationSettings(organizationId: string) {
+    await this.requireOrganization(organizationId);
+    const row = await this.integrationSettings.findByOrganizationId(organizationId);
+    return presentIntegrationSettings(organizationId, row);
+  }
+
+  async updateIntegrationSettings(input: {
+    organizationId: string;
+    geocodingProvider: string;
+    yandexMapsApiKey?: string | null;
+    navigationProvider: string;
+    mapDefaultLatitude?: string | null;
+    mapDefaultLongitude?: string | null;
+  }) {
+    await this.requireOrganization(input.organizationId);
+    const current = await this.integrationSettings.findByOrganizationId(input.organizationId);
+    const nextKey =
+      input.yandexMapsApiKey === undefined
+        ? (current?.yandexMapsApiKey ?? null)
+        : input.yandexMapsApiKey?.trim() || null;
+
+    const saved = await this.integrationSettings.upsert({
+      organizationId: input.organizationId,
+      geocodingProvider: input.geocodingProvider,
+      yandexMapsApiKey: nextKey,
+      navigationProvider: input.navigationProvider,
+      mapDefaultLatitude: input.mapDefaultLatitude ?? null,
+      mapDefaultLongitude: input.mapDefaultLongitude ?? null,
+    });
+    return presentIntegrationSettings(input.organizationId, saved);
+  }
+
+  private async requireOrganization(organizationId: string) {
+    const org = await this.organizations.findById(organizationId);
+    if (!org || org.status === OrganizationStatus.ARCHIVED) {
+      throw new NotFoundException({ code: 'ORGANIZATION_NOT_FOUND', message: 'Organization not found' });
+    }
+    return org;
+  }
+}
+
+function presentIntegrationSettings(
+  organizationId: string,
+  row: Awaited<ReturnType<IntegrationSettingsRepository['findByOrganizationId']>>,
+) {
+  const defaults = DEFAULT_INTEGRATION_SETTINGS;
+  const geocodingProvider = row?.geocodingProvider ?? defaults.geocodingProvider;
+  const yandexMapsApiKey = row?.yandexMapsApiKey ?? null;
+  const navigationProvider = row?.navigationProvider ?? defaults.navigationProvider;
+  const mapDefaultLatitude = row?.mapDefaultLatitude ?? defaults.mapDefaultLatitude;
+  const mapDefaultLongitude = row?.mapDefaultLongitude ?? defaults.mapDefaultLongitude;
+  const mapsEnabled = geocodingProvider === 'yandex' && Boolean(yandexMapsApiKey);
+
+  return {
+    organizationId,
+    geocodingProvider,
+    yandexMapsApiKey,
+    yandexMapsApiKeyConfigured: Boolean(yandexMapsApiKey),
+    navigationProvider,
+    mapDefaultLatitude,
+    mapDefaultLongitude,
+    mapsEnabled,
+    updatedAt: row?.updatedAt?.toISOString() ?? null,
+  };
 }

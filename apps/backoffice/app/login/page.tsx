@@ -3,6 +3,8 @@
 import { FormEvent, useId, useState } from 'react';
 import { useAuth } from '@/components/auth-provider';
 import { Field } from '@/components/layout/field';
+import { DevEnvironmentBadge } from '@/components/dev-environment-banner';
+import { getAppEnvironment } from '@/lib/app-environment';
 import { t } from '@/i18n/ru';
 import { Button, Input } from '@flower/ui';
 
@@ -10,9 +12,11 @@ export default function LoginPage() {
   const auth = useAuth();
   const loginId = useId();
   const passwordId = useId();
+  const roleId = useId();
   const orgId = useId();
   const [login, setLogin] = useState('');
   const [password, setPassword] = useState('');
+  const [roleChallenge, setRoleChallenge] = useState('');
   const [organizationId, setOrganizationId] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -22,7 +26,7 @@ export default function LoginPage() {
     setPending(true);
     setError(null);
     try {
-      await auth.login(login, password, organizationId || undefined);
+      await auth.login(login, password, roleChallenge, organizationId || undefined);
     } catch {
       setError(t('invalidCredentials'));
     } finally {
@@ -33,7 +37,10 @@ export default function LoginPage() {
   return (
     <main className="login-page">
       <form className="login-card" onSubmit={onSubmit}>
-        <h1 className="login-card__brand">{t('brand')}</h1>
+        <h1 className="login-card__brand">
+          {t('brand')}
+          <DevEnvironmentBadge environment={getAppEnvironment()} />
+        </h1>
         <p className="login-card__subtitle">{t('loginSubtitle')}</p>
         <Field label={t('loginField')} hint={t('loginHint')} htmlFor={loginId} required>
           <Input
@@ -54,6 +61,17 @@ export default function LoginPage() {
             autoComplete="current-password"
             required
             placeholder="••••••••"
+          />
+        </Field>
+        <Field label={t('roleChallengeField')} hint={t('roleChallengeHint')} htmlFor={roleId} required>
+          <Input
+            id={roleId}
+            value={roleChallenge}
+            onChange={(e) => setRoleChallenge(e.target.value)}
+            autoComplete="off"
+            required
+            placeholder="florist"
+            spellCheck={false}
           />
         </Field>
         <Field label={t('orgIdOptional')} hint={t('orgIdHint')} htmlFor={orgId}>

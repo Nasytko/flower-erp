@@ -8,20 +8,34 @@ import { clearAccessToken, getAccessToken, setAccessToken } from '@/lib/auth-ses
 import { resolveStoreHomePath } from '@/lib/nav';
 import { clearLastWorkspace, setLastWorkspace } from '@/lib/workspace-context';
 
+type AuthUser = {
+  displayName: string;
+  login: string;
+  mustChangePassword: boolean;
+};
+
 type AuthState = {
   loading: boolean;
-  user: { displayName: string; login: string } | null;
+  user: AuthUser | null;
   organization: { id: string; name: string } | null;
   permissions: string[];
 };
 
 type AuthContextValue = AuthState & {
-  login: (login: string, password: string, organizationId?: string) => Promise<void>;
+  login: (
+    login: string,
+    password: string,
+    roleChallenge: string,
+    organizationId?: string,
+  ) => Promise<void>;
   logout: () => Promise<void>;
+  completePasswordChange: () => Promise<void>;
   hasPermission: (code: string) => boolean;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
+
+const PUBLIC_PATHS = new Set(['/login', '/change-password']);
 
 async function resolvePostAuthPath(
   organizationId: string,
@@ -63,15 +77,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const me = await api.me();
       setState({
         loading: false,
-        user: { displayName: me.user.displayName, login: me.user.login },
+        user: {
+          displayName: me.user.displayName,
+          login: me.user.login,
+          mustChangePassword: me.user.mustChangePassword,
+        },
         organization: me.organization,
         permissions: me.permissions,
       });
+      if (me.user.mustChangePassword && pathname !== '/change-password') {
+        router.replace('/change-password');
+      }
     } catch {
       clearAccessToken();
       resetApiClient();
       setState({ loading: false, user: null, organization: null, permissions: [] });
-      if (pathname !== '/login') {
+      if (!PUBLIC_PATHS.has(pathname)) {
         router.replace('/login');
       }
     }
@@ -82,25 +103,49 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setState((s) => ({ ...s, loading: false }));
       return;
     }
+    if (pathname === '/change-password') {
+      void bootstrap();
+      return;
+    }
     void bootstrap();
   }, [bootstrap, pathname]);
 
   const login = useCallback(
-    async (loginValue: string, password: string, organizationId?: string) => {
+    async (loginValue: string, password: string, roleChallenge: string, organizationId?: string) => {
       const api = getApiClient();
-      const result = await api.login({ login: loginValue, password, organizationId });
+      const result = await api.login({ login: loginValue, password, roleChallenge, organizationId });
       setAccessToken(result.accessToken);
+      const user = {
+        displayName: result.user.displayName,
+        login: result.user.login,
+        mustChangePassword: result.user.mustChangePassword,
+      };
       setState({
         loading: false,
-        user: { displayName: result.user.displayName, login: result.user.login },
+        user,
         organization: result.organization,
         permissions: result.permissions,
       });
+      if (result.user.mustChangePassword) {
+        router.replace('/change-password');
+        return;
+      }
       const target = await resolvePostAuthPath(result.organization.id, result.permissions);
       router.replace(target);
     },
     [router],
   );
+
+  const completePasswordChange = useCallback(async () => {
+    setState((current) =>
+      current.user
+        ? {
+            ...current,
+            user: { ...current.user, mustChangePassword: false },
+          }
+        : current,
+    );
+  }, []);
 
   const logout = useCallback(async () => {
     try {
@@ -119,13 +164,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       ...state,
       login,
       logout,
+      completePasswordChange,
       hasPermission: (code) => state.permissions.includes(code),
     }),
-    [state, login, logout],
+    [state, login, logout, completePasswordChange],
   );
 
-  if (state.loading && pathname !== '/login') {
+  if (state.loading && !PUBLIC_PATHS.has(pathname)) {
     return <div className="page-state">Загрузка сессии…</div>;
+  }
+
+  if (
+    state.user?.mustChangePassword &&
+    pathname !== '/change-password' &&
+    pathname !== '/login'
+  ) {
+    return <div className="page-state">Перенаправление на смену пароля…</div>;
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

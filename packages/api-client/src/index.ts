@@ -108,10 +108,15 @@ export function createApiClient(options: ApiClientOptions) {
 
   return {
     request,
-    login: (body: { login: string; password: string; organizationId?: string }) =>
+    login: (body: {
+      login: string;
+      password: string;
+      roleChallenge: string;
+      organizationId?: string;
+    }) =>
       request<{
         accessToken: string;
-        user: { id: string; login: string; displayName: string };
+        user: { id: string; login: string; displayName: string; mustChangePassword: boolean };
         organization: { id: string; name: string };
         permissions: string[];
       }>('/auth/login', {
@@ -150,7 +155,7 @@ export function createApiClient(options: ApiClientOptions) {
       request<void>(`/auth/sessions/${sessionId}/revoke`, { method: 'POST', credentials: 'include' }),
     me: () =>
       request<{
-        user: { id: string; displayName: string; login: string };
+        user: { id: string; displayName: string; login: string; mustChangePassword: boolean };
         organization: { id: string; name: string };
         permissions: string[];
       }>('/auth/me'),
@@ -177,6 +182,26 @@ export function createApiClient(options: ApiClientOptions) {
       }),
     getOrganization: (organizationId: string) =>
       request<{ id: string; name: string; status: string }>(`/organizations/${organizationId}`),
+    getIntegrationSettings: (organizationId: string) =>
+      request<IntegrationSettingsDto>(`/organizations/${organizationId}/integration-settings`),
+    updateIntegrationSettings: (
+      organizationId: string,
+      body: {
+        geocodingProvider: string;
+        yandexMapsApiKey?: string | null;
+        navigationProvider: string;
+        mapDefaultLatitude?: string | null;
+        mapDefaultLongitude?: string | null;
+      },
+    ) =>
+      request<IntegrationSettingsDto>(
+        `/organizations/${organizationId}/integration-settings`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        },
+      ),
     listUsers: (organizationId: string) =>
       request<
         Array<{
@@ -1151,6 +1176,11 @@ export function createApiClient(options: ApiClientOptions) {
         `/organizations/${organizationId}/stores/${storeId}/orders/${orderId}/mark-ready`,
         { method: 'POST' },
       ),
+    assembleOrder: (organizationId: string, storeId: string, orderId: string) =>
+      request<{ id: string; status: string }>(
+        `/organizations/${organizationId}/stores/${storeId}/orders/${orderId}/assemble`,
+        { method: 'POST' },
+      ),
     completeOrder: (organizationId: string, storeId: string, orderId: string) =>
       request<{ id: string; status: string }>(
         `/organizations/${organizationId}/stores/${storeId}/orders/${orderId}/complete`,
@@ -1830,6 +1860,18 @@ export function createApiClient(options: ApiClientOptions) {
       const qs = q.toString();
       return request<DeliveryJobDto[]>(
         `/organizations/${organizationId}/stores/${storeId}/deliveries${qs ? `?${qs}` : ''}`,
+      );
+    },
+    searchAddresses: (
+      organizationId: string,
+      storeId: string,
+      query: { q: string; city?: string },
+    ) => {
+      const q = new URLSearchParams();
+      q.set('q', query.q);
+      if (query.city) q.set('city', query.city);
+      return request<AddressSearchHitDto[]>(
+        `/organizations/${organizationId}/stores/${storeId}/addresses/search?${q.toString()}`,
       );
     },
     getDelivery: (organizationId: string, storeId: string, deliveryId: string) =>
@@ -2702,6 +2744,15 @@ export type InventoryCountProgressDto = {
   updatedAt: string;
 };
 
+export type AddressSearchHitDto = {
+  displayAddress: string;
+  latitude: string;
+  longitude: string;
+  addressLine: string;
+  city: string;
+  postalCode: string | null;
+};
+
 export type DeliveryJobDto = {
   id: string;
   organizationId: string;
@@ -2778,10 +2829,20 @@ export type DeliveryMapPointDto = {
   courierId: string | null;
   orderReady: boolean;
   navigationUrl: string | null;
+  mapsUrl?: string | null;
+  navigatorUrl?: string | null;
+};
+
+export type DeliveryMapConfigDto = {
+  mapsEnabled: boolean;
+  yandexMapsApiKey: string | null;
+  mapDefaultLatitude: string | null;
+  mapDefaultLongitude: string | null;
 };
 
 export type DeliveryMapDto = {
   date: string;
+  mapConfig?: DeliveryMapConfigDto;
   points: DeliveryMapPointDto[];
   needsAddressClarification: DeliveryMapPointDto[];
 };
@@ -2836,6 +2897,20 @@ export type DeliverySummaryDto = {
   urgency: string;
   payment: DeliveryPaymentSummaryDto | null;
   navigationUrl: string | null;
+  mapsUrl?: string | null;
+  navigatorUrl?: string | null;
+};
+
+export type IntegrationSettingsDto = {
+  organizationId: string;
+  geocodingProvider: string;
+  yandexMapsApiKey: string | null;
+  yandexMapsApiKeyConfigured: boolean;
+  navigationProvider: string;
+  mapDefaultLatitude: string | null;
+  mapDefaultLongitude: string | null;
+  mapsEnabled: boolean;
+  updatedAt: string | null;
 };
 
 export type CourierProfileDto = {

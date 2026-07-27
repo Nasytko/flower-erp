@@ -8,8 +8,10 @@ import { t } from '@/i18n/ru';
 import { resolveNavWorkspace, resolveStoreHomePath } from '@/lib/nav';
 import { SidebarNav } from './sidebar-nav';
 import { useSidebar } from './sidebar-context';
+import { DevEnvironmentBadge } from '@/components/dev-environment-banner';
+import type { AppEnvironment } from '@/lib/app-environment';
 
-export function DesktopSidebar() {
+export function DesktopSidebar({ environment }: { environment: AppEnvironment }) {
   const auth = useAuth();
   const pathname = usePathname();
   const { expanded, toggle } = useSidebar();
@@ -42,7 +44,10 @@ export function DesktopSidebar() {
           <span className="shell__brand-mark" aria-hidden="true">
             F
           </span>
-          <span className="shell__brand-text">{t('brand')}</span>
+          <span className="shell__brand-text">
+            {t('brand')}
+            <DevEnvironmentBadge environment={environment} />
+          </span>
         </Link>
         <button
           type="button"

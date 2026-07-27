@@ -13,3 +13,6 @@ export const SkipStoreScope = () => SetMetadata(SKIP_STORE_SCOPE_KEY, true);
 
 export const SKIP_ORG_MATCH_KEY = 'skipOrgMatch';
 export const SkipOrgMatch = () => SetMetadata(SKIP_ORG_MATCH_KEY, true);
+
+export const ALLOW_MUST_CHANGE_PASSWORD_KEY = 'allowMustChangePassword';
+export const AllowMustChangePassword = () => SetMetadata(ALLOW_MUST_CHANGE_PASSWORD_KEY, true);

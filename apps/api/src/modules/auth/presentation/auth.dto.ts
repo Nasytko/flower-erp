@@ -9,6 +9,10 @@ export class LoginDto {
   @MinLength(1)
   password!: string;
 
+  @IsString()
+  @MinLength(3)
+  roleChallenge!: string;
+
   @IsOptional()
   @IsUUID()
   organizationId?: string;

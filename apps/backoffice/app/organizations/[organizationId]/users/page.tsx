@@ -58,6 +58,13 @@ export default function UsersPage() {
               description: 'Системный аудит изменений',
             }
           : null,
+        auth.hasPermission('organization:read')
+          ? {
+              href: `${base}/integrations`,
+              label: 'Карты и навигация',
+              description: 'Яндекс.Карты, подсказки адресов, навигатор',
+            }
+          : null,
         auth.hasPermission('sessions:read')
           ? {
               href: '/sessions',
@@ -151,6 +158,10 @@ export default function UsersPage() {
                   onChange={(e) => setDisplayName(e.target.value)}
                   placeholder="Отображаемое имя"
                 />
+                <p className="field-hint">
+                  При первом входе пользователь задаст свой пароль и введёт роль латиницей: director,
+                  florist или courier.
+                </p>
                 <Button type="submit" disabled={creating}>
                   {creating ? 'Создание…' : 'Создать'}
                 </Button>
@@ -199,21 +210,53 @@ export default function UsersPage() {
                       </Button>
                     ) : null}
                     {auth.hasPermission('roles:manage') ? (
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        onClick={() =>
-                          void client
-                            .request(`/organizations/${params.organizationId}/users/${user.id}/roles`, {
-                              method: 'POST',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({ roleCodes: ['FLORIST'] }),
-                            })
-                            .then(() => load())
-                        }
-                      >
-                        Назначить FLORIST
-                      </Button>
+                      <>
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          onClick={() =>
+                            void client
+                              .request(`/organizations/${params.organizationId}/users/${user.id}/roles`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ roleCodes: ['DIRECTOR'] }),
+                              })
+                              .then(() => load())
+                          }
+                        >
+                          Директор
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          onClick={() =>
+                            void client
+                              .request(`/organizations/${params.organizationId}/users/${user.id}/roles`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ roleCodes: ['FLORIST'] }),
+                              })
+                              .then(() => load())
+                          }
+                        >
+                          Флорист
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          onClick={() =>
+                            void client
+                              .request(`/organizations/${params.organizationId}/users/${user.id}/roles`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ roleCodes: ['COURIER'] }),
+                              })
+                              .then(() => load())
+                          }
+                        >
+                          Курьер
+                        </Button>
+                      </>
                     ) : null}
                   </div>
                 </li>

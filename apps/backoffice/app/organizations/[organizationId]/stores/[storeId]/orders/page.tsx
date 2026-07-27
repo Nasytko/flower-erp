@@ -7,15 +7,24 @@ import { Button, Card, Input } from '@flower/ui';
 import { getApiClient } from '@/lib/api-client';
 import { useAuth } from '@/components/auth-provider';
 import { AutoNumberNote, Field } from '@/components/layout/field';
+import { AddressAutocomplete } from '@/components/layout/address-autocomplete';
 import { FancySelect } from '@/components/layout/fancy-select';
 import { MoneyBynInput, parseBynToApi } from '@/components/layout/money-byn-input';
 import { PageContainer } from '@/components/layout/page-container';
 import { PageHeader } from '@/components/layout/page-header';
 import { Section } from '@/components/layout/section';
 import { EmptyState, ErrorState, LoadingState } from '@/components/layout/states';
-import { StatusBadge } from '@/components/layout/status-badge';
 import { InlineAlert } from '@/components/workspace/workspace-ui';
 import { formatApiErrorMessage } from '@/lib/format-api-error';
+import {
+  combineDateAndTime,
+  formatReadyAt,
+  matchesOrderListFilter,
+  orderPhaseLabel,
+  resolveOrderPhase,
+  type OrderListFilter,
+  type OrderPhase,
+} from '@/lib/order-ui';
 import { statusLabelRu } from '@/lib/status-labels-ru';
 
 type OrderRow = {
@@ -27,7 +36,29 @@ type OrderRow = {
   recipientName?: string | null;
 };
 
+type DeliveryRow = {
+  id: string;
+  orderId: string;
+  status: string;
+  handedOverAt?: string | null;
+};
+
 type CustomerOption = { id: string; name: string; phone: string; status: string };
+
+const PHASE_TONE: Record<OrderPhase, string> = {
+  NEW: 'warning',
+  ASSEMBLED: 'info',
+  IN_DELIVERY: 'accent',
+  COMPLETED: 'success',
+};
+
+function OrderPhaseBadge({ phase }: { phase: OrderPhase }) {
+  return (
+    <span className={`status-badge status-badge--${PHASE_TONE[phase]}`}>
+      {orderPhaseLabel(phase)}
+    </span>
+  );
+}
 
 export default function OrdersPage() {
   const params = useParams<{ organizationId: string; storeId: string }>();
@@ -37,29 +68,34 @@ export default function OrdersPage() {
   const base = `/organizations/${organizationId}/stores/${storeId}`;
 
   const [orders, setOrders] = useState<OrderRow[]>([]);
+  const [deliveries, setDeliveries] = useState<DeliveryRow[]>([]);
   const [customers, setCustomers] = useState<CustomerOption[]>([]);
   const [warehouseId, setWarehouseId] = useState('');
   const [orderType, setOrderType] = useState<'PICKUP' | 'DELIVERY'>('PICKUP');
   const [customerId, setCustomerId] = useState('');
   const [recipientName, setRecipientName] = useState('');
   const [recipientPhone, setRecipientPhone] = useState('');
-  const [readyAt, setReadyAt] = useState('');
+  const [readyDate, setReadyDate] = useState('');
+  const [readyTime, setReadyTime] = useState('12:00');
+  const [comment, setComment] = useState('');
   const [plannedPrice, setPlannedPrice] = useState('');
   const [deliveryAddress, setDeliveryAddress] = useState('');
   const [deliveryCity, setDeliveryCity] = useState('');
   const [storeCity, setStoreCity] = useState('');
   const [showCreate, setShowCreate] = useState(false);
-  const [filter, setFilter] = useState<'ALL' | 'ASSEMBLING' | 'READY' | 'DONE'>('ALL');
+  const [filter, setFilter] = useState<OrderListFilter>('ALL');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+
+  const canReadDelivery = auth.hasPermission('delivery:read');
 
   async function load() {
     setLoading(true);
     setError(null);
     try {
       const client = getApiClient();
-      const [list, warehouses, customerList, store] = await Promise.all([
+      const [list, warehouses, customerList, store, deliveryList] = await Promise.all([
         client.listOrders(organizationId, storeId),
         (async () => {
           let rows = await client.listWarehouses(organizationId, storeId);
@@ -72,8 +108,19 @@ export default function OrdersPage() {
           ? client.listCustomers(organizationId)
           : Promise.resolve([] as CustomerOption[]),
         client.getStore(organizationId, storeId),
+        canReadDelivery
+          ? client.listDeliveries(organizationId, storeId)
+          : Promise.resolve([] as DeliveryRow[]),
       ]);
       setOrders(list);
+      setDeliveries(
+        deliveryList.filter((d) => d.status !== 'CANCELLED').map((d) => ({
+          id: d.id,
+          orderId: d.orderId,
+          status: d.status,
+          handedOverAt: d.handedOverAt,
+        })),
+      );
       setCustomers(customerList.filter((c) => c.status === 'ACTIVE'));
       const wh = warehouses.find((w) => w.isDefault) ?? warehouses[0];
       if (wh) setWarehouseId(wh.id);
@@ -91,18 +138,20 @@ export default function OrdersPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [organizationId, storeId, auth]);
 
+  const deliveryByOrderId = useMemo(() => {
+    const map = new Map<string, DeliveryRow>();
+    for (const d of deliveries) {
+      if (!map.has(d.orderId)) map.set(d.orderId, d);
+    }
+    return map;
+  }, [deliveries]);
+
   const filteredOrders = useMemo(() => {
     return orders.filter((item) => {
-      if (filter === 'ALL') return true;
-      if (filter === 'READY') return item.status === 'READY';
-      if (filter === 'DONE') return item.status === 'COMPLETED' || item.status === 'CANCELLED';
-      return (
-        item.status !== 'READY' &&
-        item.status !== 'COMPLETED' &&
-        item.status !== 'CANCELLED'
-      );
+      const delivery = deliveryByOrderId.get(item.id) ?? null;
+      return matchesOrderListFilter(item, delivery, filter);
     });
-  }, [orders, filter]);
+  }, [orders, deliveryByOrderId, filter]);
 
   async function onCreate(event: FormEvent) {
     event.preventDefault();
@@ -115,8 +164,8 @@ export default function OrdersPage() {
       if (!recipientName.trim()) {
         throw new Error('Укажите получателя');
       }
-      if (!readyAt) {
-        throw new Error('Укажите время готовности / доставки');
+      if (!readyDate) {
+        throw new Error('Укажите дату');
       }
       if (orderType === 'DELIVERY' && !deliveryAddress.trim()) {
         throw new Error('Для доставки укажите адрес');
@@ -128,7 +177,8 @@ export default function OrdersPage() {
         customerId: customerId || undefined,
         recipientName: recipientName.trim(),
         recipientPhone: recipientPhone.trim() || undefined,
-        readyAt: new Date(readyAt).toISOString(),
+        readyAt: combineDateAndTime(readyDate, readyTime),
+        comment: comment.trim() || undefined,
         plannedPrice: parseBynToApi(plannedPrice) ?? undefined,
         deliveryAddressLine:
           orderType === 'DELIVERY' ? deliveryAddress.trim() : undefined,
@@ -153,28 +203,17 @@ export default function OrdersPage() {
       <PageContainer>
         <PageHeader
           title="Заказы"
-          description="Создайте заказ с адресом сразу. Дальше только сборка и статусы доставки — без отдельной формы адреса и без назначения курьера."
+          description="Новый → Собран → Передан в доставку → Выполнен. Для доставки адрес указывается сразу."
           breadcrumbs={[
             { label: 'Магазин', href: base },
             { label: 'Заказы' },
           ]}
           actions={
-            <div className="page-header__actions">
-              {canCreate ? (
-                <Button type="button" onClick={() => setShowCreate((v) => !v)}>
-                  {showCreate ? 'Скрыть' : 'Новый заказ'}
-                </Button>
-              ) : null}
-              {auth.hasPermission('sales:create') ? (
-                <Button
-                  type="button"
-                  variant="secondary"
-                  onClick={() => router.push(`${base}/sales/new`)}
-                >
-                  Новая продажа
-                </Button>
-              ) : null}
-            </div>
+            canCreate ? (
+              <Button type="button" onClick={() => setShowCreate((v) => !v)}>
+                {showCreate ? 'Скрыть' : 'Новый заказ'}
+              </Button>
+            ) : null
           }
         />
 
@@ -208,7 +247,7 @@ export default function OrdersPage() {
                     onClick={() => setOrderType('DELIVERY')}
                   >
                     <span className="sale-mode__title">Доставка</span>
-                    <span className="sale-mode__text">Адрес укажите сразу — доставка создастся сама</span>
+                    <span className="sale-mode__text">Доставка появится на доске сразу после создания</span>
                   </button>
                 </div>
 
@@ -250,25 +289,41 @@ export default function OrdersPage() {
                   </Field>
                 </div>
 
-                <Field
-                  label={orderType === 'DELIVERY' ? 'Время доставки' : 'Время готовности'}
-                  required
-                >
-                  <Input
-                    type="datetime-local"
-                    value={readyAt}
-                    onChange={(e) => setReadyAt(e.target.value)}
+                <div className="sale-custom-meta">
+                  <Field
+                    label={orderType === 'DELIVERY' ? 'Дата доставки' : 'Дата готовности'}
                     required
-                  />
-                </Field>
+                  >
+                    <Input
+                      type="date"
+                      value={readyDate}
+                      onChange={(e) => setReadyDate(e.target.value)}
+                      required
+                    />
+                  </Field>
+                  <Field label="Время" required>
+                    <Input
+                      type="time"
+                      value={readyTime}
+                      onChange={(e) => setReadyTime(e.target.value)}
+                      required
+                    />
+                  </Field>
+                </div>
 
                 {orderType === 'DELIVERY' ? (
                   <>
                     <Field label="Адрес доставки" required>
-                      <Input
+                      <AddressAutocomplete
+                        organizationId={organizationId}
+                        storeId={storeId}
                         value={deliveryAddress}
-                        onChange={(e) => setDeliveryAddress(e.target.value)}
-                        placeholder="ул. Независимости, 10, кв. 5"
+                        onChange={setDeliveryAddress}
+                        onSelect={(hit) => {
+                          if (hit.city) setDeliveryCity(hit.city);
+                        }}
+                        city={deliveryCity || storeCity || undefined}
+                        placeholder="ул. Независимости, 10"
                         required
                       />
                     </Field>
@@ -293,6 +348,14 @@ export default function OrdersPage() {
                   <MoneyBynInput value={plannedPrice} onChange={setPlannedPrice} />
                 </Field>
 
+                <Field label="Пометка к заказу">
+                  <Input
+                    value={comment}
+                    onChange={(e) => setComment(e.target.value)}
+                    placeholder="Пожелания, особенности, комментарий для команды"
+                  />
+                </Field>
+
                 <Button type="submit" disabled={creating || !warehouseId}>
                   {creating ? 'Создание…' : 'Создать заказ'}
                 </Button>
@@ -309,9 +372,10 @@ export default function OrdersPage() {
             {(
               [
                 ['ALL', 'Все'],
-                ['ASSEMBLING', 'Собираются'],
-                ['READY', 'Готовы'],
-                ['DONE', 'Закрыты'],
+                ['NEW', 'Новые'],
+                ['ASSEMBLED', 'Собраны'],
+                ['IN_DELIVERY', 'В доставке'],
+                ['COMPLETED', 'Выполнены'],
               ] as const
             ).map(([id, label]) => (
               <button
@@ -332,30 +396,27 @@ export default function OrdersPage() {
               <EmptyState message="Заказов в этом фильтре нет." />
             ) : null}
             <ul className="list-stack">
-              {filteredOrders.map((item) => (
-                <li key={item.id}>
-                  <Link href={`${base}/orders/${item.id}`}>
-                    <div className="meta-row">
-                      <div>
-                        <strong>{item.number}</strong>
-                        <div className="order-queue__meta">
-                          {item.type ? statusLabelRu(item.type) : null}
-                          {item.recipientName ? ` · ${item.recipientName}` : null}
-                          {item.readyAt
-                            ? ` · ${new Date(item.readyAt).toLocaleString('ru-RU', {
-                                day: '2-digit',
-                                month: '2-digit',
-                                hour: '2-digit',
-                                minute: '2-digit',
-                              })}`
-                            : null}
+              {filteredOrders.map((item) => {
+                const delivery = deliveryByOrderId.get(item.id) ?? null;
+                const phase = resolveOrderPhase(item, delivery);
+                return (
+                  <li key={item.id}>
+                    <Link href={`${base}/orders/${item.id}`}>
+                      <div className="meta-row">
+                        <div>
+                          <strong>{item.number}</strong>
+                          <div className="order-queue__meta">
+                            {item.type ? statusLabelRu(item.type) : null}
+                            {item.recipientName ? ` · ${item.recipientName}` : null}
+                            {item.readyAt ? ` · ${formatReadyAt(item.readyAt)}` : null}
+                          </div>
                         </div>
+                        <OrderPhaseBadge phase={phase} />
                       </div>
-                      <StatusBadge status={item.status} />
-                    </div>
-                  </Link>
-                </li>
-              ))}
+                    </Link>
+                  </li>
+                );
+              })}
             </ul>
           </Card>
         </Section>

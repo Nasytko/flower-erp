@@ -314,6 +314,16 @@ export class BoardQueryDto {
   date?: string;
 }
 
+export class AddressSearchQueryDto {
+  @IsString()
+  @MinLength(2)
+  q!: string;
+
+  @IsOptional()
+  @IsString()
+  city?: string;
+}
+
 export class ListCouriersQueryDto {
   @IsOptional()
   @IsEnum(CourierStatus)

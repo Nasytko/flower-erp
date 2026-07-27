@@ -14,12 +14,20 @@ import { WorkspaceSwitcher } from './workspace-switcher';
 import { WorkspaceContextSync } from './workspace-context-sync';
 import { CommandPalette } from '@/components/workspace/command-palette';
 import { ToastProvider } from '@/components/ui/toast';
+import { DevEnvironmentBadge } from '@/components/dev-environment-banner';
+import type { AppEnvironment } from '@/lib/app-environment';
 
 function openCommandPalette() {
   window.dispatchEvent(new CustomEvent('flower:command-palette'));
 }
 
-function AppShellInner({ children }: { children: ReactNode }) {
+function AppShellInner({
+  children,
+  environment,
+}: {
+  children: ReactNode;
+  environment: AppEnvironment;
+}) {
   const pathname = usePathname();
   const auth = useAuth();
   const { expanded } = useSidebar();
@@ -43,7 +51,7 @@ function AppShellInner({ children }: { children: ReactNode }) {
     .map((part) => part[0]?.toUpperCase() ?? '')
     .join('');
 
-  if (pathname === '/login') {
+  if (pathname === '/login' || pathname === '/change-password') {
     return <>{children}</>;
   }
 
@@ -52,7 +60,7 @@ function AppShellInner({ children }: { children: ReactNode }) {
       className={expanded ? 'shell shell--sidebar-expanded' : 'shell shell--sidebar-collapsed'}
     >
       <WorkspaceContextSync />
-      <DesktopSidebar />
+      <DesktopSidebar environment={environment} />
       <MobileDrawer open={mobileOpen} onClose={closeMobile} />
 
       <header className="shell__header">
@@ -69,6 +77,7 @@ function AppShellInner({ children }: { children: ReactNode }) {
           </button>
           <Link href={homeHref} className="shell__title">
             {t('backoffice')}
+            <DevEnvironmentBadge environment={environment} />
           </Link>
           <WorkspaceSwitcher />
         </div>
@@ -102,11 +111,17 @@ function AppShellInner({ children }: { children: ReactNode }) {
   );
 }
 
-export function AppShell({ children }: { children: ReactNode }) {
+export function AppShell({
+  children,
+  environment,
+}: {
+  children: ReactNode;
+  environment: AppEnvironment;
+}) {
   return (
     <SidebarProvider>
       <ToastProvider>
-        <AppShellInner>{children}</AppShellInner>
+        <AppShellInner environment={environment}>{children}</AppShellInner>
       </ToastProvider>
     </SidebarProvider>
   );

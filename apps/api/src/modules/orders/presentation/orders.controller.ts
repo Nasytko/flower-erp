@@ -190,6 +190,12 @@ export class OrdersController {
     return this.orders.markReady(params);
   }
 
+  @Post('orders/:orderId/assemble')
+  @RequirePermissions('orders:prepare')
+  assemble(@Param() params: OrderParamsDto) {
+    return this.orders.assembleOrder(params);
+  }
+
   @Post('orders/:orderId/complete')
   @RequirePermissions('orders:prepare')
   complete(@Param() params: OrderParamsDto) {

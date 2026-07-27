@@ -25,7 +25,7 @@ import {
   computeLockUntil,
   normalizeLogin,
 } from '../../identity/domain/identity-rules';
-import { GENERIC_AUTH_FAILURE, SECURITY_AUDIT_ACTIONS } from '../domain/auth-rules';
+import { GENERIC_AUTH_FAILURE, SECURITY_AUDIT_ACTIONS, matchesRoleChallenge } from '../domain/auth-rules';
 import { Argon2PasswordService, hashRefreshToken } from '../../../infrastructure/security/password.service';
 import { JwtTokenService } from '../infrastructure/jwt-token.service';
 import { InMemoryRateLimiter } from '../infrastructure/rate-limiter.service';
@@ -60,6 +60,7 @@ export class AuthUseCases {
   async login(input: {
     login: string;
     password: string;
+    roleChallenge: string;
     organizationId?: string | null;
     ipAddress?: string | null;
     userAgent?: string | null;
@@ -136,6 +137,11 @@ export class AuthUseCases {
     }
 
     assertMembershipActive(membership!.status);
+    const roleCodes = await this.identity.listMembershipRoleCodes(membership!.id);
+    if (!matchesRoleChallenge(roleCodes, input.roleChallenge)) {
+      await fail(membership!.organizationId);
+    }
+
     const profile = await this.identity.loadAuthProfile(membership!.id);
     if (!profile) {
       await fail(membership!.organizationId);
@@ -367,6 +373,7 @@ export class AuthUseCases {
         mode: profile.membership.storeAccessMode,
         storeIds: profile.storeIds,
       },
+      mustChangePassword: profile.user.mustChangePassword,
     };
   }
 

@@ -10,6 +10,7 @@ import { JwtTokenService } from './infrastructure/jwt-token.service';
 import { InMemoryRateLimiter } from './infrastructure/rate-limiter.service';
 import {
   JwtAuthGuard,
+  MustChangePasswordGuard,
   OrganizationMembershipGuard,
   PermissionsGuard,
   StoreScopeGuard,
@@ -32,6 +33,7 @@ import { IdentityModule } from '../identity/identity.module';
     JwtTokenService,
     InMemoryRateLimiter,
     { provide: APP_GUARD, useClass: JwtAuthGuard },
+    { provide: APP_GUARD, useClass: MustChangePasswordGuard },
     { provide: APP_GUARD, useClass: OrganizationMembershipGuard },
     { provide: APP_GUARD, useClass: PermissionsGuard },
     { provide: APP_GUARD, useClass: StoreScopeGuard },

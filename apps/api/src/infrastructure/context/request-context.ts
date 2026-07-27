@@ -15,6 +15,7 @@ export type AuthContext = {
   sessionId: string;
   permissions: readonly string[];
   storeScope: StoreScope;
+  mustChangePassword: boolean;
 };
 
 export type RequestContextStore = {

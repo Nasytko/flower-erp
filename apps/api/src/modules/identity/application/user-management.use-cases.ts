@@ -130,6 +130,7 @@ export class UserManagementUseCases {
   async assignRoles(organizationId: string, userId: string, roleCodes: string[]) {
     const membership = await this.ensureMembership(organizationId, userId);
     await this.uow.runInTransaction(async () => {
+      await this.identity.ensureSystemRoles(organizationId);
       for (const code of roleCodes) {
         const roleId = await this.identity.findRoleIdByCode(organizationId, code);
         if (!roleId) throw new BadRequestException({ code: 'INVALID_ROLE', message: `Unknown role ${code}` });
@@ -152,7 +153,7 @@ export class UserManagementUseCases {
   }
 
   listRoles(organizationId: string) {
-    return this.identity.listRoles(organizationId);
+    return this.identity.ensureSystemRoles(organizationId).then(() => this.identity.listRoles(organizationId));
   }
 
   private async ensureMembership(organizationId: string, userId: string) {

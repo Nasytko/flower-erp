@@ -60,6 +60,14 @@ export const apiEnvSchema = z.object({
   DELIVERY_DISPATCH_BUFFER_MINUTES: z.coerce.number().int().positive().default(30),
   /** Minutes before windowStart when delivery urgency becomes SOON. */
   DELIVERY_READY_SOON_MINUTES: z.coerce.number().int().positive().default(45),
+  /** Geocoding: nominatim (OSM, free), manual (no external calls), mock (dev/tests). */
+  GEOCODING_PROVIDER: z.enum(['nominatim', 'manual', 'mock']).default('nominatim'),
+  /** ISO country code for address search filter (by = Belarus). */
+  GEOCODING_COUNTRY_CODE: z.string().length(2).default('by'),
+  /** User-Agent for Nominatim (required by OSM policy). */
+  NOMINATIM_USER_AGENT: z.string().min(8).default('CRM-Flowers/1.0'),
+  /** Optional deployment-wide Yandex Maps API key (overridden by org settings). */
+  YANDEX_MAPS_API_KEY: z.string().min(8).optional(),
 });
 
 export type ApiEnv = z.infer<typeof apiEnvSchema>;

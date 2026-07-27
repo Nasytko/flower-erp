@@ -21,6 +21,7 @@ import {
   OrganizationIdParamDto,
   PaginationQueryDto,
   StoreIdParamDto,
+  UpdateIntegrationSettingsDto,
   WarehouseIdParamDto,
 } from './organization.dto';
 
@@ -62,6 +63,27 @@ export class OrganizationController {
   @ApiOperation({ summary: 'Get organization' })
   getOrganization(@Param() params: OrganizationIdParamDto) {
     return this.useCases.getOrganization(params.organizationId);
+  }
+
+  @Get(':organizationId/integration-settings')
+  @RequirePermissions('organization:read')
+  @ApiOperation({ summary: 'Map and geocoding integration settings' })
+  getIntegrationSettings(@Param() params: OrganizationIdParamDto) {
+    return this.useCases.getIntegrationSettings(params.organizationId);
+  }
+
+  @Post(':organizationId/integration-settings')
+  @RequirePermissions('organization:manage')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Update map and geocoding integration settings' })
+  updateIntegrationSettings(
+    @Param() params: OrganizationIdParamDto,
+    @Body() body: UpdateIntegrationSettingsDto,
+  ) {
+    return this.useCases.updateIntegrationSettings({
+      organizationId: params.organizationId,
+      ...body,
+    });
   }
 
   @Post(':organizationId/archive')

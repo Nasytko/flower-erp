@@ -14,6 +14,7 @@ import { RequirePermissions } from '../../auth/presentation/auth.decorators';
 import { DeliveryUseCases } from '../application/delivery.use-cases';
 import {
   AddRouteStopsDto,
+  AddressSearchQueryDto,
   AssignCourierDto,
   BoardQueryDto,
   CancelDeliveryDto,
@@ -70,6 +71,17 @@ export class DeliveryController {
       query,
     );
     return rows.map(presentDelivery);
+  }
+
+  @Get('addresses/search')
+  @RequirePermissions('orders:read')
+  searchAddresses(@Param() params: StoreParamsDto, @Query() query: AddressSearchQueryDto) {
+    return this.deliveries.searchAddresses({
+      organizationId: params.organizationId,
+      storeId: params.storeId,
+      query: query.q,
+      city: query.city,
+    });
   }
 
   @Get('deliveries/:deliveryId')

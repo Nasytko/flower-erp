@@ -97,3 +97,23 @@ export class WarehouseIdParamDto extends StoreIdParamDto {
   @IsUUID()
   warehouseId!: string;
 }
+
+export class UpdateIntegrationSettingsDto {
+  @IsString()
+  geocodingProvider!: string;
+
+  @IsOptional()
+  @IsString()
+  yandexMapsApiKey?: string | null;
+
+  @IsString()
+  navigationProvider!: string;
+
+  @IsOptional()
+  @IsString()
+  mapDefaultLatitude?: string | null;
+
+  @IsOptional()
+  @IsString()
+  mapDefaultLongitude?: string | null;
+}

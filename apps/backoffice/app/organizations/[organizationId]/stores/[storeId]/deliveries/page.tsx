@@ -18,8 +18,28 @@ import {
   formatWindow,
   todayIsoDate,
 } from '@/lib/delivery-labels';
+import {
+  orderPhaseLabel,
+  resolveOrderPhase,
+  type OrderPhase,
+} from '@/lib/order-ui';
 
 type SectionKey = keyof DeliveryBoardDto['sections'];
+
+const PHASE_TONE: Record<OrderPhase, string> = {
+  NEW: 'warning',
+  ASSEMBLED: 'info',
+  IN_DELIVERY: 'accent',
+  COMPLETED: 'success',
+};
+
+function OrderPhaseBadge({ phase }: { phase: OrderPhase }) {
+  return (
+    <span className={`status-badge status-badge--${PHASE_TONE[phase]}`}>
+      {orderPhaseLabel(phase)}
+    </span>
+  );
+}
 
 const SECTION_ORDER: SectionKey[] = [
   'problems',
@@ -186,6 +206,15 @@ export default function DeliveriesBoardPage() {
                               <strong>{card.number}</strong>
                               <StatusBadge status={card.status} />
                               <span>{deliveryStatusLabel(card.status)}</span>
+                              <OrderPhaseBadge
+                                phase={resolveOrderPhase(
+                                  { status: card.orderStatus ?? 'DRAFT' },
+                                  {
+                                    status: card.status,
+                                    handedOverAt: card.handedOverAt,
+                                  },
+                                )}
+                              />
                               {card.urgency && card.urgency !== 'NORMAL' ? (
                                 <span
                                   className={`urgency-badge urgency-badge--${card.urgency.toLowerCase()}`}

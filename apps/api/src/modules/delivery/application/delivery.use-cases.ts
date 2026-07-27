@@ -55,8 +55,16 @@ import {
   PAYMENTS_DELIVERY_READ_PORT,
   type PaymentsDeliveryReadPort,
 } from '../../payments/application/ports/payments-delivery-read.port';
-import { GEOCODING_PORT, type GeocodingPort } from './ports/geocoding.port';
-import { ROUTING_PORT, type RoutingPort } from './ports/routing.port';
+import {
+  INTEGRATION_SETTINGS_REPOSITORY,
+  type IntegrationSettingsRepository,
+} from '../../organization/application/ports/integration-settings.repository';
+import { GeocodingResolver, resolveIntegrationSettings } from '../infrastructure/geocoding-resolver';
+import {
+  buildAddressMapsUrl,
+  buildNavigationLinks,
+  type NavigationProvider,
+} from '../infrastructure/navigation-links';
 import type { DeliveryFulfillmentPort } from '../../orders/application/ports/delivery-fulfillment.port';
 import type { DeliveryReadinessPort } from '../../orders/application/ports/delivery-readiness.port';
 
@@ -110,8 +118,9 @@ export class DeliveryUseCases implements DeliveryReadinessPort, DeliveryFulfillm
     @Optional()
     @Inject(PAYMENTS_DELIVERY_READ_PORT)
     private readonly payments: PaymentsDeliveryReadPort | null,
-    @Inject(GEOCODING_PORT) private readonly geocoding: GeocodingPort,
-    @Inject(ROUTING_PORT) private readonly routing: RoutingPort,
+    @Inject(INTEGRATION_SETTINGS_REPOSITORY)
+    private readonly integrationSettings: IntegrationSettingsRepository,
+    private readonly geocodingResolver: GeocodingResolver,
     @Inject(UNIT_OF_WORK) private readonly uow: UnitOfWork,
     @Inject(AUDIT_PORT) private readonly audit: AuditPort,
     @Inject(CLOCK_PORT) private readonly clock: ClockPort,
@@ -462,7 +471,8 @@ export class DeliveryUseCases implements DeliveryReadinessPort, DeliveryFulfillm
     return this.uow.runInTransaction(async () => {
       const job = await this.requireJob(input.organizationId, input.storeId, input.deliveryId);
       await this.bump(job, { geocodingStatus: GeocodingStatus.PENDING }, input.expectedVersion);
-      const result = await this.geocoding.geocodeAddress({
+      const geocoding = await this.geocodingResolver.forOrganization(input.organizationId);
+      const result = await geocoding.geocodeAddress({
         addressLine: job.addressLine,
         city: job.city,
         postalCode: job.postalCode,
@@ -1192,12 +1202,12 @@ export class DeliveryUseCases implements DeliveryReadinessPort, DeliveryFulfillm
       includePayment && this.payments
         ? await this.payments.getOrderPaymentSummary(organizationId, storeId, job.orderId)
         : null;
-    const navigationUrl =
-      job.latitude && job.longitude
-        ? this.routing.generateExternalNavigationUrl([
-            { latitude: job.latitude, longitude: job.longitude, label: job.displayAddress },
-          ])
-        : null;
+    const nav = await this.navigationForPoint(
+      organizationId,
+      job.latitude,
+      job.longitude,
+      job.displayAddress,
+    );
     const urgency = computeDeliveryUrgency({
       status: job.status as DeliveryStatus,
       windowStart: job.windowStart,
@@ -1212,7 +1222,9 @@ export class DeliveryUseCases implements DeliveryReadinessPort, DeliveryFulfillm
       orderReady: orderMeta?.status === 'READY' || orderMeta?.status === 'COMPLETED',
       urgency,
       payment,
-      navigationUrl,
+      navigationUrl: nav.navigationUrl,
+      mapsUrl: nav.mapsUrl,
+      navigatorUrl: nav.navigatorUrl,
     };
   }
 
@@ -1277,9 +1289,18 @@ export class DeliveryUseCases implements DeliveryReadinessPort, DeliveryFulfillm
   async getMap(organizationId: string, storeId: string, deliveryDate?: string) {
     const board = await this.getBoard(organizationId, storeId, deliveryDate);
     const all = Object.values(board.sections).flat();
+    const settings = resolveIntegrationSettings(
+      await this.integrationSettings.findByOrganizationId(organizationId),
+    );
     const withCoords = [];
     const needsAddress = [];
     for (const card of all) {
+      const nav = await this.navigationForPoint(
+        organizationId,
+        card.latitude,
+        card.longitude,
+        card.displayAddress,
+      );
       const point = {
         deliveryId: card.id,
         orderId: card.orderId,
@@ -1292,17 +1313,25 @@ export class DeliveryUseCases implements DeliveryReadinessPort, DeliveryFulfillm
         windowEnd: card.windowEnd,
         courierId: card.assignedCourierId,
         orderReady: card.orderReady,
-        navigationUrl:
-          card.latitude && card.longitude
-            ? this.routing.generateExternalNavigationUrl([
-                { latitude: card.latitude, longitude: card.longitude },
-              ])
-            : null,
+        navigationUrl: nav.navigationUrl,
+        mapsUrl: nav.mapsUrl,
+        navigatorUrl: nav.navigatorUrl,
       };
       if (card.latitude && card.longitude) withCoords.push(point);
       else needsAddress.push(point);
     }
-    return { date: board.date, points: withCoords, needsAddressClarification: needsAddress };
+    return {
+      date: board.date,
+      mapConfig: {
+        mapsEnabled:
+          settings.geocodingProvider === 'yandex' && Boolean(settings.yandexMapsApiKey),
+        yandexMapsApiKey: settings.yandexMapsApiKey,
+        mapDefaultLatitude: settings.mapDefaultLatitude,
+        mapDefaultLongitude: settings.mapDefaultLongitude,
+      },
+      points: withCoords,
+      needsAddressClarification: needsAddress,
+    };
   }
 
   async getCalendar(organizationId: string, storeId: string, deliveryDate?: string) {
@@ -1436,7 +1465,7 @@ export class DeliveryUseCases implements DeliveryReadinessPort, DeliveryFulfillm
     const windowStart = ready;
     const windowEnd = new Date(ready.getTime() + 2 * 60 * 60 * 1000);
 
-    await this.createDeliveryFromOrder({
+    const job = await this.createDeliveryFromOrder({
       organizationId: input.organizationId,
       storeId: input.storeId,
       orderId: input.orderId,
@@ -1450,6 +1479,70 @@ export class DeliveryUseCases implements DeliveryReadinessPort, DeliveryFulfillm
       city: input.city,
       deliveryFee: '0',
     });
+
+    const planned = await this.planDelivery({
+      organizationId: input.organizationId,
+      storeId: input.storeId,
+      deliveryId: job.id,
+      expectedVersion: job.version,
+    });
+
+    try {
+      await this.geocodeDelivery({
+        organizationId: input.organizationId,
+        storeId: input.storeId,
+        deliveryId: job.id,
+        expectedVersion: planned.version,
+      });
+    } catch {
+      /* geocoding failure must not block delivery creation */
+    }
+  }
+
+  async searchAddresses(input: {
+    organizationId: string;
+    storeId: string;
+    query: string;
+    city?: string;
+  }) {
+    const store = await this.organizations.getStore(input.organizationId, input.storeId);
+    const city = input.city?.trim() || store.city?.trim() || undefined;
+    const geocoding = await this.geocodingResolver.forOrganization(input.organizationId);
+    return geocoding.searchAddress(input.query, {
+      city,
+      countryCode: undefined,
+    });
+  }
+
+  private async navigationForPoint(
+    organizationId: string,
+    latitude: string | null | undefined,
+    longitude: string | null | undefined,
+    label?: string | null,
+  ) {
+    const settings = resolveIntegrationSettings(
+      await this.integrationSettings.findByOrganizationId(organizationId),
+    );
+    const provider = settings.navigationProvider as NavigationProvider;
+    if (latitude && longitude) {
+      const links = buildNavigationLinks({
+        provider,
+        latitude,
+        longitude,
+        label,
+      });
+      return {
+        navigationUrl: links.mapsUrl,
+        mapsUrl: links.mapsUrl,
+        navigatorUrl: links.navigatorUrl,
+      };
+    }
+    const mapsUrl = label ? buildAddressMapsUrl(provider, label) : null;
+    return {
+      navigationUrl: mapsUrl,
+      mapsUrl,
+      navigatorUrl: null,
+    };
   }
 }
 

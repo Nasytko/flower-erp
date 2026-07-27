@@ -11,6 +11,7 @@ export function getApiClient(): ApiClient {
   }
   const env = loadBackofficeEnv({
     NODE_ENV: process.env.NODE_ENV,
+    NEXT_PUBLIC_APP_ENV: process.env.NEXT_PUBLIC_APP_ENV,
     NEXT_PUBLIC_API_BASE_URL: process.env.NEXT_PUBLIC_API_BASE_URL,
     NEXT_PUBLIC_APP_NAME: process.env.NEXT_PUBLIC_APP_NAME,
   });

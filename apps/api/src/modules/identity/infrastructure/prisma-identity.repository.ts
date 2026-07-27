@@ -137,6 +137,14 @@ export class PrismaIdentityRepository implements IdentityRepository {
     }));
   }
 
+  async listMembershipRoleCodes(membershipId: string): Promise<string[]> {
+    const rows = await this.client().membershipRole.findMany({
+      where: { membershipId, role: { status: 'ACTIVE' } },
+      include: { role: { select: { code: true } } },
+    });
+    return rows.map((row) => row.role.code);
+  }
+
   async loadAuthProfile(membershipId: string): Promise<AuthProfile | null> {
     const membership = await this.client().organizationMembership.findUnique({
       where: { id: membershipId },

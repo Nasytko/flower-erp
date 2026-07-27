@@ -34,7 +34,11 @@ Validated via Zod in `@flower/config`. Invalid env fails fast at process start.
 | `DELIVERY_DISPATCH_BUFFER_MINUTES` | no | `30` | Minutes before windowStart for suggested requiredDispatchAt |
 | `DELIVERY_READY_SOON_MINUTES` | no | `45` | Minutes before dispatch/window anchor for SOON/URGENT urgency |
 
-No Google Maps / geocoding API keys in v1 (manual/mock geocoding; OSM navigation deep links).
+No Google Maps API keys required. Address autocomplete uses OpenStreetMap Nominatim by default (`GEOCODING_PROVIDER=nominatim`). Set `GEOCODING_PROVIDER=manual` to disable external geocoding calls.
+
+| `GEOCODING_PROVIDER` | no | `nominatim` | `nominatim` \| `manual` \| `mock` |
+| `GEOCODING_COUNTRY_CODE` | no | `by` | ISO country filter for address search |
+| `NOMINATIM_USER_AGENT` | no | `CRM-Flowers/1.0` | User-Agent header (OSM policy) |
 
 ## Backoffice (`apps/backoffice`)
 

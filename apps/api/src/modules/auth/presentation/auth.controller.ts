@@ -16,7 +16,7 @@ import type { Request, Response } from 'express';
 import type { ApiEnv } from '@flower/config';
 import { API_ENV } from '../../../infrastructure/infrastructure.module';
 import { AuthUseCases } from '../application/auth.use-cases';
-import { Public } from '../presentation/auth.decorators';
+import { Public, AllowMustChangePassword } from '../presentation/auth.decorators';
 import { CurrentAuthContext } from '../presentation/current-auth-context.decorator';
 import type { AuthContext } from '../../../infrastructure/context/request-context';
 import { REFRESH_COOKIE_NAME, assertOriginAllowed } from '../domain/auth-rules';
@@ -62,6 +62,7 @@ export class AuthController {
     const result = await this.auth.login({
       login: body.login,
       password: body.password,
+      roleChallenge: body.roleChallenge,
       organizationId: body.organizationId,
       ipAddress: req.ip,
       userAgent: req.header('user-agent') ?? null,
@@ -96,6 +97,7 @@ export class AuthController {
     return { accessToken: result.accessToken };
   }
 
+  @AllowMustChangePassword()
   @Post('logout')
   @HttpCode(HttpStatus.NO_CONTENT)
   async logout(
@@ -106,6 +108,7 @@ export class AuthController {
     clearRefreshCookie(res, this.env);
   }
 
+  @AllowMustChangePassword()
   @Post('logout-all')
   @HttpCode(HttpStatus.NO_CONTENT)
   async logoutAll(
@@ -116,6 +119,7 @@ export class AuthController {
     clearRefreshCookie(res, this.env);
   }
 
+  @AllowMustChangePassword()
   @Get('me')
   me(@CurrentAuthContext() auth: AuthContext) {
     return this.auth.me(auth);
@@ -135,6 +139,7 @@ export class AuthController {
     return this.auth.revokeSession(auth.userId, params.sessionId);
   }
 
+  @AllowMustChangePassword()
   @Post('change-password')
   @HttpCode(HttpStatus.NO_CONTENT)
   changePassword(

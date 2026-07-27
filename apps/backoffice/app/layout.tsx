@@ -2,8 +2,10 @@ import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 import { Manrope, Source_Serif_4 } from 'next/font/google';
 import { AuthProvider } from '@/components/auth-provider';
+import { DevEnvironmentBanner } from '@/components/dev-environment-banner';
 import { AppShell } from '@/components/shell/app-shell';
 import { ErrorBoundary } from '@/components/error-boundary';
+import { getAppEnvironment } from '@/lib/app-environment';
 import './globals.css';
 
 const manrope = Manrope({
@@ -18,18 +20,24 @@ const sourceSerif = Source_Serif_4({
   display: 'swap',
 });
 
-export const metadata: Metadata = {
-  title: 'Flower ERP',
-  description: 'Бэк-офис Flower ERP',
-};
+export function generateMetadata(): Metadata {
+  const environment = getAppEnvironment();
+  return {
+    title: environment.showBanner ? `[${environment.badge}] Flower ERP` : 'Flower ERP',
+    description: 'Бэк-офис Flower ERP',
+  };
+}
 
 export default function RootLayout({ children }: { children: ReactNode }) {
+  const environment = getAppEnvironment();
+
   return (
     <html lang="ru" className={`${manrope.variable} ${sourceSerif.variable}`}>
-      <body>
+      <body className={environment.showBanner ? 'has-dev-banner' : undefined}>
+        <DevEnvironmentBanner environment={environment} />
         <ErrorBoundary>
           <AuthProvider>
-            <AppShell>{children}</AppShell>
+            <AppShell environment={environment}>{children}</AppShell>
           </AuthProvider>
         </ErrorBoundary>
       </body>

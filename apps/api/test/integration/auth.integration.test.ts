@@ -22,19 +22,34 @@ test('login success and wrong password identical structure', { skip: !runIntegra
 
   const ok = await request(server)
     .post('/api/v1/auth/login')
-    .send({ login: auth.login, password: auth.password, organizationId: auth.organizationId })
+    .send({
+      login: auth.login,
+      password: auth.password,
+      organizationId: auth.organizationId,
+      roleChallenge: 'director',
+    })
     .expect(200);
   assert.ok(ok.body.accessToken);
   assert.equal(ok.body.user.passwordHash, undefined);
 
   const badPassword = await request(server)
     .post('/api/v1/auth/login')
-    .send({ login: auth.login, password: 'wrong-password-xx', organizationId: auth.organizationId })
+    .send({
+      login: auth.login,
+      password: 'wrong-password-xx',
+      organizationId: auth.organizationId,
+      roleChallenge: 'director',
+    })
     .expect(401);
 
   const unknown = await request(server)
     .post('/api/v1/auth/login')
-    .send({ login: 'nouser999', password: 'wrong-password-xx', organizationId: auth.organizationId })
+    .send({
+      login: 'nouser999',
+      password: 'wrong-password-xx',
+      organizationId: auth.organizationId,
+      roleChallenge: 'director',
+    })
     .expect(401);
 
   assert.equal(badPassword.body.error?.code ?? badPassword.body.code, unknown.body.error?.code ?? unknown.body.code);
@@ -49,7 +64,12 @@ test('refresh rotation and token reuse revokes family', { skip: !runIntegration 
 
   const loginRes = await request(server)
     .post('/api/v1/auth/login')
-    .send({ login: auth.login, password: auth.password, organizationId: auth.organizationId })
+    .send({
+      login: auth.login,
+      password: auth.password,
+      organizationId: auth.organizationId,
+      roleChallenge: 'director',
+    })
     .expect(200);
 
   const cookies = loginRes.headers['set-cookie'];

@@ -24,7 +24,7 @@ import {
   assertStoreInScope,
   assertUserCanAuthenticate,
 } from '../../identity/domain/identity-rules';
-import { IS_PUBLIC_KEY, PERMISSIONS_KEY, SKIP_ORG_MATCH_KEY, SKIP_STORE_SCOPE_KEY } from '../presentation/auth.decorators';
+import { IS_PUBLIC_KEY, PERMISSIONS_KEY, SKIP_ORG_MATCH_KEY, SKIP_STORE_SCOPE_KEY, ALLOW_MUST_CHANGE_PASSWORD_KEY } from '../presentation/auth.decorators';
 
 type AuthedRequest = Request & {
   authContext?: ReturnType<AuthUseCases['buildAuthContext']>;
@@ -91,6 +91,34 @@ export class JwtAuthGuard implements CanActivate {
     });
 
     return true;
+  }
+}
+
+@Injectable()
+export class MustChangePasswordGuard implements CanActivate {
+  constructor(private readonly reflector: Reflector) {}
+
+  canActivate(context: ExecutionContext): boolean {
+    const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+    if (isPublic) return true;
+
+    const allowed = this.reflector.getAllAndOverride<boolean>(ALLOW_MUST_CHANGE_PASSWORD_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+    if (allowed) return true;
+
+    const request = context.switchToHttp().getRequest<AuthedRequest>();
+    const auth = request.authContext;
+    if (!auth?.mustChangePassword) return true;
+
+    throw new ForbiddenException({
+      code: 'PASSWORD_CHANGE_REQUIRED',
+      message: 'Password change required before accessing this resource',
+    });
   }
 }
 

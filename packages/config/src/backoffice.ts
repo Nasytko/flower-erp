@@ -2,6 +2,8 @@ import { z } from 'zod';
 
 export const backofficeEnvSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
+  /** Explicit deploy target for UI hints; defaults from NODE_ENV when omitted. */
+  NEXT_PUBLIC_APP_ENV: z.enum(['development', 'staging', 'production']).optional(),
   NEXT_PUBLIC_API_BASE_URL: z.string().url().default('http://localhost:3001/api/v1'),
   NEXT_PUBLIC_APP_NAME: z.string().default('Flower ERP'),
 });

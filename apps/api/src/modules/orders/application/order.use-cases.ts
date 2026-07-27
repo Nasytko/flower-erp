@@ -1267,6 +1267,153 @@ export class OrderUseCases {
     });
   }
 
+  /** Confirm, reserve, seed actual, and mark ready — without florist assignment. */
+  async assembleOrder(input: { organizationId: string; storeId: string; orderId: string }) {
+    return this.uow.runInTransaction(async () => {
+      let order = await this.requireOrder(input.organizationId, input.storeId, input.orderId);
+      if (order.status === OrderStatus.READY || order.status === OrderStatus.COMPLETED) {
+        return order;
+      }
+      if (order.status === OrderStatus.CANCELLED) {
+        throw new BadRequestException({
+          code: 'ORDER_TERMINAL',
+          message: 'Order cannot be assembled',
+        });
+      }
+
+      const now = this.clock.now();
+      const items = order.composition?.items ?? [];
+
+      if (order.status === OrderStatus.DRAFT) {
+        try {
+          assertCanConfirm(order.status as OrderStatus, items.length);
+        } catch (e) {
+          mapDomain(e);
+        }
+        for (const line of items) {
+          if (line.item.status !== 'ACTIVE') {
+            throw new BadRequestException({
+              code: 'ITEM_NOT_ACTIVE',
+              message: `Item ${line.item.code} is not ACTIVE`,
+            });
+          }
+        }
+        const result = await this.reservations.reserveComposition({
+          organizationId: order.organizationId,
+          storeId: order.storeId,
+          warehouseId: order.warehouseId,
+          orderId: order.id,
+          lines: items.map((i) => ({
+            compositionItemId: i.id,
+            itemId: i.itemId,
+            quantity: i.plannedQuantity,
+          })),
+        });
+        const status = statusFromReservationOutcome(result.outcome);
+        order = await this.orders.updateStatus(
+          input.organizationId,
+          input.storeId,
+          input.orderId,
+          status,
+          {
+            confirmedAt: now,
+            reservedAt: result.outcome === 'FULL' ? now : null,
+          },
+        );
+        await this.appendTimeline(order, 'CONFIRMED', 'Order confirmed', { status });
+        await this.auditOrder(order, 'ORDER_CONFIRMED', order, { status, reservation: result });
+      }
+
+      if (
+        order.status === OrderStatus.CONFIRMED ||
+        order.status === OrderStatus.PARTIALLY_RESERVED
+      ) {
+        try {
+          assertCanReserve(order.status as OrderStatus);
+        } catch (e) {
+          mapDomain(e);
+        }
+        const result = await this.reservations.reserveComposition({
+          organizationId: order.organizationId,
+          storeId: order.storeId,
+          warehouseId: order.warehouseId,
+          orderId: order.id,
+          lines: items.map((i) => ({
+            compositionItemId: i.id,
+            itemId: i.itemId,
+            quantity: i.plannedQuantity,
+          })),
+        });
+        const status = statusFromReservationOutcome(result.outcome);
+        order = await this.orders.updateStatus(
+          input.organizationId,
+          input.storeId,
+          input.orderId,
+          status,
+          { reservedAt: result.outcome === 'FULL' ? now : null },
+        );
+      }
+
+      if (
+        order.status === OrderStatus.RESERVED ||
+        order.status === OrderStatus.PARTIALLY_RESERVED
+      ) {
+        await this.orders.seedActualFromPlanned({
+          id: randomUUID(),
+          organizationId: input.organizationId,
+          orderId: input.orderId,
+          items: items.map((line, index) => ({
+            id: randomUUID(),
+            itemId: line.itemId,
+            actualQuantity: line.plannedQuantity,
+            batchId: null,
+            comment: line.comment,
+            sortOrder: index,
+          })),
+        });
+        order = await this.orders.updateStatus(
+          input.organizationId,
+          input.storeId,
+          input.orderId,
+          OrderStatus.IN_PREPARATION,
+          { preparationStartedAt: now },
+        );
+        await this.appendTimeline(order, 'PREPARATION_STARTED', 'Preparation started', null);
+        await this.auditOrder(order, 'ORDER_PREPARATION_STARTED', order, order);
+      }
+
+      if (order.status === OrderStatus.IN_PREPARATION) {
+        try {
+          assertCanMarkReady(order.status as OrderStatus);
+        } catch (e) {
+          mapDomain(e);
+        }
+        order = await this.requireOrder(input.organizationId, input.storeId, input.orderId);
+        if (order.actualComposition) {
+          await this.orders.freezeActual(input.organizationId, input.orderId, now);
+        }
+        order = await this.orders.updateStatus(
+          input.organizationId,
+          input.storeId,
+          input.orderId,
+          OrderStatus.READY,
+        );
+        await this.appendTimeline(order, 'READY', 'Order marked ready', null);
+        await this.auditOrder(order, 'ORDER_MARKED_READY', order, order);
+        const readiness = this.deliveryReadiness();
+        if (readiness) {
+          await readiness.onOrderMarkedReady(
+            input.organizationId,
+            input.storeId,
+            input.orderId,
+          );
+        }
+      }
+
+      return order;
+    });
+  }
+
   async completeOrder(input: { organizationId: string; storeId: string; orderId: string }) {
     return this.uow.runInTransaction(async () => {
       const order = await this.requireOrder(input.organizationId, input.storeId, input.orderId);

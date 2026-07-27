@@ -67,6 +67,7 @@ export interface IdentityRepository {
   findMembership(userId: string, organizationId: string): Promise<MembershipRecord | null>;
   listActiveMemberships(userId: string): Promise<MembershipRecord[]>;
   loadAuthProfile(membershipId: string): Promise<AuthProfile | null>;
+  listMembershipRoleCodes(membershipId: string): Promise<string[]>;
   createMembership(input: {
     organizationId: string;
     userId: string;

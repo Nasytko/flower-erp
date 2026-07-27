@@ -54,6 +54,7 @@ function withMembership<T>(
         sessionId: 'test-session',
         permissions: ['orders:assign', 'orders:prepare', 'workspace:read'],
         storeScope: { mode: 'ALL_STORES', storeIds: [] },
+        mustChangePassword: false,
       },
     },
     fn,

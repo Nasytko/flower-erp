@@ -13,6 +13,8 @@ import { Section } from '@/components/layout/section';
 import { EmptyState, ErrorState, LoadingState } from '@/components/layout/states';
 import { StatusBadge } from '@/components/layout/status-badge';
 import { MapPlaceholder, type MapPoint } from '@/components/delivery/map-placeholder';
+import { YandexDeliveryMap } from '@/components/delivery/yandex-delivery-map';
+import { NavigationButtons } from '@/components/delivery/navigation-buttons';
 import { SegmentedControl } from '@/components/workspace/workspace-ui';
 import {
   deliveryStatusLabel,
@@ -92,7 +94,7 @@ export default function DeliveriesMapPage() {
       <PageContainer>
         <PageHeader
           title="Карта доставок"
-          description="Список точек и заглушка карты (без Google Maps)."
+          description="Точки доставок на Яндекс.Карте или в списке. Переход в карту и навигатор."
           breadcrumbs={[
             { label: 'Доставка', href: `${base}/deliveries` },
             { label: 'Карта' },
@@ -145,11 +147,38 @@ export default function DeliveriesMapPage() {
                 data-mobile-view={mobileView}
               >
                 <Card title="Карта">
-                  <MapPlaceholder
-                    points={mapPoints}
-                    selectedId={selectedId}
-                    onSelect={setSelectedId}
-                  />
+                  {data.mapConfig?.mapsEnabled && data.mapConfig.yandexMapsApiKey ? (
+                    <YandexDeliveryMap
+                      apiKey={data.mapConfig.yandexMapsApiKey}
+                      points={mapPoints}
+                      selectedId={selectedId}
+                      onSelect={setSelectedId}
+                      defaultCenter={
+                        data.mapConfig.mapDefaultLatitude && data.mapConfig.mapDefaultLongitude
+                          ? {
+                              latitude: data.mapConfig.mapDefaultLatitude,
+                              longitude: data.mapConfig.mapDefaultLongitude,
+                            }
+                          : undefined
+                      }
+                    />
+                  ) : (
+                    <MapPlaceholder
+                      points={mapPoints}
+                      selectedId={selectedId}
+                      onSelect={setSelectedId}
+                      title="Карта не настроена"
+                    />
+                  )}
+                  {!data.mapConfig?.mapsEnabled ? (
+                    <p className="field__hint" style={{ marginTop: 12 }}>
+                      Подключите API-ключ Яндекс.Карт в{' '}
+                      <Link href={`/organizations/${organizationId}/integrations`}>
+                        настройках организации
+                      </Link>
+                      .
+                    </p>
+                  ) : null}
                 </Card>
               </div>
             </Section>
@@ -239,13 +268,12 @@ export default function DeliveriesMapPage() {
                         <Link href={`${base}/deliveries/${selectedPoint.deliveryId}`}>
                           <Button type="button">Открыть доставку</Button>
                         </Link>
-                        {selectedPoint.navigationUrl ? (
-                          <a href={selectedPoint.navigationUrl} target="_blank" rel="noreferrer">
-                            <Button type="button" variant="secondary">
-                              Навигатор
-                            </Button>
-                          </a>
-                        ) : null}
+                        <NavigationButtons
+                          mapsUrl={selectedPoint.mapsUrl ?? selectedPoint.navigationUrl}
+                          navigatorUrl={selectedPoint.navigatorUrl}
+                          latitude={selectedPoint.latitude}
+                          longitude={selectedPoint.longitude}
+                        />
                       </div>
                     </div>
                   </Card>

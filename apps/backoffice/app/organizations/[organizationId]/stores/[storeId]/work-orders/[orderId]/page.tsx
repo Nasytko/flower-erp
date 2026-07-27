@@ -22,6 +22,10 @@ import {
   InlineAlert,
   StickyActionBar,
 } from '@/components/workspace/workspace-ui';
+import {
+  orderPhaseLabel,
+  resolveOrderPhase,
+} from '@/lib/order-ui';
 
 const REPLACE_REASONS: CompositionReplaceReason[] = [
   'OUT_OF_STOCK',
@@ -206,50 +210,33 @@ export default function WorkOrderPage() {
   }> = [];
 
   if (data) {
-    const action = data.primaryAction;
-    if (action === 'CLAIM' || auth.hasPermission('orders:assign')) {
-      if (!data.order.hasActiveAssignment) {
-        primaryActions.push({
-          key: 'claim',
-          label: 'Взять',
-          onClick: () => void run(() => getApiClient().claimOrder(organizationId, storeId, orderId)),
-        });
-      }
-    }
+    const phase = resolveOrderPhase(
+      { status: data.order.status },
+      deliveryHint
+        ? { status: deliveryHint.status, handedOverAt: null }
+        : null,
+    );
     if (
-      action === 'START_PREPARATION' ||
-      data.order.status === 'RESERVED' ||
-      data.order.status === 'PARTIALLY_RESERVED'
+      phase === 'NEW' &&
+      auth.hasPermission('orders:prepare') &&
+      data.order.status !== 'CANCELLED'
     ) {
-      if (auth.hasPermission('orders:prepare')) {
-        primaryActions.push({
-          key: 'start',
-          label: 'Начать подготовку',
-          onClick: () =>
-            void run(() => getApiClient().startOrderPreparation(organizationId, storeId, orderId)),
-        });
-      }
-    }
-    if (auth.hasPermission('orders:prepare') && data.order.status === 'IN_PREPARATION') {
       primaryActions.push({
-        key: 'ready',
-        label: 'Отметить готовым',
-        onClick: () => setConfirmReady(true),
+        key: 'assemble',
+        label: 'Собран',
+        onClick: () =>
+          void run(() => getApiClient().assembleOrder(organizationId, storeId, orderId)),
       });
     }
-    if (data.order.status === 'READY' && action === 'CREATE_SALE') {
+    if (
+      phase === 'ASSEMBLED' &&
+      data.order.status === 'READY' &&
+      data.primaryAction === 'CREATE_SALE'
+    ) {
       primaryActions.push({
         key: 'sale',
         label: 'Создать продажу',
         onClick: () => router.push(`${base}/sales/new?fromOrder=${orderId}`),
-      });
-    }
-    if (auth.hasPermission('orders:assign') && data.order.hasActiveAssignment) {
-      primaryActions.push({
-        key: 'release',
-        label: 'Освободить',
-        variant: 'secondary',
-        onClick: () => setConfirmRelease(true),
       });
     }
   }
@@ -293,7 +280,18 @@ export default function WorkOrderPage() {
             { label: 'Смена', href: `${base}/today` },
             { label: data?.order.number ?? 'Рабочий заказ' },
           ]}
-          actions={<div className="work-order-actions work-order-actions--desktop">{actionButtons}</div>}
+          actions={
+            <div className="work-order-actions work-order-actions--desktop">
+              {data ? (
+                <Link href={`${base}/orders/${orderId}`}>
+                  <Button type="button" variant="ghost">
+                    Карточка заказа
+                  </Button>
+                </Link>
+              ) : null}
+              {actionButtons}
+            </div>
+          }
         />
 
         {loading ? <LoadingState message="Загрузка рабочего заказа…" /> : null}
@@ -306,7 +304,16 @@ export default function WorkOrderPage() {
               <Section>
                 <Card title="Заказ">
                   <div className="meta-row">
-                    <StatusBadge status={data.order.status} />
+                    <span className="status-badge status-badge--info">
+                      {orderPhaseLabel(
+                        resolveOrderPhase(
+                          { status: data.order.status },
+                          deliveryHint
+                            ? { status: deliveryHint.status, handedOverAt: null }
+                            : null,
+                        ),
+                      )}
+                    </span>
                     <span className={`urgency-badge urgency-badge--${data.urgency.toLowerCase()}`}>
                       {data.urgency}
                     </span>

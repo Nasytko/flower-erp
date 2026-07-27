@@ -116,9 +116,25 @@ model Organization {
   transferTimelineEvents TransferTimelineEvent[]
   memberships        OrganizationMembership[]
   roles              Role[]
+  integrationSettings OrganizationIntegrationSettings?
 
   @@index([status])
   @@map("organizations")
+}
+
+model OrganizationIntegrationSettings {
+  organizationId     String   @id @map("organization_id") @db.Uuid
+  geocodingProvider  String   @default("nominatim") @map("geocoding_provider")
+  yandexMapsApiKey   String?  @map("yandex_maps_api_key")
+  navigationProvider String   @default("yandex_maps") @map("navigation_provider")
+  mapDefaultLatitude  String? @map("map_default_latitude")
+  mapDefaultLongitude String? @map("map_default_longitude")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@map("organization_integration_settings")
 }
 
 model Store {
