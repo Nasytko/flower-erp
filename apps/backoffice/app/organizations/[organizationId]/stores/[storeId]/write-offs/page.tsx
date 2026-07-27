@@ -1,7 +1,7 @@
 ﻿'use client';
 
 import Link from 'next/link';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { Button, Card, Input } from '@flower/ui';
 import { ApiClientError, type WriteOffDto, type WriteOffReason } from '@flower/api-client';
@@ -12,13 +12,7 @@ import { PageHeader } from '@/components/layout/page-header';
 import { Section } from '@/components/layout/section';
 import { EmptyState, ErrorState, LoadingState } from '@/components/layout/states';
 import { StatusBadge } from '@/components/layout/status-badge';
-
-type Warehouse = {
-  id: string;
-  name: string;
-  code: string;
-  isDefault: boolean;
-};
+import { storeStockHint } from '@/lib/store-context';
 
 const REASONS: WriteOffReason[] = [
   'WILTED',
@@ -37,29 +31,24 @@ export default function WriteOffsPage() {
   const { organizationId, storeId } = params;
   const base = `/organizations/${organizationId}/stores/${storeId}`;
   const [docs, setDocs] = useState<WriteOffDto[]>([]);
-  const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
+  const [storeName, setStoreName] = useState('');
   const [reason, setReason] = useState<WriteOffReason>('WILTED');
   const [comment, setComment] = useState('');
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const defaultWarehouse = useMemo(
-    () => warehouses.find((item) => item.isDefault) ?? warehouses[0] ?? null,
-    [warehouses],
-  );
-
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
       const client = getApiClient();
-      const [nextDocs, nextWarehouses] = await Promise.all([
+      const [nextDocs, store] = await Promise.all([
         client.listWriteOffs(organizationId, storeId),
-        client.listWarehouses(organizationId, storeId),
+        client.getStore(organizationId, storeId),
       ]);
       setDocs(nextDocs);
-      setWarehouses(nextWarehouses);
+      setStoreName(store.name);
     } catch (err) {
       setError(err instanceof ApiClientError ? err.message : 'Не удалось загрузить списания');
     } finally {
@@ -73,12 +62,10 @@ export default function WriteOffsPage() {
   }, [auth, load]);
 
   async function createDraft() {
-    if (!defaultWarehouse) return;
     setCreating(true);
     setError(null);
     try {
       const doc = await getApiClient().createWriteOff(organizationId, storeId, {
-        warehouseId: defaultWarehouse.id,
         reason,
         comment: comment || undefined,
       });
@@ -116,11 +103,8 @@ export default function WriteOffsPage() {
             {auth.hasPermission('write-offs:create') ? (
               <Section>
                 <Card title="Создать списание">
+                  <p className="field__hint">{storeStockHint(storeName)}</p>
                   <div className="stock-filters">
-                    <label>
-                      <div>Warehouse</div>
-                      <Input value={defaultWarehouse ? `${defaultWarehouse.name} (${defaultWarehouse.code})` : 'Склад не найден'} readOnly />
-                    </label>
                     <label>
                       <div>Причина</div>
                       <select value={reason} onChange={(e) => setReason(e.target.value as WriteOffReason)}>
@@ -135,7 +119,7 @@ export default function WriteOffsPage() {
                       <div>Комментарий</div>
                       <Input value={comment} onChange={(e) => setComment(e.target.value)} placeholder="Комментарий (необязательно)" />
                     </label>
-                    <Button type="button" onClick={() => void createDraft()} disabled={!defaultWarehouse || creating}>
+                    <Button type="button" onClick={() => void createDraft()} disabled={creating}>
                       {creating ? 'Создание…' : 'Создать черновик'}
                     </Button>
                   </div>
@@ -158,8 +142,7 @@ export default function WriteOffsPage() {
                           <div className="meta-row">
                             <StatusBadge status={doc.status} />
                             <span>{doc.reason}</span>
-                            <span>Items {doc.items.length}</span>
-                            <span>Warehouse {doc.warehouseId}</span>
+                            <span>Позиций {doc.items.length}</span>
                           </div>
                         </div>
                       </li>

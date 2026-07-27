@@ -620,7 +620,7 @@ export function createApiClient(options: ApiClientOptions) {
     createSupply: (
       organizationId: string,
       storeId: string,
-      body: { warehouseId: string; supplierId: string; expectedReceiptDate?: string; comment?: string },
+      body: { warehouseId?: string; supplierId: string; expectedReceiptDate?: string; comment?: string },
     ) =>
       request<{ id: string; number: string; status: string }>(
         `/organizations/${organizationId}/stores/${storeId}/supplies`,
@@ -931,7 +931,7 @@ export function createApiClient(options: ApiClientOptions) {
       organizationId: string,
       storeId: string,
       body: {
-        warehouseId: string;
+        warehouseId?: string;
         type?: string;
         occasion?: string;
         customerId?: string;
@@ -1269,7 +1269,7 @@ export function createApiClient(options: ApiClientOptions) {
     createWriteOff: (
       organizationId: string,
       storeId: string,
-      body: { warehouseId: string; reason: WriteOffReason; comment?: string | null },
+      body: { warehouseId?: string; reason: WriteOffReason; comment?: string | null },
     ) =>
       request<WriteOffDto>(`/organizations/${organizationId}/stores/${storeId}/write-offs`, {
         method: 'POST',
@@ -1425,7 +1425,7 @@ export function createApiClient(options: ApiClientOptions) {
     createInventoryCount: (
       organizationId: string,
       storeId: string,
-      body: { warehouseId: string; comment?: string | null },
+      body: { warehouseId?: string; comment?: string | null },
     ) =>
       request<InventoryCountDto>(
         `/organizations/${organizationId}/stores/${storeId}/inventory-counts`,
@@ -1540,7 +1540,7 @@ export function createApiClient(options: ApiClientOptions) {
       organizationId: string,
       storeId: string,
       body: {
-        warehouseId: string;
+        warehouseId?: string;
         salesChannel?: string;
         comment?: string;
         lines: Array<{

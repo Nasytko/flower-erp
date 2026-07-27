@@ -39,7 +39,6 @@ export default function SuppliesPage() {
   const [suppliers, setSuppliers] = useState<Array<{ id: string; name: string; code: string }>>(
     [],
   );
-  const [warehouseId, setWarehouseId] = useState('');
   const [supplierId, setSupplierId] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -52,15 +51,12 @@ export default function SuppliesPage() {
     setError(null);
     try {
       const client = getApiClient();
-      const [list, supplierList, warehouses] = await Promise.all([
+      const [list, supplierList] = await Promise.all([
         client.listSupplies(organizationId, storeId),
         client.listSuppliers(organizationId, { pageSize: 100, status: 'ACTIVE' }),
-        client.listWarehouses(organizationId, storeId),
       ]);
       setItems(list);
       setSuppliers(supplierList.items);
-      const wh = warehouses.find((w) => w.isDefault) ?? warehouses[0];
-      if (wh) setWarehouseId(wh.id);
       if (supplierList.items[0]) setSupplierId(supplierList.items[0].id);
     } catch (err) {
       setError(err instanceof ApiClientError ? err.message : 'Не удалось загрузить');
@@ -88,7 +84,6 @@ export default function SuppliesPage() {
     setError(null);
     try {
       const created = await getApiClient().createSupply(organizationId, storeId, {
-        warehouseId,
         supplierId,
       });
       router.push(`${base}/supplies/${created.id}`);
@@ -134,10 +129,7 @@ export default function SuppliesPage() {
                     aria-label="Поставщик"
                   />
                 </Field>
-                {!warehouseId ? (
-                  <ErrorState message="Нет склада в магазине. Создайте склад в настройках." />
-                ) : null}
-                <Button type="submit" disabled={creating || !supplierId || !warehouseId}>
+                <Button type="submit" disabled={creating || !supplierId}>
                   {creating ? 'Создание…' : 'Создать и заполнить'}
                 </Button>
               </form>

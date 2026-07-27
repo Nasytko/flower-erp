@@ -22,6 +22,7 @@ import { Section } from '@/components/layout/section';
 import { ErrorState, LoadingState } from '@/components/layout/states';
 import { InlineAlert } from '@/components/workspace/workspace-ui';
 import { formatApiError, type FormattedError } from '@/lib/format-api-error';
+import { storeStockHint } from '@/lib/store-context';
 
 type CatalogItem = {
   id: string;
@@ -143,8 +144,7 @@ function NewSalePageInner() {
   const base = `/organizations/${organizationId}/stores/${storeId}`;
   const fromOrderId = searchParams.get('fromOrder');
 
-  const [warehouseId, setWarehouseId] = useState('');
-  const [warehouseLabel, setWarehouseLabel] = useState('');
+  const [storeName, setStoreName] = useState('');
   const [items, setItems] = useState<CatalogItem[]>([]);
   const [positions, setPositions] = useState<SalePosition[]>([emptyCustomPosition()]);
   const [builderMode, setBuilderMode] = useState<BuilderMode>('CUSTOM');
@@ -314,37 +314,22 @@ function NewSalePageInner() {
       }));
     }
 
-    async function loadWarehouses() {
-      let warehouses = await client.listWarehouses(organizationId, storeId);
-      if (warehouses.length === 0 && auth.hasPermission('stores:create')) {
-        warehouses = await client.ensureDefaultWarehouse(organizationId, storeId);
-      }
-      return warehouses;
-    }
-
     void (async () => {
       try {
-        const [warehouses, methods] = await Promise.all([
-          loadWarehouses(),
-          loadPaymentMethods(),
-        ]);
+        const methods = await loadPaymentMethods();
         if (cancelled) return;
-        const defaultWh = warehouses.find((w) => w.isDefault) ?? warehouses[0];
-        if (defaultWh) {
-          setWarehouseId(defaultWh.id);
-          setWarehouseLabel(`${defaultWh.name} (${defaultWh.code})`);
-        }
         setPaymentMethods(methods);
         if (methods[0]) {
           setPaymentLines([createEmptyPaymentLine(methods[0].id)]);
         }
       } catch (err: unknown) {
         if (cancelled) return;
-        setError(formatApiError(err, 'Не удалось загрузить склад или способы оплаты'));
+        setError(formatApiError(err, 'Не удалось загрузить способы оплаты'));
       }
     })();
 
     Promise.all([
+      client.getStore(organizationId, storeId),
       fromOrderId
         ? Promise.resolve({ items: [] as CatalogItem[] })
         : client.listItems(organizationId, { pageSize: 100, status: 'ACTIVE' }),
@@ -353,8 +338,9 @@ function NewSalePageInner() {
         ? client.getOrderPaymentSummary(organizationId, storeId, fromOrderId)
         : Promise.resolve(null),
     ])
-      .then(([catalog, order, orderPay]) => {
+      .then(([store, catalog, order, orderPay]) => {
         if (cancelled) return;
+        setStoreName(store.name);
         const catalogItems = catalog.items as CatalogItem[];
         setItems(catalogItems);
         if (!fromOrderId) {
@@ -592,11 +578,6 @@ function NewSalePageInner() {
 
   function collectBlockers(): string[] {
     const issues: string[] = [];
-    if (!fromOrderId && !warehouseId) {
-      issues.push(
-        'У магазина нет склада. Без склада продажу оформить нельзя — создайте склад при создании магазина или обратитесь к администратору.',
-      );
-    }
     if (fromOrderId) {
       if (!orderTitle.trim()) issues.push('Укажите название продажи');
       if (!parseBynToApi(orderPrice)) issues.push('Укажите цену продажи');
@@ -632,7 +613,6 @@ function NewSalePageInner() {
 
   const blockers = useMemo(() => collectBlockers(), [
     fromOrderId,
-    warehouseId,
     positions,
     orderTitle,
     orderPrice,
@@ -670,7 +650,6 @@ function NewSalePageInner() {
         saleId = created.id;
       } else {
         const created = await client.createDirectSale(organizationId, storeId, {
-          warehouseId,
           comment: comment.trim() || undefined,
           lines: buildDirectLines(),
           discount: discountPayload(),
@@ -738,21 +717,13 @@ function NewSalePageInner() {
           ]}
         />
 
-        {loading ? <LoadingState message="Загрузка каталога и склада…" /> : null}
+        {loading ? <LoadingState message="Загрузка каталога…" /> : null}
         {error ? (
           <ErrorState title={error.title} message={error.message} details={error.details} />
         ) : null}
 
         {!loading ? (
           <Section>
-            {!warehouseId && !fromOrderId ? (
-              <InlineAlert tone="danger" title="Нет склада магазина">
-                Без склада нельзя списать остатки и оформить продажу.
-                {auth.hasPermission('stores:create')
-                  ? ' Обновите страницу — система попробует создать склад автоматически.'
-                  : ' Попросите администратора с правом stores:create создать склад для магазина.'}
-              </InlineAlert>
-            ) : null}
             {blockers.length > 0 ? (
               <InlineAlert tone="warning" title="Чтобы оформить продажу">
                 <ul className="form-checklist">
@@ -779,10 +750,7 @@ function NewSalePageInner() {
                       </p>
                     </div>
                   ) : (
-                    <p className="sale-hint">
-                      Склад: <strong>{warehouseLabel || 'не найден'}</strong>. Нажмите «+» на
-                      ячейке, чтобы добавить товар.
-                    </p>
+                    <p className="sale-hint">{storeStockHint(storeName)} Нажмите «+» на ячейке, чтобы добавить товар.</p>
                   )}
 
                   <div className="stack-form">

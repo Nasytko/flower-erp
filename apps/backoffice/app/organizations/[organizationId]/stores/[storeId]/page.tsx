@@ -178,31 +178,24 @@ export default function StoreDetailPage() {
             </Section>
 
             <Section>
-              <Card title="Склад по умолчанию">
+              <Card title="Остатки магазина">
                 {!defaultWarehouse ? (
-                  <EmptyState message="Склад для этого магазина не найден." />
+                  <EmptyState message="Остатки для этого магазина ещё не настроены." />
                 ) : (
                   <div style={{ display: 'grid', gap: 8 }}>
+                    <p className="field__hint">
+                      Учёт ведётся по магазину «{store.name}». Технический склад:{' '}
+                      {defaultWarehouse.code}.
+                    </p>
                     <div className="meta-row">
-                      <strong>
-                        {defaultWarehouse.name} ({defaultWarehouse.code})
-                      </strong>
                       <StatusBadge status={defaultWarehouse.status} />
-                    </div>
-                    <div className="meta-row">
                       {defaultWarehouse.isDefault ? (
                         <StatusBadge status="DEFAULT" />
-                      ) : (
-                        <StatusBadge status="WAREHOUSE" />
-                      )}
-                      <span>Тип: {defaultWarehouse.type}</span>
-                      <span style={{ color: 'var(--color-muted)', fontSize: 'var(--text-xs)' }}>
-                        {defaultWarehouse.id}
-                      </span>
+                      ) : null}
                     </div>
                     <div className="meta-row">
                       <Link href={`${base}/warehouses/${defaultWarehouse.id}/inventory`}>
-                        Остатки / партии / движения
+                        Партии и движения
                       </Link>
                       {auth.hasPermission('inventory:read') ? (
                         <Link href={`${base}/stock`}>Операционные остатки</Link>

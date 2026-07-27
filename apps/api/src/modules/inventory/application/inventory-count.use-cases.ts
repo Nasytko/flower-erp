@@ -42,15 +42,19 @@ export class InventoryCountUseCases {
   async create(input: {
     organizationId: string;
     storeId: string;
-    warehouseId: string;
+    warehouseId?: string;
     comment?: string | null;
   }) {
-    await this.organizations.getWarehouse(input.organizationId, input.storeId, input.warehouseId);
+    const warehouse = await this.organizations.resolveStoreWarehouse(
+      input.organizationId,
+      input.storeId,
+      input.warehouseId,
+    );
     return this.uow.runInTransaction(async () => {
       const snapshot = await this.inventory.snapshotCount(
         input.organizationId,
         input.storeId,
-        input.warehouseId,
+        warehouse.id,
       );
       const client = getActivePrismaTx() ?? this.prisma;
       const cutoffAt = this.clock.now();
@@ -59,7 +63,7 @@ export class InventoryCountUseCases {
           id: randomUUID(),
           organizationId: input.organizationId,
           storeId: input.storeId,
-          warehouseId: input.warehouseId,
+          warehouseId: warehouse.id,
           number: await this.nextNumber(input.organizationId),
           cutoffAt,
           comment: input.comment ?? null,

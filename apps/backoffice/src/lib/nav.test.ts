@@ -59,7 +59,7 @@ test('PRIMARY_NAV is flat nine-item IA with Обзор first', () => {
     'Обзор',
     'Заказы',
     'Продажи',
-    'Склад',
+    'Остатки',
     'Приёмки',
     'Доставка',
     'Финансы',
@@ -68,7 +68,7 @@ test('PRIMARY_NAV is flat nine-item IA with Обзор first', () => {
   ]);
   assert.equal(labels.includes('Операции'), false);
   assert.equal(labels.includes('Оплаты'), false);
-  assert.equal(labels.includes('Остатки'), false);
+  assert.equal(labels.includes('Склад'), false);
   assert.equal(labels.includes('Списания'), false);
   assert.equal(labels.includes('Перемещения'), false);
   assert.equal(labels.includes('Инвентаризации'), false);
@@ -117,8 +117,8 @@ test('Финансы resolves to payments route', () => {
   );
 });
 
-test('Склад resolves to stock route', () => {
-  const stock = PRIMARY_NAV.find((item) => item.label === 'Склад');
+test('Остатки resolves to stock route', () => {
+  const stock = PRIMARY_NAV.find((item) => item.label === 'Остатки');
   assert.ok(stock);
   assert.equal(stock.permission, 'inventory:read');
   assert.equal(

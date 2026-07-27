@@ -8,7 +8,7 @@ export class StoreParamsDto {
 export class SupplyParamsDto extends StoreParamsDto { @IsUUID() supplyId!: string; }
 export class ReceiptParamsDto extends StoreParamsDto { @IsUUID() goodsReceiptId!: string; }
 export class CreateSupplyDto {
-  @IsUUID() warehouseId!: string;
+  @IsOptional() @IsUUID() warehouseId?: string;
   @IsUUID() supplierId!: string;
   @IsOptional() @IsDateString() expectedReceiptDate?: string;
   @IsOptional() @IsString() @MaxLength(2000) comment?: string;

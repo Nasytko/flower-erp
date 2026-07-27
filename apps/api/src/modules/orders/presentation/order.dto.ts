@@ -80,8 +80,9 @@ export class UpdateCustomerDto {
 }
 
 export class CreateOrderDto {
+  @IsOptional()
   @IsUUID()
-  warehouseId!: string;
+  warehouseId?: string;
 
   @IsOptional()
   @IsEnum(OrderType)

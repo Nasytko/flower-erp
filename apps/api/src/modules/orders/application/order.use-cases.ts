@@ -162,7 +162,7 @@ export class OrderUseCases {
   async createOrder(input: {
     organizationId: string;
     storeId: string;
-    warehouseId: string;
+    warehouseId?: string;
     type?: OrderType;
     occasion?: OrderOccasion;
     readyAt?: string | null;
@@ -181,7 +181,11 @@ export class OrderUseCases {
     deliveryApartment?: string | null;
     deliveryComment?: string | null;
   }) {
-    await this.organizations.getWarehouse(input.organizationId, input.storeId, input.warehouseId);
+    const warehouse = await this.organizations.resolveStoreWarehouse(
+      input.organizationId,
+      input.storeId,
+      input.warehouseId,
+    );
 
     const type = input.type ?? OrderType.PICKUP;
     if (type === OrderType.DELIVERY && !input.deliveryAddressLine?.trim()) {
@@ -213,7 +217,7 @@ export class OrderUseCases {
         id: orderId,
         organizationId: input.organizationId,
         storeId: input.storeId,
-        warehouseId: input.warehouseId,
+        warehouseId: warehouse.id,
         customerId: input.customerId ?? null,
         number: await this.orders.uniqueNumber('ORD', input.organizationId),
         type,

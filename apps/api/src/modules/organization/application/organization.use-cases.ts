@@ -302,6 +302,30 @@ export class OrganizationUseCases {
     return this.warehouses.listByStore(organizationId, storeId);
   }
 
+  /**
+   * Store-scoped warehouse for operational documents.
+   * When omitted, uses the store default (created idempotently if missing).
+   * In product terms: warehouse === the store the user is working in.
+   */
+  async resolveStoreWarehouse(
+    organizationId: string,
+    storeId: string,
+    warehouseId?: string | null,
+  ): Promise<WarehouseProps> {
+    if (warehouseId) {
+      return this.getWarehouse(organizationId, storeId, warehouseId);
+    }
+    const warehouses = await this.ensureDefaultWarehouse(organizationId, storeId);
+    const warehouse = warehouses.find((w) => w.isDefault) ?? warehouses[0];
+    if (!warehouse) {
+      throw new NotFoundException({
+        code: 'WAREHOUSE_NOT_FOUND',
+        message: 'Store has no warehouse configured',
+      });
+    }
+    return warehouse;
+  }
+
   /** Idempotent: returns existing warehouses or creates a default one. */
   async ensureDefaultWarehouse(
     organizationId: string,

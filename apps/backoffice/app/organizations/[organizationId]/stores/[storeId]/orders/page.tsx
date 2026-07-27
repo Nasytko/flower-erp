@@ -15,7 +15,6 @@ import { PageContainer } from '@/components/layout/page-container';
 import { PageHeader } from '@/components/layout/page-header';
 import { Section } from '@/components/layout/section';
 import { EmptyState, ErrorState, LoadingState } from '@/components/layout/states';
-import { InlineAlert } from '@/components/workspace/workspace-ui';
 import { formatApiErrorMessage } from '@/lib/format-api-error';
 import {
   type FieldErrors,
@@ -101,7 +100,6 @@ export default function OrdersPage() {
   const [orders, setOrders] = useState<OrderRow[]>([]);
   const [deliveries, setDeliveries] = useState<DeliveryRow[]>([]);
   const [customers, setCustomers] = useState<CustomerOption[]>([]);
-  const [warehouseId, setWarehouseId] = useState('');
   const [orderType, setOrderType] = useState<'PICKUP' | 'DELIVERY'>('PICKUP');
   const [customerId, setCustomerId] = useState('');
   const [recipientName, setRecipientName] = useState('');
@@ -141,15 +139,8 @@ export default function OrdersPage() {
         activeFilter === 'ALL'
           ? undefined
           : { phase: activeFilter };
-      const [list, warehouses, customerList, store, deliveryList] = await Promise.all([
+      const [list, customerList, store, deliveryList] = await Promise.all([
         client.listOrders(organizationId, storeId, orderQuery),
-        (async () => {
-          let rows = await client.listWarehouses(organizationId, storeId);
-          if (rows.length === 0 && auth.hasPermission('stores:create')) {
-            rows = await client.ensureDefaultWarehouse(organizationId, storeId);
-          }
-          return rows;
-        })(),
         auth.hasPermission('customers:read')
           ? client.listCustomers(organizationId)
           : Promise.resolve([] as CustomerOption[]),
@@ -168,8 +159,6 @@ export default function OrdersPage() {
         })),
       );
       setCustomers(customerList.filter((c) => c.status === 'ACTIVE'));
-      const wh = warehouses.find((w) => w.isDefault) ?? warehouses[0];
-      if (wh) setWarehouseId(wh.id);
       setStoreCity(store.city?.trim() || '');
     } catch (err) {
       setError(formatApiErrorMessage(err, 'Не удалось загрузить'));
@@ -220,11 +209,7 @@ export default function OrdersPage() {
     setCreating(true);
     setError(null);
     try {
-      if (!warehouseId) {
-        throw new Error('Не найден склад магазина. Обновите страницу или создайте склад.');
-      }
       const created = await getApiClient().createOrder(organizationId, storeId, {
-        warehouseId,
         type: orderType,
         occasion: 'OTHER',
         customerId: customerId || undefined,
@@ -277,11 +262,6 @@ export default function OrdersPage() {
         {canCreate && showCreate ? (
           <Section>
             <Card title="Новый заказ">
-              {!warehouseId ? (
-                <InlineAlert tone="danger" title="Нет склада">
-                  Без склада заказ создать нельзя. Обновите страницу или создайте склад магазина.
-                </InlineAlert>
-              ) : null}
               <form onSubmit={onCreate} className="stack-form" noValidate>
                 <AutoNumberNote label="Номер заказа" />
 
@@ -452,7 +432,7 @@ export default function OrdersPage() {
                   />
                 </Field>
 
-                <Button type="submit" disabled={creating || !warehouseId}>
+                <Button type="submit" disabled={creating}>
                   {creating ? 'Создание…' : 'Создать заказ'}
                 </Button>
               </form>

@@ -43,18 +43,22 @@ export class WriteOffUseCases {
   async create(input: {
     organizationId: string;
     storeId: string;
-    warehouseId: string;
+    warehouseId?: string;
     reason: string;
     comment?: string | null;
   }) {
-    await this.organizations.getWarehouse(input.organizationId, input.storeId, input.warehouseId);
+    const warehouse = await this.organizations.resolveStoreWarehouse(
+      input.organizationId,
+      input.storeId,
+      input.warehouseId,
+    );
     const client = resolvePrismaClient(this.prisma);
     return client.writeOffDocument.create({
       data: {
         id: randomUUID(),
         organizationId: input.organizationId,
         storeId: input.storeId,
-        warehouseId: input.warehouseId,
+        warehouseId: warehouse.id,
         number: await this.nextNumber(input.organizationId),
         reason: input.reason as never,
         comment: input.comment ?? null,

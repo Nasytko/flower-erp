@@ -37,7 +37,7 @@ export const PRIMARY_NAV: NavItem[] = [
   },
   {
     href: '/organizations/{orgId}/stores/{storeId}/stock',
-    label: 'Склад',
+    label: 'Остатки',
     permission: 'inventory:read',
     storeScoped: true,
   },
@@ -84,7 +84,7 @@ export type NavActionShortcut = {
 export const NAV_ACTION_SHORTCUTS: NavActionShortcut[] = [
   { id: 'new-order', label: 'Новый заказ', navLabel: 'Заказы' },
   { id: 'new-sale', label: 'Новая продажа', navLabel: 'Продажи' },
-  { id: 'stock', label: 'Склад', navLabel: 'Склад' },
+  { id: 'stock', label: 'Остатки', navLabel: 'Остатки' },
   { id: 'today', label: 'Обзор', navLabel: 'Обзор' },
 ];
 

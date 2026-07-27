@@ -69,13 +69,17 @@ export class SupplyUseCases {
   async createSupply(input: {
     organizationId: string;
     storeId: string;
-    warehouseId: string;
+    warehouseId?: string;
     supplierId: string;
     expectedReceiptDate?: string;
     comment?: string | null;
   }): Promise<SupplyView> {
     try {
-      await this.organizations.getWarehouse(input.organizationId, input.storeId, input.warehouseId);
+      const warehouse = await this.organizations.resolveStoreWarehouse(
+        input.organizationId,
+        input.storeId,
+        input.warehouseId,
+      );
       const supplier = await this.suppliers.getSupplier(input.organizationId, input.supplierId);
       assertActiveReference(supplier.status, 'SUPPLIER');
       return await this.uow.runInTransaction(async () =>
@@ -83,7 +87,7 @@ export class SupplyUseCases {
           id: randomUUID(),
           organizationId: input.organizationId,
           storeId: input.storeId,
-          warehouseId: input.warehouseId,
+          warehouseId: warehouse.id,
           supplierId: input.supplierId,
           number: await this.supplies.uniqueNumber('SUP', input.organizationId),
           expectedReceiptDate: input.expectedReceiptDate

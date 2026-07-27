@@ -87,8 +87,9 @@ export class DirectSaleLineDto {
 }
 
 export class CreateDirectSaleDto {
+  @IsOptional()
   @IsUUID()
-  warehouseId!: string;
+  warehouseId?: string;
 
   @IsOptional()
   @IsEnum(SalesChannel)

@@ -206,7 +206,7 @@ export class SaleUseCases {
   async createDirectSale(input: {
     organizationId: string;
     storeId: string;
-    warehouseId: string;
+    warehouseId?: string;
     salesChannel?: SalesChannel;
     comment?: string | null;
     lines: Array<{
@@ -217,7 +217,7 @@ export class SaleUseCases {
     }>;
     discount?: DiscountInput;
   }): Promise<SaleView> {
-    await this.organizations.getWarehouse(
+    const warehouse = await this.organizations.resolveStoreWarehouse(
       input.organizationId,
       input.storeId,
       input.warehouseId,
@@ -290,7 +290,7 @@ export class SaleUseCases {
           id: randomUUID(),
           organizationId: input.organizationId,
           storeId: input.storeId,
-          warehouseId: input.warehouseId,
+          warehouseId: warehouse.id,
           orderId: null,
           number: await this.sales.uniqueNumber('SAL', input.organizationId),
           type: SaleType.DIRECT,

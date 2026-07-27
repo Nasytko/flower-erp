@@ -1,7 +1,7 @@
 ﻿'use client';
 
 import Link from 'next/link';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { Button, Card, Input } from '@flower/ui';
 import { ApiClientError, type InventoryCountDto } from '@flower/api-client';
@@ -12,8 +12,7 @@ import { PageHeader } from '@/components/layout/page-header';
 import { Section } from '@/components/layout/section';
 import { EmptyState, ErrorState, LoadingState } from '@/components/layout/states';
 import { StatusBadge } from '@/components/layout/status-badge';
-
-type Warehouse = { id: string; name: string; code: string; isDefault: boolean };
+import { storeStockHint } from '@/lib/store-context';
 
 export default function InventoryCountsPage() {
   const params = useParams<{ organizationId: string; storeId: string }>();
@@ -21,28 +20,23 @@ export default function InventoryCountsPage() {
   const { organizationId, storeId } = params;
   const base = `/organizations/${organizationId}/stores/${storeId}`;
   const [docs, setDocs] = useState<InventoryCountDto[]>([]);
-  const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
+  const [storeName, setStoreName] = useState('');
   const [comment, setComment] = useState('');
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const defaultWarehouse = useMemo(
-    () => warehouses.find((item) => item.isDefault) ?? warehouses[0] ?? null,
-    [warehouses],
-  );
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
       const client = getApiClient();
-      const [nextDocs, nextWarehouses] = await Promise.all([
+      const [nextDocs, store] = await Promise.all([
         client.listInventoryCounts(organizationId, storeId),
-        client.listWarehouses(organizationId, storeId),
+        client.getStore(organizationId, storeId),
       ]);
       setDocs(nextDocs);
-      setWarehouses(nextWarehouses);
+      setStoreName(store.name);
     } catch (err) {
       setError(err instanceof ApiClientError ? err.message : 'Не удалось загрузить инвентаризации');
     } finally {
@@ -56,12 +50,10 @@ export default function InventoryCountsPage() {
   }, [auth, load]);
 
   async function createDraft() {
-    if (!defaultWarehouse) return;
     setCreating(true);
     setError(null);
     try {
       const doc = await getApiClient().createInventoryCount(organizationId, storeId, {
-        warehouseId: defaultWarehouse.id,
         comment: comment || undefined,
       });
       window.location.href = `${base}/inventory-counts/${doc.id}`;
@@ -93,12 +85,15 @@ export default function InventoryCountsPage() {
           <>
             {auth.hasPermission('inventory-counts:create') ? (
               <Section>
-                <Card title="Создать инвентаризацию">
+                <Card title="Новая инвентаризация">
+                  <p className="field__hint">{storeStockHint(storeName)}</p>
                   <div className="stock-filters">
-                    <Input value={defaultWarehouse ? `${defaultWarehouse.name} (${defaultWarehouse.code})` : 'Склад не найден'} readOnly />
-                    <Input value={comment} onChange={(e) => setComment(e.target.value)} placeholder="Комментарий (необязательно)" />
-                    <Button type="button" onClick={() => void createDraft()} disabled={!defaultWarehouse || creating}>
-                      {creating ? 'Создание…' : 'Создать снимок'}
+                    <label style={{ minWidth: 260 }}>
+                      <div>Комментарий</div>
+                      <Input value={comment} onChange={(e) => setComment(e.target.value)} placeholder="Комментарий (необязательно)" />
+                    </label>
+                    <Button type="button" onClick={() => void createDraft()} disabled={creating}>
+                      {creating ? 'Создание…' : 'Создать черновик'}
                     </Button>
                   </div>
                 </Card>
@@ -114,11 +109,12 @@ export default function InventoryCountsPage() {
                     {docs.map((doc) => (
                       <li key={doc.id} className="stock-row">
                         <div>
-                          <strong><Link href={`${base}/inventory-counts/${doc.id}`}>{doc.number}</Link></strong>
+                          <strong>
+                            <Link href={`${base}/inventory-counts/${doc.id}`}>{doc.number}</Link>
+                          </strong>
                           <div className="meta-row">
                             <StatusBadge status={doc.status} />
-                            <span>Items {doc.items.length}</span>
-                            <span>Версия {doc.version}</span>
+                            <span>Позиций {doc.items.length}</span>
                           </div>
                         </div>
                       </li>

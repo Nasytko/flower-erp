@@ -18,8 +18,9 @@ class WriteOffParamsDto extends StoreParamsDto {
 }
 
 class CreateWriteOffDto {
+  @IsOptional()
   @IsUUID()
-  warehouseId!: string;
+  warehouseId?: string;
 
   @IsEnum(['WILTED', 'BROKEN', 'DAMAGED', 'EXPIRED', 'QUALITY_ISSUE', 'THEFT', 'INTERNAL_USE', 'OTHER'])
   reason!: string;

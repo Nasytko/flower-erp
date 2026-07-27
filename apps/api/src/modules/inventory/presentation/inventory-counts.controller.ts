@@ -19,8 +19,9 @@ class CountParamsDto extends StoreParamsDto {
 }
 
 class CreateInventoryCountDto {
+  @IsOptional()
   @IsUUID()
-  warehouseId!: string;
+  warehouseId?: string;
 
   @IsOptional()
   @IsString()
