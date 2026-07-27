@@ -34,6 +34,7 @@ import { newIdempotencyKey } from '@/lib/idempotency';
 import {
   combineDateAndTime,
   formatReadyAt,
+  orderLifecycleSteps,
   orderPhaseLabel,
   resolveOrderPhase,
   splitReadyAt,
@@ -48,16 +49,23 @@ type PaymentMethod = Awaited<
 >[number];
 
 const PHASE_TONE: Record<OrderPhase, string> = {
+  DRAFT: 'neutral',
   NEW: 'warning',
-  ASSEMBLED: 'info',
-  IN_DELIVERY: 'accent',
-  COMPLETED: 'success',
+  IN_WORK: 'info',
+  READY: 'success',
+  HANDED_OFF: 'success',
 };
 
-function OrderPhaseBadge({ phase }: { phase: OrderPhase }) {
+function OrderPhaseBadge({
+  phase,
+  orderType,
+}: {
+  phase: OrderPhase;
+  orderType?: string;
+}) {
   return (
     <span className={`status-badge status-badge--${PHASE_TONE[phase]}`}>
-      {orderPhaseLabel(phase)}
+      {orderPhaseLabel(phase, { type: orderType })}
     </span>
   );
 }
@@ -281,14 +289,25 @@ export default function OrderDetailPage() {
   }
 
   const phase = useMemo(
-    () => (order ? resolveOrderPhase(order, delivery) : null),
+    () =>
+      order
+        ? resolveOrderPhase(
+            {
+              status: order.status,
+              type: order.type,
+              displayPhase: order.displayPhase,
+              displayPhaseLabel: order.displayPhaseLabel,
+              hasActiveAssignment: Boolean(order.assignedFloristId),
+            },
+            delivery,
+          )
+        : null,
     [order, delivery],
   );
 
-  const lifecycleSteps: OrderPhase[] =
-    order?.type === 'DELIVERY'
-      ? ['NEW', 'ASSEMBLED', 'IN_DELIVERY', 'COMPLETED']
-      : ['NEW', 'ASSEMBLED', 'COMPLETED'];
+  const lifecycleSteps = orderLifecycleSteps(order?.status === 'DRAFT');
+  const currentStepIdx =
+    phase && order?.status !== 'CANCELLED' ? lifecycleSteps.indexOf(phase) : -1;
 
   if (!auth.hasPermission('orders:read')) {
     return <p className="page-state">Доступ запрещён</p>;
@@ -296,24 +315,25 @@ export default function OrderDetailPage() {
 
   const client = getApiClient();
   const draft = order?.status === 'DRAFT';
-  const currentStepIdx = phase ? lifecycleSteps.indexOf(phase) : -1;
-  const canAssemble =
-    phase === 'NEW' &&
-    order?.status !== 'CANCELLED' &&
-    auth.hasPermission('orders:prepare');
+  const deliveryInTransit =
+    delivery?.status === 'IN_TRANSIT' || Boolean(delivery?.handedOverAt);
 
   return (
     <main>
       <PageContainer>
         <PageHeader
           title={order ? `Заказ ${order.number}` : 'Заказ'}
-          description="Четыре простых этапа: новый, собран, передан в доставку, выполнен."
+          description="Новый → в работе → готов → передан клиенту."
           breadcrumbs={[
             { label: 'Магазин', href: base },
             { label: 'Заказы', href: `${base}/orders` },
             { label: order?.number ?? 'Карточка' },
           ]}
-          actions={phase ? <OrderPhaseBadge phase={phase} /> : null}
+          actions={
+            phase && order ? (
+              <OrderPhaseBadge phase={phase} orderType={order.type} />
+            ) : null
+          }
         />
 
         {loading ? <LoadingState /> : null}
@@ -331,7 +351,9 @@ export default function OrderDetailPage() {
                     className={`order-lifecycle__step${reached ? ' order-lifecycle__step--done' : ''}${isCurrent ? ' order-lifecycle__step--current' : ''}`}
                   >
                     <span className="order-lifecycle__dot" />
-                    <span className="order-lifecycle__label">{orderPhaseLabel(step)}</span>
+                    <span className="order-lifecycle__label">
+                      {order ? orderPhaseLabel(step, order) : orderPhaseLabel(step)}
+                    </span>
                   </div>
                 );
               })}
@@ -341,36 +363,45 @@ export default function OrderDetailPage() {
             <Section>
               <Card title="Действия">
                 <div className="order-next-actions">
-                  {canAssemble ? (
+                  {phase === 'NEW' &&
+                  order.status !== 'CANCELLED' &&
+                  auth.hasPermission('orders:prepare') ? (
+                    <Link href={`${base}/work-orders/${orderId}`}>
+                      <Button type="button">Взять в работу</Button>
+                    </Link>
+                  ) : null}
+                  {phase === 'IN_WORK' &&
+                  order.status === 'IN_PREPARATION' &&
+                  auth.hasPermission('orders:prepare') ? (
                     <Button
                       type="button"
                       disabled={busy}
                       onClick={() =>
-                        void run(() => client.assembleOrder(organizationId, storeId, orderId))
+                        void run(() => client.markOrderReady(organizationId, storeId, orderId))
                       }
                     >
-                      Собран
+                      Готов
                     </Button>
                   ) : null}
-                  {phase === 'ASSEMBLED' &&
+                  {phase === 'READY' &&
                   order.type === 'DELIVERY' &&
                   delivery &&
-                  delivery.status !== 'IN_TRANSIT' &&
-                  delivery.status !== 'DELIVERED' &&
+                  !deliveryInTransit &&
                   auth.hasPermission('delivery:dispatch') ? (
                     <Button type="button" disabled={busy} onClick={() => void handOverToDelivery()}>
                       Передан в доставку
                     </Button>
                   ) : null}
-                  {order.type === 'DELIVERY' &&
+                  {phase === 'READY' &&
+                  order.type === 'DELIVERY' &&
                   delivery &&
-                  (phase === 'IN_DELIVERY' || delivery.status === 'IN_TRANSIT') &&
+                  deliveryInTransit &&
                   auth.hasPermission('delivery:complete') ? (
                     <Button type="button" disabled={busy} onClick={() => void finishDelivery()}>
-                      Выполнен
+                      Передан (доставка)
                     </Button>
                   ) : null}
-                  {phase === 'ASSEMBLED' &&
+                  {phase === 'READY' &&
                   order.type === 'PICKUP' &&
                   auth.hasPermission('orders:prepare') ? (
                     <Button
@@ -380,10 +411,10 @@ export default function OrderDetailPage() {
                         void run(() => client.completeOrder(organizationId, storeId, orderId))
                       }
                     >
-                      Выполнен
+                      Передан (самовывоз)
                     </Button>
                   ) : null}
-                  {phase === 'ASSEMBLED' && auth.hasPermission('sales:create') ? (
+                  {phase === 'READY' && auth.hasPermission('sales:create') ? (
                     <Link href={`${base}/sales/new?fromOrder=${orderId}`}>
                       <Button type="button" variant="secondary">
                         Оформить продажу
@@ -638,7 +669,9 @@ export default function OrderDetailPage() {
                       <div className="meta-row">
                         <StatusBadge status={delivery.status} />
                         <span>{deliveryStatusLabel(delivery.status)}</span>
-                        {phase ? <OrderPhaseBadge phase={phase} /> : null}
+                        {phase ? (
+                          <OrderPhaseBadge phase={phase} orderType={order.type} />
+                        ) : null}
                       </div>
                       <p className="order-address">
                         <strong>{delivery.displayAddress || delivery.addressLine}</strong>

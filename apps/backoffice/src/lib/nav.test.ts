@@ -53,11 +53,10 @@ test('parseStoreRoute extracts org and store ids', () => {
   });
 });
 
-test('PRIMARY_NAV is flat ten-item IA with Обзор first', () => {
+test('PRIMARY_NAV is flat nine-item IA with Обзор first', () => {
   const labels = PRIMARY_NAV.map((item) => item.label);
   assert.deepEqual(labels, [
     'Обзор',
-    'Смена',
     'Заказы',
     'Продажи',
     'Склад',
@@ -98,22 +97,14 @@ test('store-scoped Delivery nav resolves with delivery:read', () => {
   assert.equal(filtered[0]?.href, '/organizations/org-1/stores/store-1/deliveries');
 });
 
-test('store-scoped Today nav resolves with workspace:read', () => {
-  const todayItem = PRIMARY_NAV.find((item) => item.label === 'Смена');
-  assert.ok(todayItem);
-  assert.equal(resolveNavHref(todayItem, 'org-1', null), null);
+test('store-scoped Обзор nav resolves without extra permission', () => {
+  const homeItem = PRIMARY_NAV.find((item) => item.label === 'Обзор');
+  assert.ok(homeItem);
+  assert.equal(resolveNavHref(homeItem, 'org-1', null), null);
   assert.equal(
-    resolveNavHref(todayItem, 'org-1', 'store-1'),
-    '/organizations/org-1/stores/store-1/today',
+    resolveNavHref(homeItem, 'org-1', 'store-1'),
+    '/organizations/org-1/stores/store-1/home',
   );
-  const filtered = filterNavByPermissions(
-    [todayItem],
-    (code) => code === 'workspace:read',
-    'org-1',
-    'store-1',
-  );
-  assert.equal(filtered.length, 1);
-  assert.equal(filtered[0]?.href, '/organizations/org-1/stores/store-1/today');
 });
 
 test('Финансы resolves to payments route', () => {

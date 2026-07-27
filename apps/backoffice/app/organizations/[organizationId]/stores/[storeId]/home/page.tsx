@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { Button, Card } from '@flower/ui';
 import {
   ApiClientError,
@@ -21,8 +21,10 @@ import {
   InlineAlert,
   MetricCard,
   OrderCard,
+  SegmentedControl,
 } from '@/components/workspace/workspace-ui';
 import { BOARD_SECTION_LABELS, formatWindow, todayIsoDate } from '@/lib/delivery-labels';
+import { resolveAttentionHref } from '@/lib/attention-ui';
 import {
   orderPhaseLabel,
   resolveOrderPhase,
@@ -32,10 +34,8 @@ import {
 type DeliverySectionKey = keyof DeliveryBoardDto['sections'];
 
 const PRIMARY_ACTION_LABEL: Record<string, string> = {
-  CLAIM: 'Взять',
-  START_PREPARATION: 'Начать',
-  EDIT_ACTUAL: 'Факт',
-  MARK_READY: 'Готово',
+  START_PREPARATION: 'В работу',
+  MARK_READY: 'Готов',
   CREATE_SALE: 'Продажа',
   VIEW: 'Открыть',
   NONE: 'Открыть',
@@ -49,32 +49,34 @@ const DELIVERY_KPI_SECTIONS: Array<{
 }> = [
   { key: 'problems', label: 'Проблемы', tone: 'danger', tint: 1 },
   { key: 'withoutCourier', label: 'Без курьера', tone: 'warning', tint: 2 },
-  { key: 'readyForDispatch', label: 'К передаче', tone: 'warning', tint: 3 },
-  { key: 'inTransit', label: 'В пути', tone: 'default', tint: 4 },
-  { key: 'needsPlanning', label: 'Планирование' },
-  { key: 'orderPreparing', label: 'Собирается' },
-  { key: 'assigned', label: 'Назначены' },
-  { key: 'delivered', label: 'Доставлены', tone: 'success' },
+  { key: 'inTransit', label: 'В пути', tint: 3 },
+  { key: 'delivered', label: 'Доставлены', tone: 'success', tint: 4 },
 ];
 
 const HOME_BOARD_SECTIONS: DeliverySectionKey[] = [
   'problems',
   'withoutCourier',
-  'readyForDispatch',
   'inTransit',
 ];
 
 const PHASE_TONE: Record<OrderPhase, string> = {
+  DRAFT: 'neutral',
   NEW: 'warning',
-  ASSEMBLED: 'info',
-  IN_DELIVERY: 'accent',
-  COMPLETED: 'success',
+  IN_WORK: 'info',
+  READY: 'success',
+  HANDED_OFF: 'success',
 };
 
-function OrderPhaseBadge({ phase }: { phase: OrderPhase }) {
+function OrderPhaseBadge({
+  phase,
+  orderType,
+}: {
+  phase: OrderPhase;
+  orderType?: string;
+}) {
   return (
     <span className={`status-badge status-badge--${PHASE_TONE[phase]}`}>
-      {orderPhaseLabel(phase)}
+      {orderPhaseLabel(phase, { type: orderType })}
     </span>
   );
 }
@@ -83,6 +85,8 @@ export default function StoreHomePage() {
   const params = useParams<{ organizationId: string; storeId: string }>();
   const auth = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const tab = searchParams.get('tab') === 'queue' ? 'queue' : 'overview';
   const { organizationId, storeId } = params;
   const base = `/organizations/${organizationId}/stores/${storeId}`;
 
@@ -99,6 +103,8 @@ export default function StoreHomePage() {
   const canOperations = auth.hasPermission('operations:read');
   const canDelivery = auth.hasPermission('delivery:read');
   const canAccess = canWorkspace || canOperations || canDelivery;
+  const courierOnly = canDelivery && !canWorkspace && !canOperations;
+  const showOverviewSections = tab === 'overview' && !courierOnly;
 
   const canCreateSale = auth.hasPermission('sales:create');
   const canCreateOrder = auth.hasPermission('orders:create');
@@ -150,6 +156,19 @@ export default function StoreHomePage() {
     return `${base}/orders?filter=${encodeURIComponent(filter)}`;
   }
 
+  function setTab(next: string) {
+    const href =
+      next === 'queue' ? `${base}/home?tab=queue` : `${base}/home`;
+    router.replace(href);
+  }
+
+  function lifecycleFilterHref(phase: string) {
+    if (phase === 'HANDED_OFF') {
+      return `${base}/orders?phase=HANDED_OFF_TODAY`;
+    }
+    return `${base}/orders?phase=${encodeURIComponent(phase)}`;
+  }
+
   const priorityQueue = useMemo(() => {
     if (!workspace) return [];
     const seen = new Set<string>();
@@ -166,7 +185,7 @@ export default function StoreHomePage() {
         seen.add(card.id);
         return true;
       })
-      .slice(0, 6);
+      .slice(0, tab === 'queue' ? 12 : 6);
   }, [workspace]);
 
   const attentionItems = useMemo(() => {
@@ -213,14 +232,7 @@ export default function StoreHomePage() {
     filterLink?: string | null;
     code?: string;
   }): string | null {
-    if (item.entityType === 'ORDER') return `${base}/work-orders/${item.entityId}`;
-    if (item.entityType === 'SALE') return `${base}/sales/${item.entityId}`;
-    if (item.entityType === 'DELIVERY') return `${base}/deliveries/${item.entityId}`;
-    if (item.filterLink === 'partially_reserved' || item.code?.includes('STOCK')) {
-      return `${base}/stock`;
-    }
-    if (item.filterLink) return filterHref(item.filterLink);
-    return null;
+    return resolveAttentionHref(base, item, filterHref);
   }
 
   if (!canAccess) {
@@ -239,9 +251,15 @@ export default function StoreHomePage() {
         <header className="hub-header">
           <div>
             <p className="hub-header__date">{dateLabel}</p>
-            <h1 className="hub-header__title">Обзор</h1>
+            <h1 className="hub-header__title">
+              {courierOnly ? 'Доставки' : tab === 'queue' ? 'Очередь' : 'Обзор'}
+            </h1>
             <p className="hub-header__subtitle">
-              KPI, доска заказов и доставок на сегодня
+              {courierOnly
+                ? 'Доставки на сегодня'
+                : tab === 'queue'
+                  ? 'Заказы в работе — быстрые действия'
+                  : 'KPI по этапам заказа, доски на сегодня'}
             </p>
           </div>
           <div className="page-header__actions">
@@ -250,6 +268,20 @@ export default function StoreHomePage() {
             </Button>
           </div>
         </header>
+
+        {!courierOnly && canWorkspace ? (
+          <Section>
+            <SegmentedControl
+              ariaLabel="Режим обзора"
+              value={tab}
+              onChange={setTab}
+              options={[
+                { value: 'overview', label: 'Обзор' },
+                { value: 'queue', label: 'Очередь' },
+              ]}
+            />
+          </Section>
+        ) : null}
 
         {loading ? <LoadingState message="Загрузка…" /> : null}
         {error ? <ErrorState message={error} /> : null}
@@ -282,47 +314,72 @@ export default function StoreHomePage() {
               </div>
             </Section>
 
-            {workspace ? (
+            {(workspace || operations) && !courierOnly ? (
               <Section>
                 <h2 className="home-section-title">Заказы</h2>
                 <div className="metric-grid metric-grid--essential">
-                  <MetricCard
-                    label="Просрочены"
-                    value={workspace.counters.overdue.count}
-                    href={filterHref(workspace.counters.overdue.filterLink)}
-                    tone="danger"
-                    tint={1}
-                  />
-                  <MetricCard
-                    label="Скоро"
-                    value={workspace.counters.soon.count}
-                    href={filterHref(workspace.counters.soon.filterLink)}
-                    tone="warning"
-                    tint={2}
-                  />
-                  <MetricCard
-                    label="В работе"
-                    value={workspace.counters.inPreparation.count}
-                    href={filterHref(workspace.counters.inPreparation.filterLink)}
-                    tint={3}
-                  />
-                  <MetricCard
-                    label="Готовы"
-                    value={workspace.counters.ready.count}
-                    href={filterHref(workspace.counters.ready.filterLink)}
-                    tone="success"
-                    tint={4}
-                  />
-                </div>
-              </Section>
-            ) : operations ? (
-              <Section>
-                <h2 className="home-section-title">Заказы</h2>
-                <div className="metric-grid metric-grid--essential">
-                  <MetricCard label="Сегодня" value={operations.kpis.ordersToday} href={`${base}/orders`} tint={1} />
-                  <MetricCard label="В работе" value={operations.kpis.inProgress} tint={2} />
-                  <MetricCard label="Готовы" value={operations.kpis.ready} tone="success" tint={3} />
-                  <MetricCard label="Просрочены" value={operations.kpis.overdue} tone="danger" tint={4} href={`${base}/orders`} />
+                  {workspace ? (
+                    <>
+                      <MetricCard
+                        label="Новые"
+                        value={workspace.counters.unassigned.count}
+                        href={lifecycleFilterHref('NEW')}
+                        tint={1}
+                      />
+                      <MetricCard
+                        label="В работе"
+                        value={
+                          workspace.counters.inWork?.count ??
+                          workspace.counters.inPreparation.count
+                        }
+                        href={lifecycleFilterHref('IN_WORK')}
+                        tint={2}
+                      />
+                      <MetricCard
+                        label="Готовы"
+                        value={workspace.counters.ready.count}
+                        href={lifecycleFilterHref('READY')}
+                        tone="success"
+                        tint={3}
+                      />
+                      <MetricCard
+                        label="Переданы"
+                        value={workspace.counters.handedOffToday?.count ?? 0}
+                        href={lifecycleFilterHref('HANDED_OFF')}
+                        tone="success"
+                        tint={4}
+                      />
+                    </>
+                  ) : operations ? (
+                    <>
+                      <MetricCard
+                        label="Новые"
+                        value={operations.kpis.ordersToday}
+                        href={lifecycleFilterHref('NEW')}
+                        tint={1}
+                      />
+                      <MetricCard
+                        label="В работе"
+                        value={operations.kpis.inProgress}
+                        href={lifecycleFilterHref('IN_WORK')}
+                        tint={2}
+                      />
+                      <MetricCard
+                        label="Готовы"
+                        value={operations.kpis.ready}
+                        tone="success"
+                        href={lifecycleFilterHref('READY')}
+                        tint={3}
+                      />
+                      <MetricCard
+                        label="Просрочены"
+                        value={operations.kpis.overdue}
+                        tone="danger"
+                        tint={4}
+                        href={`${base}/orders`}
+                      />
+                    </>
+                  ) : null}
                 </div>
               </Section>
             ) : null}
@@ -345,7 +402,7 @@ export default function StoreHomePage() {
               </Section>
             ) : null}
 
-            {operations ? (
+            {showOverviewSections && operations ? (
               <Section>
                 <h2 className="home-section-title">Магазин</h2>
                 <div className="metric-grid">
@@ -374,11 +431,11 @@ export default function StoreHomePage() {
               </Section>
             ) : null}
 
-            {attentionItems.length > 0 ||
-            (workspace &&
-              (workspace.counters.unassigned.count > 0 ||
-                workspace.counters.partiallyReserved.count > 0 ||
-                workspace.lowStockWarnings.length > 0)) ? (
+            {showOverviewSections &&
+            (attentionItems.length > 0 ||
+              (workspace &&
+                (workspace.counters.unassigned.count > 0 ||
+                  workspace.counters.partiallyReserved.count > 0))) ? (
               <Section>
                 <Card title="Требует внимания">
                   <div className="attention-list">
@@ -407,24 +464,15 @@ export default function StoreHomePage() {
                         href={attentionHref(item)}
                       />
                     ))}
-                    {workspace?.lowStockWarnings.slice(0, 2).map((warning) => (
-                      <InlineAlert
-                        key={`${warning.itemId}-${warning.warehouseId}`}
-                        tone="warning"
-                        title={`Мало: ${warning.itemName}`}
-                      >
-                        {warning.availableQuantity} из {warning.threshold}.{' '}
-                        <Link href={`${base}/stock`}>Склад</Link>
-                      </InlineAlert>
-                    ))}
                   </div>
                 </Card>
               </Section>
             ) : null}
 
-            <Section>
-              <div className="home-boards">
-                {workspace ? (
+            {(canWorkspace && workspace) || (courierOnly && canDelivery && deliveryBoard) ? (
+              <Section>
+                <div className="home-boards">
+                {canWorkspace && workspace && !courierOnly ? (
                   <Card title="Доска заказов">
                     {priorityQueue.length === 0 ? (
                       <EmptyState message="Очередь пуста." />
@@ -468,9 +516,7 @@ export default function StoreHomePage() {
                     )}
                     <div className="hub-card-footer">
                       <Link href={`${base}/orders`}>Все заказы</Link>
-                      {auth.hasPermission('workspace:read') ? (
-                        <Link href={`${base}/today`}>Смена флориста</Link>
-                      ) : null}
+                      <Link href={`${base}/home?tab=queue`}>Очередь</Link>
                     </div>
                   </Card>
                 ) : null}
@@ -500,12 +546,16 @@ export default function StoreHomePage() {
                                       <strong>{card.number}</strong>
                                       <OrderPhaseBadge
                                         phase={resolveOrderPhase(
-                                          { status: card.orderStatus ?? 'DRAFT' },
+                                          {
+                                            status: card.orderStatus ?? 'DRAFT',
+                                            type: 'DELIVERY',
+                                          },
                                           {
                                             status: card.status,
                                             handedOverAt: card.handedOverAt,
                                           },
                                         )}
+                                        orderType="DELIVERY"
                                       />
                                     </div>
                                     <p className="order-card__sub">
@@ -538,6 +588,7 @@ export default function StoreHomePage() {
                 ) : null}
               </div>
             </Section>
+            ) : null}
           </>
         ) : null}
       </PageContainer>

@@ -12,6 +12,12 @@ import { EmptyState, ErrorState, LoadingState } from '@/components/layout/states
 import { StatusBadge } from '@/components/layout/status-badge';
 import { AutoNumberNote, Field } from '@/components/layout/field';
 import { formatApiErrorMessage } from '@/lib/format-api-error';
+import {
+  type FieldErrors,
+  firstFieldError,
+  hasFieldErrors,
+  requiredText,
+} from '@/lib/form-validation';
 
 type Supplier = {
   id: string;
@@ -40,6 +46,7 @@ export default function SuppliersPage() {
   const [contactPerson, setContactPerson] = useState('');
   const [comment, setComment] = useState('');
   const [creating, setCreating] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
   async function load() {
     setLoading(true);
@@ -65,6 +72,14 @@ export default function SuppliersPage() {
 
   async function onCreate(event: FormEvent) {
     event.preventDefault();
+    const errors: FieldErrors = {
+      name: requiredText(name, 'Укажите название'),
+    };
+    setFieldErrors(errors);
+    if (hasFieldErrors(errors)) {
+      setError(firstFieldError(errors));
+      return;
+    }
     setCreating(true);
     setError(null);
     try {
@@ -182,9 +197,14 @@ export default function SuppliersPage() {
         </Section>
         <Section>
           <Card title="Создать поставщика">
-            <form onSubmit={onCreate} className="form-grid">
+            <form onSubmit={onCreate} className="form-grid" noValidate>
               <AutoNumberNote label="Код поставщика" />
-              <Field label="Название" required hint="Юридическое или торговое имя поставщика">
+              <Field
+                label="Название"
+                required
+                error={fieldErrors.name}
+                hint="Юридическое или торговое имя поставщика"
+              >
                 <Input
                   value={name}
                   onChange={(e) => setName(e.target.value)}

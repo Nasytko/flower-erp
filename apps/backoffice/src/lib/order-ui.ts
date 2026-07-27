@@ -1,16 +1,21 @@
 /** Simplified order lifecycle shown in backoffice (maps backend statuses). */
-export type OrderPhase = 'NEW' | 'ASSEMBLED' | 'IN_DELIVERY' | 'COMPLETED';
+export type OrderPhase = 'DRAFT' | 'NEW' | 'IN_WORK' | 'READY' | 'HANDED_OFF';
 
-export const ORDER_PHASE_LABELS: Record<OrderPhase, string> = {
+export const ORDER_PHASE_LABELS: Record<Exclude<OrderPhase, 'HANDED_OFF'>, string> = {
+  DRAFT: 'Черновик',
   NEW: 'Новый',
-  ASSEMBLED: 'Собран',
-  IN_DELIVERY: 'Передан в доставку',
-  COMPLETED: 'Выполнен',
+  IN_WORK: 'Взят в работу',
+  READY: 'Готов',
 };
 
 export type OrderPhaseInput = {
   status: string;
   type?: string;
+  hasActiveAssignment?: boolean;
+  completedAt?: string | null;
+  /** When API provides display phase, prefer it. */
+  displayPhase?: OrderPhase | string;
+  displayPhaseLabel?: string;
 };
 
 export type DeliveryPhaseInput = {
@@ -22,34 +27,69 @@ export function resolveOrderPhase(
   order: OrderPhaseInput,
   delivery?: DeliveryPhaseInput,
 ): OrderPhase {
-  if (order.status === 'CANCELLED') return 'NEW';
-  if (order.status === 'COMPLETED') return 'COMPLETED';
-  if (delivery?.status === 'DELIVERED') return 'COMPLETED';
-  if (
-    delivery &&
-    (delivery.status === 'IN_TRANSIT' ||
-      delivery.handedOverAt ||
-      delivery.status === 'READY_FOR_DISPATCH')
-  ) {
-    if (delivery.status === 'IN_TRANSIT' || delivery.handedOverAt) return 'IN_DELIVERY';
+  if (order.displayPhase && isOrderPhase(order.displayPhase)) {
+    return order.displayPhase;
   }
-  if (order.status === 'READY') return 'ASSEMBLED';
+  if (order.status === 'CANCELLED') return 'NEW';
+  if (order.status === 'DRAFT') return 'DRAFT';
+  if (order.status === 'COMPLETED') return 'HANDED_OFF';
+  if (delivery?.status === 'DELIVERED') return 'HANDED_OFF';
+  if (order.status === 'READY') return 'READY';
+  if (order.status === 'IN_PREPARATION' || order.hasActiveAssignment) return 'IN_WORK';
   return 'NEW';
 }
 
-export function orderPhaseLabel(phase: OrderPhase): string {
+function isOrderPhase(value: string): value is OrderPhase {
+  return ['DRAFT', 'NEW', 'IN_WORK', 'READY', 'HANDED_OFF'].includes(value);
+}
+
+/** Human label; last step differs for delivery vs pickup. */
+export function orderPhaseLabel(
+  phase: OrderPhase,
+  order?: Pick<OrderPhaseInput, 'type' | 'displayPhase'> & { displayPhaseLabel?: string },
+): string {
+  if (order?.displayPhaseLabel && order.displayPhase === phase) {
+    return order.displayPhaseLabel;
+  }
+  if (phase === 'HANDED_OFF') {
+    return order?.type === 'DELIVERY' ? 'Передан (доставка)' : 'Передан (самовывоз)';
+  }
   return ORDER_PHASE_LABELS[phase];
 }
 
-export function orderPhaseFromStatus(status: string | null | undefined): OrderPhase {
-  if (!status) return 'NEW';
-  if (status === 'COMPLETED') return 'COMPLETED';
-  if (status === 'READY') return 'ASSEMBLED';
-  if (status === 'CANCELLED') return 'NEW';
-  return 'NEW';
+/** Lifecycle steps for stepper (draft orders show draft step only until confirmed). */
+export function orderLifecycleSteps(isDraft: boolean): OrderPhase[] {
+  if (isDraft) return ['DRAFT', 'NEW', 'IN_WORK', 'READY', 'HANDED_OFF'];
+  return ['NEW', 'IN_WORK', 'READY', 'HANDED_OFF'];
 }
 
-export type OrderListFilter = 'ALL' | 'NEW' | 'ASSEMBLED' | 'IN_DELIVERY' | 'COMPLETED';
+export function orderPhaseFromStatus(
+  status: string | null | undefined,
+  hasActiveAssignment = false,
+): OrderPhase {
+  if (!status) return 'NEW';
+  return resolveOrderPhase({ status, hasActiveAssignment });
+}
+
+export type OrderListFilter =
+  | 'ALL'
+  | 'DRAFT'
+  | 'NEW'
+  | 'IN_WORK'
+  | 'READY'
+  | 'HANDED_OFF'
+  | 'HANDED_OFF_TODAY';
+
+function isCompletedToday(completedAt?: string | null): boolean {
+  if (!completedAt) return false;
+  const d = new Date(completedAt);
+  const now = new Date();
+  return (
+    d.getFullYear() === now.getFullYear() &&
+    d.getMonth() === now.getMonth() &&
+    d.getDate() === now.getDate()
+  );
+}
 
 export function matchesOrderListFilter(
   order: OrderPhaseInput,
@@ -58,9 +98,13 @@ export function matchesOrderListFilter(
 ): boolean {
   if (filter === 'ALL') return order.status !== 'CANCELLED';
   const phase = resolveOrderPhase(order, delivery);
-  if (filter === 'COMPLETED') {
-    return phase === 'COMPLETED' || order.status === 'CANCELLED';
+  if (filter === 'HANDED_OFF') {
+    return phase === 'HANDED_OFF';
   }
+  if (filter === 'HANDED_OFF_TODAY') {
+    return phase === 'HANDED_OFF' && isCompletedToday(order.completedAt);
+  }
+  if (filter === 'DRAFT') return phase === 'DRAFT';
   return phase === filter;
 }
 

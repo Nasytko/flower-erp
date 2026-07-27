@@ -18,6 +18,7 @@ import { PageHeader } from '@/components/layout/page-header';
 import { Section } from '@/components/layout/section';
 import { EmptyState, ErrorState, LoadingState } from '@/components/layout/states';
 import { AttentionItem, MetricCard } from '@/components/workspace/workspace-ui';
+import { resolveAttentionHref } from '@/lib/attention-ui';
 
 export default function OperationsPage() {
   const params = useParams<{ organizationId: string; storeId: string }>();
@@ -90,13 +91,7 @@ export default function OperationsPage() {
   }, [canRead, load]);
 
   function attentionHref(item: OperationsBoardDto['attentionItems'][number]): string | null {
-    if (item.entityType === 'ORDER') return `${base}/work-orders/${item.entityId}`;
-    if (item.entityType === 'SALE') return `${base}/sales/${item.entityId}`;
-    if (item.filterLink === 'partially_reserved' || item.code.includes('STOCK')) {
-      return `${base}/stock`;
-    }
-    if (item.filterLink) return `${base}/orders?filter=${encodeURIComponent(item.filterLink)}`;
-    return null;
+    return resolveAttentionHref(base, item);
   }
 
   if (!canRead) {

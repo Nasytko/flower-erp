@@ -2,6 +2,10 @@
 
 import type { ReactNode } from 'react';
 import Link from 'next/link';
+import {
+  ATTENTION_SEVERITY_LABELS_RU,
+  formatAttentionAge,
+} from '@/lib/attention-ui';
 
 type MetricCardProps = {
   label: string;
@@ -168,11 +172,11 @@ export function AttentionItem({
     <>
       <div className="attention-item__head">
         <span className={`attention-item__severity attention-item__severity--${severity.toLowerCase()}`}>
-          {severity}
+          {ATTENTION_SEVERITY_LABELS_RU[severity] ?? severity}
         </span>
         <strong>{title}</strong>
         {ageMinutes != null ? (
-          <span className="attention-item__age">{ageMinutes}m</span>
+          <span className="attention-item__age">{formatAttentionAge(ageMinutes)}</span>
         ) : null}
       </div>
       <p className="attention-item__reason">{reason}</p>

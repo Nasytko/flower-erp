@@ -24,12 +24,6 @@ export const PRIMARY_NAV: NavItem[] = [
     storeScoped: true,
   },
   {
-    href: '/organizations/{orgId}/stores/{storeId}/today',
-    label: 'Смена',
-    permission: 'workspace:read',
-    storeScoped: true,
-  },
-  {
     href: '/organizations/{orgId}/stores/{storeId}/orders',
     label: 'Заказы',
     permission: 'orders:read',

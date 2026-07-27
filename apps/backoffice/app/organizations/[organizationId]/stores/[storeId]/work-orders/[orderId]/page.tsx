@@ -217,36 +217,51 @@ export default function WorkOrderPage() {
         key: 'claim',
         label: 'Взять в работу',
         onClick: () =>
-          void run(() => getApiClient().claimOrder(organizationId, storeId, orderId)),
+          void run(async () => {
+            const client = getApiClient();
+            await client.claimOrder(organizationId, storeId, orderId);
+            const fresh = await client.getWorkOrder(organizationId, storeId, orderId);
+            if (
+              fresh.order.status !== 'IN_PREPARATION' &&
+              fresh.order.status !== 'READY' &&
+              fresh.order.status !== 'COMPLETED'
+            ) {
+              await client.startOrderPreparation(organizationId, storeId, orderId);
+            }
+          }),
       });
     }
     const phase = resolveOrderPhase(
-      { status: data.order.status },
+      {
+        status: data.order.status,
+        type: data.order.type,
+        hasActiveAssignment: data.order.hasActiveAssignment,
+      },
       deliveryHint
         ? { status: deliveryHint.status, handedOverAt: null }
         : null,
     );
     if (
-      phase === 'NEW' &&
-      auth.hasPermission('orders:prepare') &&
-      data.order.status !== 'CANCELLED'
+      phase === 'IN_WORK' &&
+      data.order.status === 'IN_PREPARATION' &&
+      auth.hasPermission('orders:prepare')
     ) {
       primaryActions.push({
-        key: 'assemble',
-        label: 'Собран',
-        onClick: () =>
-          void run(() => getApiClient().assembleOrder(organizationId, storeId, orderId)),
+        key: 'ready',
+        label: 'Готов',
+        onClick: () => setConfirmReady(true),
       });
     }
     if (
-      phase === 'ASSEMBLED' &&
-      data.order.status === 'READY' &&
-      data.primaryAction === 'CREATE_SALE'
+      phase === 'READY' &&
+      data.primaryAction === 'CREATE_SALE' &&
+      auth.hasPermission('sales:create')
     ) {
       primaryActions.push({
         key: 'sale',
-        label: 'Создать продажу',
+        label: 'Оформить продажу',
         onClick: () => router.push(`${base}/sales/new?fromOrder=${orderId}`),
+        variant: 'secondary',
       });
     }
   }
@@ -287,7 +302,7 @@ export default function WorkOrderPage() {
           title={data ? `Рабочий заказ ${data.order.number}` : 'Рабочий заказ'}
           description={data ? `${data.order.status} · ${data.order.occasion}` : 'Загрузка…'}
           breadcrumbs={[
-            { label: 'Смена', href: `${base}/today` },
+            { label: 'Обзор', href: `${base}/home` },
             { label: data?.order.number ?? 'Рабочий заказ' },
           ]}
           actions={
@@ -317,11 +332,16 @@ export default function WorkOrderPage() {
                     <span className="status-badge status-badge--info">
                       {orderPhaseLabel(
                         resolveOrderPhase(
-                          { status: data.order.status },
+                          {
+                            status: data.order.status,
+                            type: data.order.type,
+                            hasActiveAssignment: data.order.hasActiveAssignment,
+                          },
                           deliveryHint
                             ? { status: deliveryHint.status, handedOverAt: null }
                             : null,
                         ),
+                        data.order,
                       )}
                     </span>
                     <span className={`urgency-badge urgency-badge--${data.urgency.toLowerCase()}`}>

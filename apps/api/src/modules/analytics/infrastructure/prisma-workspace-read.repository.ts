@@ -70,7 +70,9 @@ export class PrismaWorkspaceReadRepository implements WorkspaceReadRepository {
       'soon',
       'unassigned',
       'in_preparation',
+      'in_work',
       'ready',
+      'handed_off_today',
       'today',
       'partially_reserved',
       'all_open',
@@ -252,11 +254,11 @@ export class PrismaWorkspaceReadRepository implements WorkspaceReadRepository {
         id: `overdue:${order.id}`,
         severity: 'CRITICAL',
         code: 'ORDER_OVERDUE',
-        title: `Overdue order ${order.number}`,
-        reason: 'readyAt is in the past',
+        title: `Просрочен заказ ${order.number}`,
+        reason: 'Время готовности уже прошло',
         entityType: 'Order',
         entityId: order.id,
-        recommendedAction: 'Prioritize preparation or reassign',
+        recommendedAction: 'Срочно собрать или переназначить',
         filterLink: 'overdue',
         ageMinutes: ageMinutes(order.readyAt ?? order.createdAt, input.now),
       });
@@ -279,11 +281,11 @@ export class PrismaWorkspaceReadRepository implements WorkspaceReadRepository {
         id: `unassigned:${order.id}`,
         severity: 'WARNING',
         code: 'ORDER_UNASSIGNED',
-        title: `Unassigned order ${order.number}`,
-        reason: 'No active florist assignment',
+        title: `Заказ без флориста ${order.number}`,
+        reason: 'Никто не назначен на сборку',
         entityType: 'Order',
         entityId: order.id,
-        recommendedAction: 'Claim or assign florist',
+        recommendedAction: 'Взять в работу или назначить',
         filterLink: 'unassigned',
         ageMinutes: ageMinutes(order.confirmedAt ?? order.createdAt, input.now),
       });
@@ -303,11 +305,11 @@ export class PrismaWorkspaceReadRepository implements WorkspaceReadRepository {
         id: `soon:${order.id}`,
         severity: 'WARNING',
         code: 'ORDER_SOON_NOT_STARTED',
-        title: `Soon-ready not started ${order.number}`,
-        reason: 'readyAt within soon window and preparation not started',
+        title: `Скоро готовность — не начат ${order.number}`,
+        reason: 'До дедлайна мало времени, сборка не начата',
         entityType: 'Order',
         entityId: order.id,
-        recommendedAction: 'Start preparation',
+        recommendedAction: 'Начать сборку',
         filterLink: 'soon',
         ageMinutes: 0,
       });
@@ -339,11 +341,11 @@ export class PrismaWorkspaceReadRepository implements WorkspaceReadRepository {
           id: `ready-no-sale:${order.id}`,
           severity: 'WARNING',
           code: 'READY_WITHOUT_SALE',
-          title: `Ready without sale ${order.number}`,
-          reason: 'Order is READY but has no active Sale',
+          title: `Готов, но без продажи ${order.number}`,
+          reason: 'Заказ собран, продажа не оформлена',
           entityType: 'Order',
           entityId: order.id,
-          recommendedAction: 'Create sale',
+          recommendedAction: 'Оформить продажу',
           filterLink: 'ready',
           ageMinutes: ageMinutes(order.updatedAt, input.now),
         });
@@ -377,11 +379,11 @@ export class PrismaWorkspaceReadRepository implements WorkspaceReadRepository {
           id: `unpaid:${sale.id}`,
           severity: paid <= 0 ? 'CRITICAL' : 'WARNING',
           code: paid <= 0 ? 'SALE_UNPAID' : 'SALE_PARTIALLY_PAID',
-          title: `Unpaid sale ${sale.number}`,
-          reason: `Paid ${paid} of ${net}`,
+          title: `Неоплаченная продажа ${sale.number}`,
+          reason: `Оплачено ${paid} из ${net}`,
           entityType: 'Sale',
           entityId: sale.id,
-          recommendedAction: 'Collect payment',
+          recommendedAction: 'Принять оплату',
           filterLink: null,
           ageMinutes: ageMinutes(sale.completedAt ?? sale.createdAt, input.now),
         });
@@ -400,11 +402,11 @@ export class PrismaWorkspaceReadRepository implements WorkspaceReadRepository {
         id: 'draft-payments',
         severity: 'INFO',
         code: 'DRAFT_PAYMENTS',
-        title: `${draftPayments} draft payment(s)`,
-        reason: 'Incomplete payment documents',
+        title: `${draftPayments} незавершённых оплат`,
+        reason: 'Есть черновики платежей',
         entityType: 'Payment',
         entityId: input.storeId,
-        recommendedAction: 'Complete or annul drafts',
+        recommendedAction: 'Провести или аннулировать',
         filterLink: null,
         ageMinutes: 0,
       });
@@ -422,11 +424,11 @@ export class PrismaWorkspaceReadRepository implements WorkspaceReadRepository {
         id: 'shortages',
         severity: 'WARNING',
         code: 'UNRESOLVED_SHORTAGES',
-        title: `${shortages} order(s) with shortage`,
-        reason: 'PARTIALLY_RESERVED status',
+        title: `${shortages} заказ(ов) с нехваткой`,
+        reason: 'Состав зарезервирован частично',
         entityType: 'Order',
         entityId: input.storeId,
-        recommendedAction: 'Resolve reservation deficit',
+        recommendedAction: 'Заменить позиции или пополнить склад',
         filterLink: 'partially_reserved',
         ageMinutes: 0,
       });
@@ -444,11 +446,11 @@ export class PrismaWorkspaceReadRepository implements WorkspaceReadRepository {
         id: 'supplies-awaiting',
         severity: 'INFO',
         code: 'SUPPLIES_AWAITING_RECEIPT',
-        title: `${supplies} supply(ies) awaiting receipt`,
-        reason: 'Submitted or partially received supplies',
+        title: `${supplies} приёмок ждут оприходования`,
+        reason: 'Отправлены поставщику или оприходованы частично',
         entityType: 'Supply',
         entityId: input.storeId,
-        recommendedAction: 'Receive goods',
+        recommendedAction: 'Оприходовать товар',
         filterLink: null,
         ageMinutes: 0,
       });
@@ -464,11 +466,11 @@ export class PrismaWorkspaceReadRepository implements WorkspaceReadRepository {
         id: `low-stock:${warn.itemId}`,
         severity: 'WARNING',
         code: 'LOW_STOCK',
-        title: `Low stock ${warn.itemCode}`,
-        reason: `Available ${warn.availableQuantity} ≤ threshold ${warn.threshold}`,
+        title: `Мало на складе: ${warn.itemName}`,
+        reason: `Доступно ${warn.availableQuantity} из порога ${warn.threshold}`,
         entityType: 'Item',
         entityId: warn.itemId,
-        recommendedAction: 'Operational warning only — not a purchase suggestion',
+        recommendedAction: 'Проверьте остаток — это не заявка на закупку',
         filterLink: null,
         ageMinutes: 0,
       });
@@ -510,7 +512,13 @@ export class PrismaWorkspaceReadRepository implements WorkspaceReadRepository {
         where: {
           organizationId: input.organizationId,
           storeId: input.storeId,
-          status: 'IN_PREPARATION',
+          OR: [
+            { status: 'IN_PREPARATION' },
+            {
+              status: { in: ['CONFIRMED', 'PARTIALLY_RESERVED', 'RESERVED'] },
+              assignments: { some: { releasedAt: null } },
+            },
+          ],
         },
       }),
       this.prisma.order.count({
@@ -858,8 +866,25 @@ export class PrismaWorkspaceReadRepository implements WorkspaceReadRepository {
         };
       case 'in_preparation':
         return { ...base, status: 'IN_PREPARATION' };
+      case 'in_work':
+        return {
+          ...base,
+          OR: [
+            { status: 'IN_PREPARATION' },
+            {
+              status: { in: ['CONFIRMED', 'PARTIALLY_RESERVED', 'RESERVED'] },
+              assignments: { some: { releasedAt: null } },
+            },
+          ],
+        };
       case 'ready':
         return { ...base, status: 'READY' };
+      case 'handed_off_today':
+        return {
+          ...base,
+          status: 'COMPLETED',
+          completedAt: { gte: start, lte: end },
+        };
       case 'today':
         return {
           ...base,

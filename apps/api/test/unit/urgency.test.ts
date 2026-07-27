@@ -92,7 +92,7 @@ test('resolvePrimaryAction for florist work states', () => {
       assignedToCurrentUser: true,
       hasActiveSale: false,
     }),
-    'EDIT_ACTUAL',
+    'MARK_READY',
   );
   assert.equal(
     resolvePrimaryAction({

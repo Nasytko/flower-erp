@@ -24,7 +24,9 @@ export type WorkspaceFilter =
   | 'soon'
   | 'unassigned'
   | 'in_preparation'
+  | 'in_work'
   | 'ready'
+  | 'handed_off_today'
   | 'today'
   | 'partially_reserved'
   | 'all_open';

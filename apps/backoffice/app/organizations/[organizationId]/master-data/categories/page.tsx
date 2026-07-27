@@ -12,6 +12,12 @@ import { StatusBadge } from '@/components/layout/status-badge';
 import { AutoNumberNote, Field } from '@/components/layout/field';
 import { FancySelect } from '@/components/layout/fancy-select';
 import { formatApiErrorMessage } from '@/lib/format-api-error';
+import {
+  type FieldErrors,
+  firstFieldError,
+  hasFieldErrors,
+  requiredText,
+} from '@/lib/form-validation';
 
 type Category = {
   id: string;
@@ -32,6 +38,7 @@ export default function CategoriesPage() {
   const [name, setName] = useState('');
   const [parentId, setParentId] = useState('');
   const [creating, setCreating] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
   async function load() {
     setLoading(true);
@@ -53,6 +60,14 @@ export default function CategoriesPage() {
 
   async function onCreate(event: FormEvent) {
     event.preventDefault();
+    const errors: FieldErrors = {
+      name: requiredText(name, 'Укажите название'),
+    };
+    setFieldErrors(errors);
+    if (hasFieldErrors(errors)) {
+      setError(firstFieldError(errors));
+      return;
+    }
     setCreating(true);
     setError(null);
     try {
@@ -138,9 +153,14 @@ export default function CategoriesPage() {
         </Section>
         <Section>
           <Card title="Создать категорию">
-            <form onSubmit={onCreate} className="form-grid">
+            <form onSubmit={onCreate} className="form-grid" noValidate>
               <AutoNumberNote label="Код категории" />
-              <Field label="Название" required hint="Как категория отображается в справочнике товаров">
+              <Field
+                label="Название"
+                required
+                error={fieldErrors.name}
+                hint="Как категория отображается в справочнике товаров"
+              >
                 <Input
                   value={name}
                   onChange={(e) => setName(e.target.value)}

@@ -12,6 +12,12 @@ import { StatusBadge } from '@/components/layout/status-badge';
 import { Field } from '@/components/layout/field';
 import { FancySelect } from '@/components/layout/fancy-select';
 import { formatApiErrorMessage } from '@/lib/format-api-error';
+import {
+  type FieldErrors,
+  firstFieldError,
+  hasFieldErrors,
+  requiredText,
+} from '@/lib/form-validation';
 
 type Policy = {
   id: string;
@@ -41,6 +47,7 @@ export default function PoliciesPage() {
   const [name, setName] = useState('');
   const [itemType, setItemType] = useState<'FLOWER' | 'MATERIAL'>('FLOWER');
   const [creating, setCreating] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
   async function load() {
     setLoading(true);
@@ -62,6 +69,15 @@ export default function PoliciesPage() {
 
   async function onCreate(event: FormEvent) {
     event.preventDefault();
+    const errors: FieldErrors = {
+      name: requiredText(name, 'Укажите название'),
+      itemType: requiredText(itemType, 'Выберите тип товара'),
+    };
+    setFieldErrors(errors);
+    if (hasFieldErrors(errors)) {
+      setError(firstFieldError(errors));
+      return;
+    }
     setCreating(true);
     setError(null);
     try {
@@ -151,10 +167,11 @@ export default function PoliciesPage() {
         </Section>
         <Section>
           <Card title="Создать политику">
-            <form onSubmit={onCreate} className="form-grid">
+            <form onSubmit={onCreate} className="form-grid" noValidate>
               <Field
                 label="Название"
                 required
+                error={fieldErrors.name}
                 hint="Например: «Цветы по умолчанию» или «Материалы дробные»"
               >
                 <Input
@@ -168,6 +185,7 @@ export default function PoliciesPage() {
               <Field
                 label="Для типа товара"
                 required
+                error={fieldErrors.itemType}
                 hint="Цветок — партии и срок годности; материал — без партий"
               >
                 <FancySelect

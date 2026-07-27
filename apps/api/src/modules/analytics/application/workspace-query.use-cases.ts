@@ -119,7 +119,12 @@ export class WorkspaceQueryUseCases {
           count: counters.in_preparation,
           filterLink: 'in_preparation',
         },
+        inWork: { count: counters.in_work, filterLink: 'in_work' },
         ready: { count: counters.ready, filterLink: 'ready' },
+        handedOffToday: {
+          count: counters.handed_off_today,
+          filterLink: 'handed_off_today',
+        },
         today: { count: counters.today, filterLink: 'today' },
         partiallyReserved: {
           count: counters.partially_reserved,

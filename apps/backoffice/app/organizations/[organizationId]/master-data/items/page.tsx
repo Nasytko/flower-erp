@@ -13,6 +13,12 @@ import { StatusBadge } from '@/components/layout/status-badge';
 import { AutoNumberNote, Field } from '@/components/layout/field';
 import { FancySelect } from '@/components/layout/fancy-select';
 import { formatApiErrorMessage } from '@/lib/format-api-error';
+import {
+  type FieldErrors,
+  firstFieldError,
+  hasFieldErrors,
+  requiredText,
+} from '@/lib/form-validation';
 
 type Item = {
   id: string;
@@ -62,6 +68,7 @@ export default function ItemsPage() {
   const [description, setDescription] = useState('');
   const [isSellable, setIsSellable] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -98,6 +105,15 @@ export default function ItemsPage() {
 
   async function onCreate(event: FormEvent) {
     event.preventDefault();
+    const errors: FieldErrors = {
+      name: requiredText(name, 'Укажите название'),
+      unitId: requiredText(unitId, 'Выберите единицу измерения'),
+    };
+    setFieldErrors(errors);
+    if (hasFieldErrors(errors)) {
+      setError(firstFieldError(errors));
+      return;
+    }
     setCreating(true);
     setError(null);
     try {
@@ -287,11 +303,12 @@ export default function ItemsPage() {
 
         <Section>
           <Card title="Создать товар">
-            <form onSubmit={onCreate} className="form-grid">
+            <form onSubmit={onCreate} className="form-grid" noValidate>
               <AutoNumberNote label="Код товара" />
               <Field
                 label="Название"
                 required
+                error={fieldErrors.name}
                 hint="Как товар будет отображаться в поставках и на складе"
               >
                 <Input
@@ -318,7 +335,12 @@ export default function ItemsPage() {
                   aria-label="Тип товара"
                 />
               </Field>
-              <Field label="Единица измерения" required hint="Например: штука, ветка, метр">
+              <Field
+                label="Единица измерения"
+                required
+                error={fieldErrors.unitId}
+                hint="Например: штука, ветка, метр"
+              >
                 <FancySelect
                   value={unitId}
                   onChange={setUnitId}

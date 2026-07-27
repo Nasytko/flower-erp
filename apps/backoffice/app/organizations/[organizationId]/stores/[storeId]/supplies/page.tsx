@@ -13,6 +13,12 @@ import { EmptyState, ErrorState, LoadingState } from '@/components/layout/states
 import { StatusBadge } from '@/components/layout/status-badge';
 import { Field } from '@/components/layout/field';
 import { FancySelect } from '@/components/layout/fancy-select';
+import {
+  type FieldErrors,
+  firstFieldError,
+  hasFieldErrors,
+  requiredText,
+} from '@/lib/form-validation';
 
 type SupplyRow = {
   id: string;
@@ -39,6 +45,7 @@ export default function SuppliesPage() {
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
   async function load() {
     setLoading(true);
@@ -69,6 +76,14 @@ export default function SuppliesPage() {
 
   async function onCreate(event: FormEvent) {
     event.preventDefault();
+    const errors: FieldErrors = {
+      supplierId: requiredText(supplierId, 'Выберите поставщика'),
+    };
+    setFieldErrors(errors);
+    if (hasFieldErrors(errors)) {
+      setError(firstFieldError(errors));
+      return;
+    }
     setCreating(true);
     setError(null);
     try {
@@ -105,8 +120,8 @@ export default function SuppliesPage() {
         {showCreate ? (
           <Section>
             <Card title="Новая приёмка">
-              <form onSubmit={onCreate} className="form-grid">
-                <Field label="Поставщик" required>
+              <form onSubmit={onCreate} className="form-grid" noValidate>
+                <Field label="Поставщик" required error={fieldErrors.supplierId}>
                   <FancySelect
                     value={supplierId}
                     onChange={setSupplierId}

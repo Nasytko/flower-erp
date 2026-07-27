@@ -60,6 +60,10 @@ import {
   isClaimEligibleStatus,
   statusFromReservationOutcome,
 } from '../domain/order-rules';
+import {
+  orderDisplayPhaseLabel,
+  resolveOrderDisplayPhase,
+} from '../domain/order-display-phase';
 
 function mapDomain(error: unknown): never {
   if (error instanceof AssignmentConflictError) {
@@ -1608,10 +1612,24 @@ export class OrderUseCases {
     };
   }
 
+  private attachDisplayPhase(order: OrderView): OrderView {
+    const hasActiveAssignment = Boolean(order.activeAssignment);
+    const displayPhase = resolveOrderDisplayPhase({
+      status: order.status,
+      type: order.type,
+      hasActiveAssignment,
+    });
+    return {
+      ...order,
+      displayPhase,
+      displayPhaseLabel: orderDisplayPhaseLabel(displayPhase, { type: order.type }),
+    };
+  }
+
   private async enrichWithReservation(order: OrderView): Promise<OrderView> {
     const items = order.composition?.items ?? [];
     if (items.length === 0) {
-      return { ...order, hasDeficit: false };
+      return this.attachDisplayPhase({ ...order, hasDeficit: false });
     }
 
     const reservedMap = await this.reservations.sumActiveReservedByCompositionItems(
@@ -1630,13 +1648,13 @@ export class OrderUseCases {
 
     const hasDeficit = enrichedItems.some((i) => compareQty(i.deficitQuantity ?? '0', '0') > 0);
 
-    return {
+    return this.attachDisplayPhase({
       ...order,
       composition: order.composition
         ? { ...order.composition, items: enrichedItems }
         : null,
       hasDeficit,
-    };
+    });
   }
 
   private async requireOrder(

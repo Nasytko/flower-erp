@@ -152,6 +152,8 @@ export type OrderView = {
   comments: CommentView[];
   /** Populated by use-cases enrichment */
   hasDeficit?: boolean;
+  displayPhase?: string;
+  displayPhaseLabel?: string;
 };
 
 export type OrderDashboardBuckets = {

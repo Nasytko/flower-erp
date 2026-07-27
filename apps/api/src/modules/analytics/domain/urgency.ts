@@ -1,3 +1,8 @@
+import {
+  orderDisplayPhaseLabel,
+  resolveOrderDisplayPhase,
+} from '../../orders/domain/order-display-phase';
+
 export type UrgencyLevel = 'NORMAL' | 'SOON' | 'URGENT' | 'OVERDUE';
 
 export type WorkspacePrimaryAction =
@@ -24,6 +29,8 @@ export type WorkspaceOrderCard = {
   urgency: UrgencyLevel;
   primaryAction: WorkspacePrimaryAction;
   priority: number;
+  displayPhase: string;
+  displayPhaseLabel: string;
 };
 
 /**
@@ -102,13 +109,16 @@ export function resolvePrimaryAction(input: {
     return status === 'CONFIRMED' ? 'VIEW' : 'START_PREPARATION';
   }
   if (status === 'IN_PREPARATION') {
-    return 'EDIT_ACTUAL';
+    return 'MARK_READY';
   }
   return 'NONE';
 }
 
 export function enrichWorkspaceCard(
-  row: Omit<WorkspaceOrderCard, 'urgency' | 'primaryAction' | 'priority'>,
+  row: Omit<
+    WorkspaceOrderCard,
+    'urgency' | 'primaryAction' | 'priority' | 'displayPhase' | 'displayPhaseLabel'
+  >,
   now: Date,
   soonMinutes: number,
   currentMembershipId: string | null,
@@ -123,5 +133,17 @@ export function enrichWorkspaceCard(
       Boolean(currentMembershipId) && row.assignedFloristId === currentMembershipId,
     hasActiveSale,
   });
-  return { ...row, urgency, priority, primaryAction };
+  const displayPhase = resolveOrderDisplayPhase({
+    status: row.status,
+    type: row.type,
+    hasActiveAssignment: row.hasActiveAssignment,
+  });
+  return {
+    ...row,
+    urgency,
+    priority,
+    primaryAction,
+    displayPhase,
+    displayPhaseLabel: orderDisplayPhaseLabel(displayPhase, { type: row.type }),
+  };
 }

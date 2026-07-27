@@ -12,6 +12,12 @@ import { StatusBadge } from '@/components/layout/status-badge';
 import { Field } from '@/components/layout/field';
 import { FancySelect } from '@/components/layout/fancy-select';
 import { formatApiErrorMessage } from '@/lib/format-api-error';
+import {
+  type FieldErrors,
+  firstFieldError,
+  hasFieldErrors,
+  requiredText,
+} from '@/lib/form-validation';
 
 type Unit = { id: string; name: string; symbol: string; status: string };
 
@@ -27,6 +33,7 @@ export default function UnitsPage() {
   const [symbol, setSymbol] = useState('');
   const [quantityScale, setQuantityScale] = useState('0');
   const [creating, setCreating] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
   async function load() {
     setLoading(true);
@@ -48,6 +55,15 @@ export default function UnitsPage() {
 
   async function onCreate(event: FormEvent) {
     event.preventDefault();
+    const errors: FieldErrors = {
+      name: requiredText(name, 'Укажите название'),
+      symbol: requiredText(symbol, 'Укажите обозначение'),
+    };
+    setFieldErrors(errors);
+    if (hasFieldErrors(errors)) {
+      setError(firstFieldError(errors));
+      return;
+    }
     setCreating(true);
     setError(null);
     try {
@@ -129,8 +145,13 @@ export default function UnitsPage() {
         </Section>
         <Section>
           <Card title="Создать единицу">
-            <form onSubmit={onCreate} className="form-grid">
-              <Field label="Название" required hint="Полное название, например «Штука» или «Ветка»">
+            <form onSubmit={onCreate} className="form-grid" noValidate>
+              <Field
+                label="Название"
+                required
+                error={fieldErrors.name}
+                hint="Полное название, например «Штука» или «Ветка»"
+              >
                 <Input
                   value={name}
                   onChange={(e) => setName(e.target.value)}
@@ -142,6 +163,7 @@ export default function UnitsPage() {
               <Field
                 label="Обозначение"
                 required
+                error={fieldErrors.symbol}
                 hint="Короткий символ в документах: шт, ветка, м"
               >
                 <Input

@@ -27,16 +27,23 @@ import {
 type SectionKey = keyof DeliveryBoardDto['sections'];
 
 const PHASE_TONE: Record<OrderPhase, string> = {
+  DRAFT: 'neutral',
   NEW: 'warning',
-  ASSEMBLED: 'info',
-  IN_DELIVERY: 'accent',
-  COMPLETED: 'success',
+  IN_WORK: 'info',
+  READY: 'success',
+  HANDED_OFF: 'success',
 };
 
-function OrderPhaseBadge({ phase }: { phase: OrderPhase }) {
+function OrderPhaseBadge({
+  phase,
+  orderType,
+}: {
+  phase: OrderPhase;
+  orderType?: string;
+}) {
   return (
     <span className={`status-badge status-badge--${PHASE_TONE[phase]}`}>
-      {orderPhaseLabel(phase)}
+      {orderPhaseLabel(phase, { type: orderType })}
     </span>
   );
 }
@@ -208,12 +215,13 @@ export default function DeliveriesBoardPage() {
                               <span>{deliveryStatusLabel(card.status)}</span>
                               <OrderPhaseBadge
                                 phase={resolveOrderPhase(
-                                  { status: card.orderStatus ?? 'DRAFT' },
+                                  { status: card.orderStatus ?? 'DRAFT', type: 'DELIVERY' },
                                   {
                                     status: card.status,
                                     handedOverAt: card.handedOverAt,
                                   },
                                 )}
+                                orderType="DELIVERY"
                               />
                               {card.urgency && card.urgency !== 'NORMAL' ? (
                                 <span

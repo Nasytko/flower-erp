@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { Button, Card, Input } from '@flower/ui';
 import { getApiClient } from '@/lib/api-client';
 import { useAuth } from '@/components/auth-provider';
@@ -40,7 +40,11 @@ type OrderRow = {
   status: string;
   type?: string;
   readyAt?: string | null;
+  completedAt?: string | null;
   recipientName?: string | null;
+  displayPhase?: string;
+  displayPhaseLabel?: string;
+  activeAssignment?: { id: string } | null;
 };
 
 type DeliveryRow = {
@@ -50,19 +54,39 @@ type DeliveryRow = {
   handedOverAt?: string | null;
 };
 
+const ORDER_LIST_FILTERS: OrderListFilter[] = [
+  'ALL',
+  'DRAFT',
+  'NEW',
+  'IN_WORK',
+  'READY',
+  'HANDED_OFF',
+  'HANDED_OFF_TODAY',
+];
+
 type CustomerOption = { id: string; name: string; phone: string; status: string };
 
 const PHASE_TONE: Record<OrderPhase, string> = {
+  DRAFT: 'neutral',
   NEW: 'warning',
-  ASSEMBLED: 'info',
-  IN_DELIVERY: 'accent',
-  COMPLETED: 'success',
+  IN_WORK: 'info',
+  READY: 'success',
+  HANDED_OFF: 'success',
 };
 
-function OrderPhaseBadge({ phase }: { phase: OrderPhase }) {
+function OrderPhaseBadge({
+  phase,
+  orderType,
+  displayPhaseLabel,
+}: {
+  phase: OrderPhase;
+  orderType?: string;
+  displayPhaseLabel?: string;
+}) {
   return (
     <span className={`status-badge status-badge--${PHASE_TONE[phase]}`}>
-      {orderPhaseLabel(phase)}
+      {displayPhaseLabel ??
+        orderPhaseLabel(phase, { type: orderType, displayPhase: phase, displayPhaseLabel })}
     </span>
   );
 }
@@ -70,6 +94,7 @@ function OrderPhaseBadge({ phase }: { phase: OrderPhase }) {
 export default function OrdersPage() {
   const params = useParams<{ organizationId: string; storeId: string }>();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const auth = useAuth();
   const { organizationId, storeId } = params;
   const base = `/organizations/${organizationId}/stores/${storeId}`;
@@ -99,6 +124,13 @@ export default function OrdersPage() {
   const [creating, setCreating] = useState(false);
 
   const canReadDelivery = auth.hasPermission('delivery:read');
+
+  useEffect(() => {
+    const phase = searchParams.get('phase');
+    if (phase && ORDER_LIST_FILTERS.includes(phase as OrderListFilter)) {
+      setFilter(phase as OrderListFilter);
+    }
+  }, [searchParams]);
 
   async function load() {
     setLoading(true);
@@ -434,10 +466,12 @@ export default function OrdersPage() {
             {(
               [
                 ['ALL', 'Все'],
+                ['DRAFT', 'Черновики'],
                 ['NEW', 'Новые'],
-                ['ASSEMBLED', 'Собраны'],
-                ['IN_DELIVERY', 'В доставке'],
-                ['COMPLETED', 'Выполнены'],
+                ['IN_WORK', 'В работе'],
+                ['READY', 'Готовы'],
+                ['HANDED_OFF_TODAY', 'Переданы сегодня'],
+                ['HANDED_OFF', 'Переданы'],
               ] as const
             ).map(([id, label]) => (
               <button
@@ -460,7 +494,16 @@ export default function OrdersPage() {
             <ul className="list-stack">
               {filteredOrders.map((item) => {
                 const delivery = deliveryByOrderId.get(item.id) ?? null;
-                const phase = resolveOrderPhase(item, delivery);
+                const phase = resolveOrderPhase(
+                  {
+                    status: item.status,
+                    type: item.type,
+                    completedAt: item.completedAt,
+                    displayPhase: item.displayPhase,
+                    hasActiveAssignment: Boolean(item.activeAssignment),
+                  },
+                  delivery,
+                );
                 return (
                   <li key={item.id}>
                     <Link href={`${base}/orders/${item.id}`}>
@@ -473,7 +516,11 @@ export default function OrdersPage() {
                             {item.readyAt ? ` · ${formatReadyAt(item.readyAt)}` : null}
                           </div>
                         </div>
-                        <OrderPhaseBadge phase={phase} />
+                        <OrderPhaseBadge
+                          phase={phase}
+                          orderType={item.type}
+                          displayPhaseLabel={item.displayPhaseLabel}
+                        />
                       </div>
                     </Link>
                   </li>

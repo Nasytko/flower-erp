@@ -891,10 +891,14 @@ export function createApiClient(options: ApiClientOptions) {
           type: string;
           occasion: string;
           readyAt: string | null;
+          completedAt: string | null;
           recipientName: string | null;
           customerId: string | null;
           plannedPrice: string | null;
           hasDeficit?: boolean;
+          displayPhase: string;
+          displayPhaseLabel: string;
+          activeAssignment?: { id: string } | null;
         }>
       >(`/organizations/${organizationId}/stores/${storeId}/orders${status ? `?status=${status}` : ''}`),
     getOrderDashboard: (organizationId: string, storeId: string) =>
@@ -956,6 +960,9 @@ export function createApiClient(options: ApiClientOptions) {
         plannedPrice: string | null;
         assignedFloristId: string | null;
         hasDeficit?: boolean;
+        displayPhase: string;
+        displayPhaseLabel: string;
+        completedAt: string | null;
         composition: {
           id: string;
           items: Array<{
@@ -2430,7 +2437,9 @@ export type WorkspaceFilter =
   | 'soon'
   | 'unassigned'
   | 'in_preparation'
+  | 'in_work'
   | 'ready'
+  | 'handed_off_today'
   | 'today'
   | 'partially_reserved'
   | 'all_open';
@@ -2461,6 +2470,8 @@ export type WorkspaceOrderCardDto = {
   urgency: UrgencyLevel;
   primaryAction: WorkspacePrimaryAction;
   priority: number;
+  displayPhase: string;
+  displayPhaseLabel: string;
 };
 
 export type WorkspaceCounterDto = {
@@ -2498,7 +2509,9 @@ export type WorkspaceTodayDto = {
     soon: WorkspaceCounterDto;
     unassigned: WorkspaceCounterDto;
     inPreparation: WorkspaceCounterDto;
+    inWork: WorkspaceCounterDto;
     ready: WorkspaceCounterDto;
+    handedOffToday: WorkspaceCounterDto;
     today: WorkspaceCounterDto;
     partiallyReserved: WorkspaceCounterDto;
   };

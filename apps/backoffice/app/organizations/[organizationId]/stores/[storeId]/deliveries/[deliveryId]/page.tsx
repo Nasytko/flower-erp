@@ -40,16 +40,23 @@ import {
 import { NavigationButtons } from '@/components/delivery/navigation-buttons';
 
 const PHASE_TONE: Record<OrderPhase, string> = {
+  DRAFT: 'neutral',
   NEW: 'warning',
-  ASSEMBLED: 'info',
-  IN_DELIVERY: 'accent',
-  COMPLETED: 'success',
+  IN_WORK: 'info',
+  READY: 'success',
+  HANDED_OFF: 'success',
 };
 
-function OrderPhaseBadge({ phase }: { phase: OrderPhase }) {
+function OrderPhaseBadge({
+  phase,
+  orderType,
+}: {
+  phase: OrderPhase;
+  orderType?: string;
+}) {
   return (
     <span className={`status-badge status-badge--${PHASE_TONE[phase]}`}>
-      {orderPhaseLabel(phase)}
+      {orderPhaseLabel(phase, { type: orderType })}
     </span>
   );
 }
@@ -301,11 +308,11 @@ export default function DeliveryDetailPage() {
                   />
                 </p>
                 <p className="field__hint">
-                  Управление из карточки заказа или здесь — те же три шага.
+                  Управление из карточки заказа или здесь — те же шаги.
                 </p>
                 <div className="delivery-action-row" style={{ marginTop: 16 }}>
                   {auth.hasPermission('delivery:dispatch') &&
-                  orderPhase === 'ASSEMBLED' &&
+                  orderPhase === 'READY' &&
                   job.status !== 'IN_TRANSIT' &&
                   job.status !== 'DELIVERED' ? (
                     <Button type="button" disabled={busy} onClick={() => void handOverToDelivery()}>
@@ -313,9 +320,10 @@ export default function DeliveryDetailPage() {
                     </Button>
                   ) : null}
                   {auth.hasPermission('delivery:complete') &&
-                  (orderPhase === 'IN_DELIVERY' || job.status === 'IN_TRANSIT') ? (
+                  orderPhase === 'READY' &&
+                  (job.status === 'IN_TRANSIT' || job.handedOverAt) ? (
                     <Button type="button" disabled={busy} onClick={() => void finishDelivery()}>
-                      Выполнен
+                      Передан (доставка)
                     </Button>
                   ) : null}
                   {auth.hasPermission('delivery:cancel') &&
