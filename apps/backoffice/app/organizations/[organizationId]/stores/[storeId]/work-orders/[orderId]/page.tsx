@@ -79,6 +79,8 @@ export default function WorkOrderPage() {
   const canReadDelivery = auth.hasPermission('delivery:read');
   const canClaim =
     auth.hasPermission('orders:assign') && auth.hasPermission('orders:prepare');
+  const canReserve = auth.hasPermission('orders:reserve');
+  const canPrepare = auth.hasPermission('orders:prepare');
 
   const syncDrafts = useCallback((workOrder: WorkOrderDto) => {
     if (workOrder.actualLines.length > 0) {
@@ -212,6 +214,16 @@ export default function WorkOrderPage() {
   }> = [];
 
   if (data) {
+    if (data.primaryAction === 'RESERVE' && canReserve) {
+      primaryActions.push({
+        key: 'reserve',
+        label: 'Повторить резерв',
+        onClick: () =>
+          void run(async () => {
+            await getApiClient().reserveOrder(organizationId, storeId, orderId);
+          }),
+      });
+    }
     if (data.primaryAction === 'CLAIM' && canClaim) {
       primaryActions.push({
         key: 'claim',
@@ -222,12 +234,21 @@ export default function WorkOrderPage() {
             await client.claimOrder(organizationId, storeId, orderId);
             const fresh = await client.getWorkOrder(organizationId, storeId, orderId);
             if (
-              fresh.order.status !== 'IN_PREPARATION' &&
-              fresh.order.status !== 'READY' &&
-              fresh.order.status !== 'COMPLETED'
+              fresh.order.status === 'RESERVED' ||
+              fresh.order.status === 'PARTIALLY_RESERVED'
             ) {
               await client.startOrderPreparation(organizationId, storeId, orderId);
             }
+          }),
+      });
+    }
+    if (data.primaryAction === 'START_PREPARATION' && canPrepare) {
+      primaryActions.push({
+        key: 'start',
+        label: 'Начать сборку',
+        onClick: () =>
+          void run(async () => {
+            await getApiClient().startOrderPreparation(organizationId, storeId, orderId);
           }),
       });
     }

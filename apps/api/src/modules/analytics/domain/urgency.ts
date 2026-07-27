@@ -7,6 +7,7 @@ export type UrgencyLevel = 'NORMAL' | 'SOON' | 'URGENT' | 'OVERDUE';
 
 export type WorkspacePrimaryAction =
   | 'CLAIM'
+  | 'RESERVE'
   | 'START_PREPARATION'
   | 'EDIT_ACTUAL'
   | 'MARK_READY'
@@ -95,18 +96,17 @@ export function resolvePrimaryAction(input: {
   if (status === 'READY') {
     return hasActiveSale ? 'VIEW' : 'CREATE_SALE';
   }
+  if (status === 'CONFIRMED') {
+    return 'RESERVE';
+  }
   if (!hasActiveAssignment) {
     return 'CLAIM';
   }
   if (!assignedToCurrentUser) {
     return 'VIEW';
   }
-  if (
-    status === 'RESERVED' ||
-    status === 'PARTIALLY_RESERVED' ||
-    status === 'CONFIRMED'
-  ) {
-    return status === 'CONFIRMED' ? 'VIEW' : 'START_PREPARATION';
+  if (status === 'RESERVED' || status === 'PARTIALLY_RESERVED') {
+    return 'START_PREPARATION';
   }
   if (status === 'IN_PREPARATION') {
     return 'MARK_READY';

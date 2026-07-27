@@ -1560,13 +1560,19 @@ export class OrderUseCases {
     return this.enrichWithReservation(order);
   }
 
-  async listOrders(organizationId: string, storeId: string, status?: OrderStatus) {
+  async listOrders(
+    organizationId: string,
+    storeId: string,
+    status?: OrderStatus,
+    phase?: string,
+  ) {
     await this.organizations.getStore(organizationId, storeId);
-    const list = await this.orders.listOrders(
-      organizationId,
-      storeId,
-      status ? { status } : undefined,
-    );
+    const now = this.clock.now();
+    const list = await this.orders.listOrders(organizationId, storeId, {
+      status,
+      phase,
+      now,
+    });
     return Promise.all(list.map((o) => this.enrichWithReservation(o)));
   }
 

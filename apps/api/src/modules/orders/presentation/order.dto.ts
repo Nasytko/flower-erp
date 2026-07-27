@@ -318,6 +318,17 @@ export class ListOrdersQueryDto {
   @IsOptional()
   @IsEnum(OrderStatus)
   status?: OrderStatus;
+
+  @IsOptional()
+  @IsIn([
+    'DRAFT',
+    'NEW',
+    'IN_WORK',
+    'READY',
+    'HANDED_OFF',
+    'HANDED_OFF_TODAY',
+  ])
+  phase?: string;
 }
 
 /** @deprecated */

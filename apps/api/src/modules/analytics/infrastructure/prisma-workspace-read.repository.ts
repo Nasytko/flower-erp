@@ -32,7 +32,7 @@ export class PrismaWorkspaceReadRepository implements WorkspaceReadRepository {
     offset: number;
     limit: number;
   }): Promise<{ rows: WorkspaceOrderRow[]; total: number }> {
-    const where = this.filterWhere(input);
+    const where = await this.resolveFilterWhere(input);
     const [total, rows] = await Promise.all([
       this.prisma.order.count({ where }),
       this.prisma.order.findMany({
@@ -79,9 +79,8 @@ export class PrismaWorkspaceReadRepository implements WorkspaceReadRepository {
     ];
     const entries = await Promise.all(
       filters.map(async (filter) => {
-        const count = await this.prisma.order.count({
-          where: this.filterWhere({ ...input, filter }),
-        });
+        const where = await this.resolveFilterWhere({ ...input, filter });
+        const count = await this.prisma.order.count({ where });
         return [filter, count] as const;
       }),
     );
@@ -714,9 +713,9 @@ export class PrismaWorkspaceReadRepository implements WorkspaceReadRepository {
       }),
     ]);
     return [
-      { code: 'WRITE_OFF_DRAFTS', title: 'Draft write-offs', count: draftWriteOffs },
-      { code: 'TRANSFERS_IN_TRANSIT', title: 'Transfers in transit', count: inTransit },
-      { code: 'OPEN_COUNTS', title: 'Open inventory counts', count: openCounts },
+      { code: 'WRITE_OFF_DRAFTS', title: 'Черновики списаний', count: draftWriteOffs },
+      { code: 'TRANSFERS_IN_TRANSIT', title: 'Перемещения в пути', count: inTransit },
+      { code: 'OPEN_COUNTS', title: 'Открытые инвентаризации', count: openCounts },
     ];
   }
 
@@ -817,6 +816,46 @@ export class PrismaWorkspaceReadRepository implements WorkspaceReadRepository {
     }));
   }
 
+  private async resolveFilterWhere(input: {
+    organizationId: string;
+    storeId: string;
+    filter: WorkspaceFilter;
+    now: Date;
+    soonMinutes: number;
+  }): Promise<Prisma.OrderWhereInput> {
+    if (input.filter === 'handed_off_today') {
+      return this.handedOffTodayWhere(input);
+    }
+    return this.filterWhere(input);
+  }
+
+  private async handedOffTodayWhere(input: {
+    organizationId: string;
+    storeId: string;
+    now: Date;
+  }): Promise<Prisma.OrderWhereInput> {
+    const start = dayStart(input.now);
+    const end = dayEnd(input.now);
+    const deliveredJobs = await this.prisma.deliveryJob.findMany({
+      where: {
+        organizationId: input.organizationId,
+        storeId: input.storeId,
+        status: 'DELIVERED',
+        deliveredAt: { gte: start, lte: end },
+      },
+      select: { orderId: true },
+    });
+    const deliveredOrderIds = deliveredJobs.map((job) => job.orderId);
+    return {
+      organizationId: input.organizationId,
+      storeId: input.storeId,
+      OR: [
+        { status: 'COMPLETED', completedAt: { gte: start, lte: end } },
+        ...(deliveredOrderIds.length > 0 ? [{ id: { in: deliveredOrderIds } }] : []),
+      ],
+    };
+  }
+
   private filterWhere(input: {
     organizationId: string;
     storeId: string;
@@ -879,12 +918,6 @@ export class PrismaWorkspaceReadRepository implements WorkspaceReadRepository {
         };
       case 'ready':
         return { ...base, status: 'READY' };
-      case 'handed_off_today':
-        return {
-          ...base,
-          status: 'COMPLETED',
-          completedAt: { gte: start, lte: end },
-        };
       case 'today':
         return {
           ...base,

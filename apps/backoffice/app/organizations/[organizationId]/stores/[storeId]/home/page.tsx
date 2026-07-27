@@ -34,6 +34,7 @@ import {
 type DeliverySectionKey = keyof DeliveryBoardDto['sections'];
 
 const PRIMARY_ACTION_LABEL: Record<string, string> = {
+  RESERVE: 'Резерв',
   START_PREPARATION: 'В работу',
   MARK_READY: 'Готов',
   CREATE_SALE: 'Продажа',
@@ -207,7 +208,9 @@ export default function StoreHomePage() {
     setMessage(null);
     setError(null);
     try {
-      if (action === 'START_PREPARATION') {
+      if (action === 'RESERVE') {
+        await client.reserveOrder(organizationId, storeId, orderId);
+      } else if (action === 'START_PREPARATION') {
         await client.startOrderPreparation(organizationId, storeId, orderId);
       } else if (action === 'MARK_READY') {
         await client.markOrderReady(organizationId, storeId, orderId);

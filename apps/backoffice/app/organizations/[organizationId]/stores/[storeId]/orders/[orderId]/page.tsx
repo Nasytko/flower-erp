@@ -28,6 +28,7 @@ import { PageContainer } from '@/components/layout/page-container';
 import { PageHeader } from '@/components/layout/page-header';
 import { Section } from '@/components/layout/section';
 import { ErrorState, LoadingState } from '@/components/layout/states';
+import { InlineAlert } from '@/components/workspace/workspace-ui';
 import { StatusBadge } from '@/components/layout/status-badge';
 import { deliveryStatusLabel } from '@/lib/delivery-labels';
 import { newIdempotencyKey } from '@/lib/idempotency';
@@ -315,6 +316,13 @@ export default function OrderDetailPage() {
 
   const client = getApiClient();
   const draft = order?.status === 'DRAFT';
+  const compositionCount = order?.composition?.items?.length ?? 0;
+  const canConfirm =
+    draft &&
+    compositionCount > 0 &&
+    auth.hasPermission('orders:confirm');
+  const needsReserve = order?.status === 'CONFIRMED';
+  const canReserve = needsReserve && auth.hasPermission('orders:reserve');
   const deliveryInTransit =
     delivery?.status === 'IN_TRANSIT' || Boolean(delivery?.handedOverAt);
 
@@ -362,7 +370,42 @@ export default function OrderDetailPage() {
 
             <Section>
               <Card title="Действия">
+                {draft ? (
+                  <InlineAlert tone="info" title="Черновик">
+                    Добавьте состав и подтвердите заказ — после этого он появится в очереди «Новые» на
+                    обзоре.
+                  </InlineAlert>
+                ) : null}
+                {order.status === 'CONFIRMED' && order.hasDeficit ? (
+                  <InlineAlert tone="warning" title="Не хватает на складе">
+                    Резерв неполный. Повторите резерв после поступления или замените позиции в рабочем
+                    заказе.
+                  </InlineAlert>
+                ) : null}
                 <div className="order-next-actions">
+                  {canConfirm ? (
+                    <Button
+                      type="button"
+                      disabled={busy}
+                      onClick={() =>
+                        void run(() => client.confirmOrder(organizationId, storeId, orderId))
+                      }
+                    >
+                      Подтвердить заказ
+                    </Button>
+                  ) : null}
+                  {canReserve ? (
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      disabled={busy}
+                      onClick={() =>
+                        void run(() => client.reserveOrder(organizationId, storeId, orderId))
+                      }
+                    >
+                      Повторить резерв
+                    </Button>
+                  ) : null}
                   {phase === 'NEW' &&
                   order.status !== 'CANCELLED' &&
                   auth.hasPermission('orders:prepare') ? (

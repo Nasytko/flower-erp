@@ -56,6 +56,7 @@ export class OrdersController {
       params.organizationId,
       params.storeId,
       query.status as OrderStatus | undefined,
+      query.phase,
     );
   }
 

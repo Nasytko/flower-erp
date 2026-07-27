@@ -26,7 +26,6 @@ import {
 import {
   combineDateAndTime,
   formatReadyAt,
-  matchesOrderListFilter,
   orderPhaseLabel,
   resolveOrderPhase,
   type OrderListFilter,
@@ -132,13 +131,18 @@ export default function OrdersPage() {
     }
   }, [searchParams]);
 
-  async function load() {
+  async function load(phaseFilter?: OrderListFilter) {
     setLoading(true);
     setError(null);
     try {
       const client = getApiClient();
+      const activeFilter = phaseFilter ?? filter;
+      const orderQuery =
+        activeFilter === 'ALL'
+          ? undefined
+          : { phase: activeFilter };
       const [list, warehouses, customerList, store, deliveryList] = await Promise.all([
-        client.listOrders(organizationId, storeId),
+        client.listOrders(organizationId, storeId, orderQuery),
         (async () => {
           let rows = await client.listWarehouses(organizationId, storeId);
           if (rows.length === 0 && auth.hasPermission('stores:create')) {
@@ -176,9 +180,9 @@ export default function OrdersPage() {
 
   useEffect(() => {
     if (!auth.hasPermission('orders:read')) return;
-    void load();
+    void load(filter);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [organizationId, storeId, auth]);
+  }, [organizationId, storeId, auth, filter]);
 
   const deliveryByOrderId = useMemo(() => {
     const map = new Map<string, DeliveryRow>();
@@ -189,11 +193,9 @@ export default function OrdersPage() {
   }, [deliveries]);
 
   const filteredOrders = useMemo(() => {
-    return orders.filter((item) => {
-      const delivery = deliveryByOrderId.get(item.id) ?? null;
-      return matchesOrderListFilter(item, delivery, filter);
-    });
-  }, [orders, deliveryByOrderId, filter]);
+    if (filter === 'ALL') return orders.filter((item) => item.status !== 'CANCELLED');
+    return orders;
+  }, [orders, filter]);
 
   function validateCreate(): FieldErrors {
     const errors: FieldErrors = {
@@ -258,7 +260,7 @@ export default function OrdersPage() {
       <PageContainer>
         <PageHeader
           title="Заказы"
-          description="Новый → Собран → Передан в доставку → Выполнен. Для доставки адрес указывается сразу."
+          description="Черновик → новый → в работе → готов → передан."
           breadcrumbs={[
             { label: 'Магазин', href: base },
             { label: 'Заказы' },

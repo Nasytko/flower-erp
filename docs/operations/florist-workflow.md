@@ -5,13 +5,13 @@
 
 ## Goal
 
-Florist works from **Today** and **Work Order** without the administrative order screen.
+Florist works from **Home (`/home`)** and **Work Order** without the administrative order screen.
 
 ## Primary path
 
-1. Open `/organizations/:orgId/stores/:storeId/today`
-2. See counters and prioritized queues (limited sections)
-3. **Claim next** (`POST .../orders/claim-next`) — atomic server selection
+1. Open `/organizations/:orgId/stores/:storeId/home`
+2. See KPI by phase and prioritized queues
+3. Open order card or work order; **claim** inside the order (`POST .../orders/:id/claim`)
 4. Open Work Order
 5. Start preparation → edit actual composition (with `expectedVersion`)
 6. Optional structured item replacement

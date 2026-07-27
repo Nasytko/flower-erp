@@ -1,5 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import {
+  buildOrderListPhaseWhere,
+  type OrderListPhaseFilter,
+} from '../domain/order-list-phase-filter';
 import type {
   ActualComposition as PrismaActualComposition,
   ActualCompositionItem as PrismaActualItem,
@@ -430,18 +434,76 @@ export class PrismaOrderRepository implements OrderRepository {
   async listOrders(
     organizationId: string,
     storeId: string,
-    filter?: { status?: OrderStatus },
+    filter?: { status?: OrderStatus; phase?: string; now?: Date },
   ): Promise<OrderView[]> {
+    const now = filter?.now ?? new Date();
+    let phaseWhere: Prisma.OrderWhereInput = {};
+    if (filter?.phase && filter.phase !== 'ALL') {
+      const needsDelivered =
+        filter.phase === 'READY' ||
+        filter.phase === 'HANDED_OFF' ||
+        filter.phase === 'HANDED_OFF_TODAY';
+      const needsDeliveredToday = filter.phase === 'HANDED_OFF_TODAY';
+      const [deliveredOrderIds, deliveredTodayOrderIds] = needsDelivered
+        ? await Promise.all([
+            this.deliveredOrderIds(organizationId, storeId),
+            needsDeliveredToday
+              ? this.deliveredOrderIds(organizationId, storeId, now, now)
+              : Promise.resolve([] as string[]),
+          ])
+        : [[], []];
+      phaseWhere = buildOrderListPhaseWhere({
+        phase: filter.phase as OrderListPhaseFilter,
+        now,
+        deliveredOrderIds,
+        deliveredTodayOrderIds,
+      });
+    }
+
     const rows = await this.client().order.findMany({
       where: {
         organizationId,
         storeId,
         ...(filter?.status ? { status: filter.status } : {}),
+        ...phaseWhere,
       },
       include: orderInclude,
       orderBy: [{ readyAt: 'asc' }, { createdAt: 'desc' }],
     });
     return rows.map((r) => mapOrder(r as OrderFull));
+  }
+
+  private async deliveredOrderIds(
+    organizationId: string,
+    storeId: string,
+    dayStart?: Date,
+    dayEnd?: Date,
+  ): Promise<string[]> {
+    const rows = await this.client().deliveryJob.findMany({
+      where: {
+        organizationId,
+        storeId,
+        status: 'DELIVERED',
+        ...(dayStart && dayEnd
+          ? {
+              deliveredAt: {
+                gte: (() => {
+                  const d = new Date(dayStart);
+                  d.setHours(0, 0, 0, 0);
+                  return d;
+                })(),
+                lte: (() => {
+                  const d = new Date(dayEnd);
+                  d.setHours(23, 59, 59, 999);
+                  return d;
+                })(),
+              },
+            }
+          : {}),
+      },
+      select: { orderId: true },
+    });
+    return rows.map((r) => r.orderId);
   }
 
   async updateOrder(

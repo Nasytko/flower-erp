@@ -259,7 +259,7 @@ export interface OrderRepository {
   listOrders(
     organizationId: string,
     storeId: string,
-    filter?: { status?: OrderStatus },
+    filter?: { status?: OrderStatus; phase?: string; now?: Date },
   ): Promise<OrderView[]>;
   updateOrder(
     organizationId: string,

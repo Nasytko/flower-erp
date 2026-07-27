@@ -112,4 +112,22 @@ test('resolvePrimaryAction for florist work states', () => {
     }),
     'VIEW',
   );
+  assert.equal(
+    resolvePrimaryAction({
+      status: 'CONFIRMED',
+      hasActiveAssignment: false,
+      assignedToCurrentUser: false,
+      hasActiveSale: false,
+    }),
+    'RESERVE',
+  );
+  assert.equal(
+    resolvePrimaryAction({
+      status: 'CONFIRMED',
+      hasActiveAssignment: true,
+      assignedToCurrentUser: true,
+      hasActiveSale: false,
+    }),
+    'RESERVE',
+  );
 });

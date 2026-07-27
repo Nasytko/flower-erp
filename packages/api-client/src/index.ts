@@ -882,8 +882,17 @@ export function createApiClient(options: ApiClientOptions) {
         method: 'POST',
       }),
 
-    listOrders: (organizationId: string, storeId: string, status?: string) =>
-      request<
+    listOrders: (
+      organizationId: string,
+      storeId: string,
+      query?: { status?: string; phase?: string } | string,
+    ) => {
+      const q = typeof query === 'string' ? { status: query } : query;
+      const params = new URLSearchParams();
+      if (q?.status) params.set('status', q.status);
+      if (q?.phase) params.set('phase', q.phase);
+      const qs = params.toString();
+      return request<
         Array<{
           id: string;
           number: string;
@@ -900,7 +909,10 @@ export function createApiClient(options: ApiClientOptions) {
           displayPhaseLabel: string;
           activeAssignment?: { id: string } | null;
         }>
-      >(`/organizations/${organizationId}/stores/${storeId}/orders${status ? `?status=${status}` : ''}`),
+      >(
+        `/organizations/${organizationId}/stores/${storeId}/orders${qs ? `?${qs}` : ''}`,
+      );
+    },
     getOrderDashboard: (organizationId: string, storeId: string) =>
       request<{
         today: Array<{ id: string; number: string; status: string; readyAt: string | null }>;
@@ -2448,6 +2460,7 @@ export type UrgencyLevel = 'NORMAL' | 'SOON' | 'URGENT' | 'OVERDUE';
 
 export type WorkspacePrimaryAction =
   | 'CLAIM'
+  | 'RESERVE'
   | 'START_PREPARATION'
   | 'EDIT_ACTUAL'
   | 'MARK_READY'
