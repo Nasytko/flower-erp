@@ -8,9 +8,16 @@ import { getApiClient } from '@/lib/api-client';
 import { useAuth } from '@/components/auth-provider';
 import { PageContainer } from '@/components/layout/page-container';
 import { PageHeader } from '@/components/layout/page-header';
+import { Field } from '@/components/layout/field';
 import { Section } from '@/components/layout/section';
 import { EmptyState, ErrorState, LoadingState } from '@/components/layout/states';
 import { StatusBadge } from '@/components/layout/status-badge';
+import {
+  type FieldErrors,
+  firstFieldError,
+  hasFieldErrors,
+  requiredText,
+} from '@/lib/form-validation';
 
 type CustomerRow = {
   id: string;
@@ -35,6 +42,7 @@ export default function CustomersPage() {
   const [notes, setNotes] = useState('');
   const [creating, setCreating] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
   async function load() {
     setLoading(true);
@@ -57,6 +65,15 @@ export default function CustomersPage() {
 
   async function onCreate(event: FormEvent) {
     event.preventDefault();
+    const errors: FieldErrors = {
+      name: requiredText(name, 'Укажите имя'),
+      phone: requiredText(phone, 'Укажите телефон'),
+    };
+    setFieldErrors(errors);
+    if (hasFieldErrors(errors)) {
+      setError(firstFieldError(errors));
+      return;
+    }
     setCreating(true);
     setError(null);
     try {
@@ -116,30 +133,40 @@ export default function CustomersPage() {
         {canManage ? (
           <Section>
             <Card title="Новый клиент">
-              <form onSubmit={onCreate} className="stack-form">
-                <Input
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="Имя"
-                  required
-                />
-                <Input
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  placeholder="Телефон"
-                  required
-                />
-                <Input
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="Email (опционально)"
-                />
-                <Input
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  placeholder="Заметки"
-                />
-                <Button type="submit" disabled={creating || !name.trim() || !phone.trim()}>
+              <form onSubmit={onCreate} className="stack-form" noValidate>
+                <Field label="Имя" required error={fieldErrors.name}>
+                  <Input
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="Анна"
+                    required
+                  />
+                </Field>
+                <Field label="Телефон" required error={fieldErrors.phone}>
+                  <Input
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    placeholder="+375 …"
+                    inputMode="tel"
+                    required
+                  />
+                </Field>
+                <Field label="Email">
+                  <Input
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="email@example.com"
+                    type="email"
+                  />
+                </Field>
+                <Field label="Заметки">
+                  <Input
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    placeholder="Предпочтения, история"
+                  />
+                </Field>
+                <Button type="submit" disabled={creating}>
                   {creating ? 'Создание…' : 'Создать'}
                 </Button>
               </form>

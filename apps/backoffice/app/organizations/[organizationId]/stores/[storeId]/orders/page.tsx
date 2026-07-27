@@ -10,12 +10,19 @@ import { AutoNumberNote, Field } from '@/components/layout/field';
 import { AddressAutocomplete } from '@/components/layout/address-autocomplete';
 import { FancySelect } from '@/components/layout/fancy-select';
 import { MoneyBynInput, parseBynToApi } from '@/components/layout/money-byn-input';
+import { TimePicker } from '@/components/layout/time-picker';
 import { PageContainer } from '@/components/layout/page-container';
 import { PageHeader } from '@/components/layout/page-header';
 import { Section } from '@/components/layout/section';
 import { EmptyState, ErrorState, LoadingState } from '@/components/layout/states';
 import { InlineAlert } from '@/components/workspace/workspace-ui';
 import { formatApiErrorMessage } from '@/lib/format-api-error';
+import {
+  type FieldErrors,
+  firstFieldError,
+  hasFieldErrors,
+  requiredText,
+} from '@/lib/form-validation';
 import {
   combineDateAndTime,
   formatReadyAt,
@@ -81,7 +88,10 @@ export default function OrdersPage() {
   const [plannedPrice, setPlannedPrice] = useState('');
   const [deliveryAddress, setDeliveryAddress] = useState('');
   const [deliveryCity, setDeliveryCity] = useState('');
+  const [deliveryApartment, setDeliveryApartment] = useState('');
+  const [deliveryComment, setDeliveryComment] = useState('');
   const [storeCity, setStoreCity] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [showCreate, setShowCreate] = useState(false);
   const [filter, setFilter] = useState<OrderListFilter>('ALL');
   const [loading, setLoading] = useState(true);
@@ -153,22 +163,31 @@ export default function OrdersPage() {
     });
   }, [orders, deliveryByOrderId, filter]);
 
+  function validateCreate(): FieldErrors {
+    const errors: FieldErrors = {
+      recipientName: requiredText(recipientName, 'Укажите получателя'),
+      readyDate: requiredText(readyDate, 'Укажите дату'),
+      readyTime: requiredText(readyTime, 'Укажите время'),
+    };
+    if (orderType === 'DELIVERY') {
+      errors.deliveryAddress = requiredText(deliveryAddress, 'Укажите адрес доставки');
+    }
+    return errors;
+  }
+
   async function onCreate(event: FormEvent) {
     event.preventDefault();
+    const errors = validateCreate();
+    setFieldErrors(errors);
+    if (hasFieldErrors(errors)) {
+      setError(firstFieldError(errors));
+      return;
+    }
     setCreating(true);
     setError(null);
     try {
       if (!warehouseId) {
         throw new Error('Не найден склад магазина. Обновите страницу или создайте склад.');
-      }
-      if (!recipientName.trim()) {
-        throw new Error('Укажите получателя');
-      }
-      if (!readyDate) {
-        throw new Error('Укажите дату');
-      }
-      if (orderType === 'DELIVERY' && !deliveryAddress.trim()) {
-        throw new Error('Для доставки укажите адрес');
       }
       const created = await getApiClient().createOrder(organizationId, storeId, {
         warehouseId,
@@ -184,6 +203,10 @@ export default function OrdersPage() {
           orderType === 'DELIVERY' ? deliveryAddress.trim() : undefined,
         deliveryCity:
           orderType === 'DELIVERY' ? deliveryCity.trim() || undefined : undefined,
+        deliveryApartment:
+          orderType === 'DELIVERY' ? deliveryApartment.trim() || undefined : undefined,
+        deliveryComment:
+          orderType === 'DELIVERY' ? deliveryComment.trim() || undefined : undefined,
       });
       router.push(`${base}/orders/${created.id}`);
     } catch (err) {
@@ -271,10 +294,15 @@ export default function OrdersPage() {
                 ) : null}
 
                 <div className="sale-custom-meta">
-                  <Field label="Получатель" required>
+                  <Field label="Получатель" required error={fieldErrors.recipientName}>
                     <Input
                       value={recipientName}
-                      onChange={(e) => setRecipientName(e.target.value)}
+                      onChange={(e) => {
+                        setRecipientName(e.target.value);
+                        if (fieldErrors.recipientName) {
+                          setFieldErrors((prev) => ({ ...prev, recipientName: undefined }));
+                        }
+                      }}
                       placeholder="Анна"
                       required
                     />
@@ -293,19 +321,29 @@ export default function OrdersPage() {
                   <Field
                     label={orderType === 'DELIVERY' ? 'Дата доставки' : 'Дата готовности'}
                     required
+                    error={fieldErrors.readyDate}
                   >
                     <Input
                       type="date"
                       value={readyDate}
-                      onChange={(e) => setReadyDate(e.target.value)}
+                      onChange={(e) => {
+                        setReadyDate(e.target.value);
+                        if (fieldErrors.readyDate) {
+                          setFieldErrors((prev) => ({ ...prev, readyDate: undefined }));
+                        }
+                      }}
                       required
                     />
                   </Field>
-                  <Field label="Время" required>
-                    <Input
-                      type="time"
+                  <Field label="Время" required error={fieldErrors.readyTime}>
+                    <TimePicker
                       value={readyTime}
-                      onChange={(e) => setReadyTime(e.target.value)}
+                      onChange={(value) => {
+                        setReadyTime(value);
+                        if (fieldErrors.readyTime) {
+                          setFieldErrors((prev) => ({ ...prev, readyTime: undefined }));
+                        }
+                      }}
                       required
                     />
                   </Field>
@@ -313,12 +351,17 @@ export default function OrdersPage() {
 
                 {orderType === 'DELIVERY' ? (
                   <>
-                    <Field label="Адрес доставки" required>
+                    <Field label="Адрес доставки" required error={fieldErrors.deliveryAddress}>
                       <AddressAutocomplete
                         organizationId={organizationId}
                         storeId={storeId}
                         value={deliveryAddress}
-                        onChange={setDeliveryAddress}
+                        onChange={(value) => {
+                          setDeliveryAddress(value);
+                          if (fieldErrors.deliveryAddress) {
+                            setFieldErrors((prev) => ({ ...prev, deliveryAddress: undefined }));
+                          }
+                        }}
                         onSelect={(hit) => {
                           if (hit.city) setDeliveryCity(hit.city);
                         }}
@@ -327,18 +370,37 @@ export default function OrdersPage() {
                         required
                       />
                     </Field>
+                    <div className="sale-custom-meta">
+                      <Field label="Квартира / офис">
+                        <Input
+                          value={deliveryApartment}
+                          onChange={(e) => setDeliveryApartment(e.target.value)}
+                          placeholder="12"
+                        />
+                      </Field>
+                      <Field
+                        label="Город"
+                        tooltip={
+                          storeCity
+                            ? `Если пусто — город магазина: ${storeCity}`
+                            : 'Если пусто — город магазина'
+                        }
+                      >
+                        <Input
+                          value={deliveryCity}
+                          onChange={(e) => setDeliveryCity(e.target.value)}
+                          placeholder={storeCity || 'Как у магазина'}
+                        />
+                      </Field>
+                    </div>
                     <Field
-                      label="Город"
-                      tooltip={
-                        storeCity
-                          ? `Если пусто — город магазина: ${storeCity}`
-                          : 'Если пусто — город магазина'
-                      }
+                      label="Пометка к адресу"
+                      hint="Для курьера: подъезд, домофон, ориентиры"
                     >
                       <Input
-                        value={deliveryCity}
-                        onChange={(e) => setDeliveryCity(e.target.value)}
-                        placeholder={storeCity || 'Как у магазина'}
+                        value={deliveryComment}
+                        onChange={(e) => setDeliveryComment(e.target.value)}
+                        placeholder="Подъезд 2, домофон 120, оставить у двери"
                       />
                     </Field>
                   </>

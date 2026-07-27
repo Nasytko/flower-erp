@@ -174,6 +174,8 @@ export class OrderUseCases {
     /** Required when type=DELIVERY — creates delivery job immediately. */
     deliveryAddressLine?: string | null;
     deliveryCity?: string | null;
+    deliveryApartment?: string | null;
+    deliveryComment?: string | null;
   }) {
     await this.organizations.getWarehouse(input.organizationId, input.storeId, input.warehouseId);
 
@@ -240,6 +242,8 @@ export class OrderUseCases {
           orderId: order.id,
           addressLine: input.deliveryAddressLine!.trim(),
           city: input.deliveryCity,
+          apartment: input.deliveryApartment,
+          deliveryComment: input.deliveryComment,
           recipientName: order.recipientName,
           recipientPhone: order.recipientPhone,
           readyAt: input.readyAt,
@@ -269,6 +273,8 @@ export class OrderUseCases {
     warehouseId?: string;
     deliveryAddressLine?: string | null;
     deliveryCity?: string | null;
+    deliveryApartment?: string | null;
+    deliveryComment?: string | null;
   }) {
     const existing = await this.requireOrder(input.organizationId, input.storeId, input.orderId);
     try {
@@ -336,6 +342,8 @@ export class OrderUseCases {
             recipientPhone: updated.recipientPhone,
             addressLine: input.deliveryAddressLine,
             city: input.deliveryCity,
+            apartment: input.deliveryApartment,
+            deliveryComment: input.deliveryComment,
             readyAt:
               updated.readyAt instanceof Date
                 ? updated.readyAt.toISOString()
@@ -355,6 +363,8 @@ export class OrderUseCases {
             orderId: input.orderId,
             addressLine: input.deliveryAddressLine.trim(),
             city: input.deliveryCity,
+            apartment: input.deliveryApartment,
+            deliveryComment: input.deliveryComment,
             recipientName: updated.recipientName,
             recipientPhone: updated.recipientPhone,
             readyAt:

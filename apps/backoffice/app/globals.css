@@ -1020,6 +1020,43 @@ input {
   font-size: var(--text-sm);
 }
 
+.home-boards {
+  display: grid;
+  gap: var(--space-5);
+}
+
+.home-section-title {
+  margin: 0 0 var(--space-3);
+  font-size: var(--text-sm);
+  font-weight: var(--font-semibold);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--color-muted);
+}
+
+.home-delivery-sections {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.home-delivery-section__title {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-sm);
+  font-weight: var(--font-semibold);
+}
+
+.home-delivery-section__count {
+  color: var(--color-muted);
+  font-weight: var(--font-normal);
+}
+
+@media (min-width: 1024px) {
+  .home-boards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+  }
+}
+
 .hub-quick {
   display: grid;
   gap: var(--space-3);
@@ -1787,6 +1824,79 @@ a.metric-card:hover {
   font-size: var(--text-xs);
   color: var(--color-muted);
   line-height: 1.4;
+}
+
+.field__error {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--color-destructive);
+  line-height: 1.4;
+}
+
+.field--invalid .field__control input,
+.field--invalid .field__control textarea,
+.field--invalid .field__control select,
+.field--invalid .fancy-select__trigger {
+  border-color: var(--color-destructive);
+}
+
+.time-picker {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.time-picker__presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.time-picker__chip {
+  min-height: 36px;
+  padding: 0 12px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-muted);
+  color: var(--color-foreground);
+  font: inherit;
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition:
+    background var(--motion-fast) var(--ease-standard),
+    border-color var(--motion-fast) var(--ease-standard),
+    color var(--motion-fast) var(--ease-standard);
+}
+
+.time-picker__chip:hover:not(:disabled) {
+  border-color: var(--color-border-strong);
+  background: var(--color-surface);
+}
+
+.time-picker__chip--active {
+  border-color: var(--color-primary);
+  background: var(--color-primary-soft);
+  color: var(--color-primary-hover);
+  font-weight: var(--font-semibold);
+}
+
+.time-picker__chip:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.time-picker__custom {
+  display: grid;
+  gap: 6px;
+}
+
+.time-picker__custom-label {
+  font-size: var(--text-xs);
+  color: var(--color-muted);
+}
+
+.time-picker__input {
+  max-width: 160px;
 }
 
 .field-control,
@@ -2939,6 +3049,10 @@ a.attention-item:hover {
 
 .delivery-board-card:hover {
   border-color: var(--color-primary);
+}
+
+.delivery-board-card--compact {
+  padding: var(--space-2) var(--space-3);
 }
 
 .delivery-map-layout {

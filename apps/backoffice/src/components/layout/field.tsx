@@ -10,6 +10,8 @@ type FieldProps = {
   tooltip?: string;
   htmlFor?: string;
   required?: boolean;
+  /** Validation message shown before submit / after failed save. */
+  error?: string;
   children: ReactNode;
 };
 
@@ -17,9 +19,9 @@ type FieldProps = {
  * Standard form field: label on top, control below, optional hint/tooltip.
  * Prefer this over placeholder-only inputs across Backoffice.
  */
-export function Field({ label, hint, tooltip, htmlFor, required, children }: FieldProps) {
+export function Field({ label, hint, tooltip, htmlFor, required, error, children }: FieldProps) {
   return (
-    <div className="field">
+    <div className={error ? 'field field--invalid' : 'field'}>
       <div className="field__label-row">
         <label className="field__label" htmlFor={htmlFor}>
           <span>
@@ -44,6 +46,11 @@ export function Field({ label, hint, tooltip, htmlFor, required, children }: Fie
         ) : null}
       </div>
       <div className="field__control">{children}</div>
+      {error ? (
+        <p className="field__error" role="alert">
+          {error}
+        </p>
+      ) : null}
       {hint ? <p className="field__hint">{hint}</p> : null}
     </div>
   );

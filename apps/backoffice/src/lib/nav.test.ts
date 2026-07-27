@@ -53,9 +53,10 @@ test('parseStoreRoute extracts org and store ids', () => {
   });
 });
 
-test('PRIMARY_NAV is flat nine-item IA', () => {
+test('PRIMARY_NAV is flat ten-item IA with Обзор first', () => {
   const labels = PRIMARY_NAV.map((item) => item.label);
   assert.deepEqual(labels, [
+    'Обзор',
     'Смена',
     'Заказы',
     'Продажи',
@@ -66,7 +67,6 @@ test('PRIMARY_NAV is flat nine-item IA', () => {
     'Справочники',
     'Настройки',
   ]);
-  assert.equal(labels.includes('Обзор'), false);
   assert.equal(labels.includes('Операции'), false);
   assert.equal(labels.includes('Оплаты'), false);
   assert.equal(labels.includes('Остатки'), false);
@@ -171,24 +171,24 @@ test('resolveNavActionShortcuts maps to PRIMARY_NAV routes', () => {
   const today = actions.find((a) => a.id === 'today');
   const sale = actions.find((a) => a.id === 'new-sale');
   const stock = actions.find((a) => a.id === 'stock');
-  assert.equal(today?.href, '/organizations/org-1/stores/store-1/today');
+  assert.equal(today?.href, '/organizations/org-1/stores/store-1/home');
   assert.equal(sale?.href, '/organizations/org-1/stores/store-1/sales/new');
   assert.equal(stock?.href, '/organizations/org-1/stores/store-1/stock');
 });
 
-test('resolveStoreHomePath prefers today when workspace:read', () => {
+test('resolveStoreHomePath returns home when workspace:read', () => {
   assert.equal(
     resolveStoreHomePath('org-1', 'store-1', (code) =>
       ['workspace:read', 'operations:read', 'delivery:read'].includes(code),
     ),
-    '/organizations/org-1/stores/store-1/today',
+    '/organizations/org-1/stores/store-1/home',
   );
 });
 
-test('resolveStoreHomePath prefers deliveries for delivery-only (courier)', () => {
+test('resolveStoreHomePath returns home for delivery-only (courier)', () => {
   assert.equal(
     resolveStoreHomePath('org-1', 'store-1', (code) => code === 'delivery:read'),
-    '/organizations/org-1/stores/store-1/deliveries',
+    '/organizations/org-1/stores/store-1/home',
   );
 });
 

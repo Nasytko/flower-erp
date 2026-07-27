@@ -132,6 +132,15 @@ export class CreateOrderDto {
   @IsOptional()
   @IsString()
   deliveryCity?: string;
+
+  @IsOptional()
+  @IsString()
+  deliveryApartment?: string;
+
+  /** Courier note: entrance, intercom, landmarks — separate from order comment. */
+  @IsOptional()
+  @IsString()
+  deliveryComment?: string;
 }
 
 export class UpdateOrderDto {
@@ -186,6 +195,14 @@ export class UpdateOrderDto {
   @IsOptional()
   @IsString()
   deliveryCity?: string | null;
+
+  @IsOptional()
+  @IsString()
+  deliveryApartment?: string | null;
+
+  @IsOptional()
+  @IsString()
+  deliveryComment?: string | null;
 }
 
 export class CompositionItemDto {

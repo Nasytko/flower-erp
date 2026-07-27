@@ -13,6 +13,12 @@ import {
 import { getApiClient } from '@/lib/api-client';
 import { useAuth } from '@/components/auth-provider';
 import { Field } from '@/components/layout/field';
+import {
+  type FieldErrors,
+  firstFieldError,
+  hasFieldErrors,
+  requiredText,
+} from '@/lib/form-validation';
 import { PageContainer } from '@/components/layout/page-container';
 import { PageHeader } from '@/components/layout/page-header';
 import { Section } from '@/components/layout/section';
@@ -78,6 +84,9 @@ export default function DeliveryDetailPage() {
   const [confirmCancel, setConfirmCancel] = useState(false);
   const [editAddressLine, setEditAddressLine] = useState('');
   const [editCity, setEditCity] = useState('');
+  const [editApartment, setEditApartment] = useState('');
+  const [editDeliveryComment, setEditDeliveryComment] = useState('');
+  const [addressErrors, setAddressErrors] = useState<FieldErrors>({});
 
   const canRead = auth.hasPermission('delivery:read');
   const canPayment = auth.hasPermission('delivery:view-payment-summary');
@@ -99,6 +108,8 @@ export default function DeliveryDetailPage() {
       setTimeline(tl);
       setEditAddressLine(sum.delivery.addressLine);
       setEditCity(sum.delivery.city);
+      setEditApartment(sum.delivery.apartment ?? '');
+      setEditDeliveryComment(sum.delivery.deliveryComment ?? '');
     } catch (err) {
       setError(err instanceof ApiClientError ? err.message : 'Не удалось загрузить доставку');
     } finally {
@@ -135,6 +146,16 @@ export default function DeliveryDetailPage() {
     event.preventDefault();
     if (!job) return;
     const form = new FormData(event.currentTarget);
+    const errors: FieldErrors = {
+      addressLine: requiredText(editAddressLine, 'Укажите адрес'),
+      city: requiredText(editCity, 'Укажите город'),
+      recipientName: requiredText(String(form.get('recipientName') || ''), 'Укажите получателя'),
+    };
+    setAddressErrors(errors);
+    if (hasFieldErrors(errors)) {
+      setError(firstFieldError(errors));
+      return;
+    }
     await run(() =>
       getApiClient().updateDeliveryAddress(
         organizationId,
@@ -146,10 +167,10 @@ export default function DeliveryDetailPage() {
           postalCode: job.postalCode,
           entrance: job.entrance,
           floor: job.floor,
-          apartment: job.apartment,
+          apartment: editApartment.trim() || null,
           accessCode: job.accessCode,
-          deliveryComment: String(form.get('deliveryComment') || '') || null,
-          recipientName: String(form.get('recipientName') || '') || undefined,
+          deliveryComment: editDeliveryComment.trim() || null,
+          recipientName: String(form.get('recipientName') || '').trim() || undefined,
           recipientPhone: String(form.get('recipientPhone') || '') || undefined,
         }),
       ),
@@ -316,18 +337,23 @@ export default function DeliveryDetailPage() {
               <Card title="Адрес из заказа">
                 {auth.hasPermission('delivery:update') &&
                 !['DELIVERED', 'CANCELLED', 'IN_TRANSIT'].includes(job.status) ? (
-                  <form className="stack-form" onSubmit={onUpdateAddress}>
-                    <Input
-                      name="recipientName"
-                      defaultValue={job.recipientName}
-                      placeholder="Получатель"
-                    />
-                    <Input
-                      name="recipientPhone"
-                      defaultValue={job.recipientPhone}
-                      placeholder="Телефон"
-                    />
-                    <Field label="Адрес">
+                  <form className="stack-form" onSubmit={onUpdateAddress} noValidate>
+                    <Field label="Получатель" required error={addressErrors.recipientName}>
+                      <Input
+                        name="recipientName"
+                        defaultValue={job.recipientName}
+                        required
+                      />
+                    </Field>
+                    <Field label="Телефон">
+                      <Input
+                        name="recipientPhone"
+                        defaultValue={job.recipientPhone}
+                        placeholder="+375 …"
+                        inputMode="tel"
+                      />
+                    </Field>
+                    <Field label="Адрес" required error={addressErrors.addressLine}>
                       <AddressAutocomplete
                         organizationId={organizationId}
                         storeId={storeId}
@@ -340,12 +366,33 @@ export default function DeliveryDetailPage() {
                         required
                       />
                     </Field>
-                    <Input name="city" value={editCity} onChange={(e) => setEditCity(e.target.value)} placeholder="Город" required />
-                    <Input
-                      name="deliveryComment"
-                      defaultValue={job.deliveryComment ?? ''}
-                      placeholder="Комментарий"
-                    />
+                    <div className="sale-custom-meta">
+                      <Field label="Квартира / офис">
+                        <Input
+                          value={editApartment}
+                          onChange={(e) => setEditApartment(e.target.value)}
+                          placeholder="12"
+                        />
+                      </Field>
+                      <Field label="Город" required error={addressErrors.city}>
+                        <Input
+                          value={editCity}
+                          onChange={(e) => setEditCity(e.target.value)}
+                          placeholder="Город"
+                          required
+                        />
+                      </Field>
+                    </div>
+                    <Field
+                      label="Пометка к адресу"
+                      hint="Для курьера: подъезд, домофон, ориентиры"
+                    >
+                      <Input
+                        value={editDeliveryComment}
+                        onChange={(e) => setEditDeliveryComment(e.target.value)}
+                        placeholder="Подъезд 2, домофон 120"
+                      />
+                    </Field>
                     <Button type="submit" disabled={busy}>
                       Сохранить адрес
                     </Button>

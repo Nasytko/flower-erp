@@ -43,8 +43,6 @@ export default function TodayWorkspacePage() {
   const [message, setMessage] = useState<string | null>(null);
 
   const canRead = auth.hasPermission('workspace:read') || auth.hasPermission('orders:read');
-  const canClaimNext =
-    auth.hasPermission('orders:assign') && auth.hasPermission('orders:prepare');
   const canCreateSale = auth.hasPermission('sales:create');
   const canCreateOrder = auth.hasPermission('orders:create');
 
@@ -75,11 +73,6 @@ export default function TodayWorkspacePage() {
     setMessage(null);
     setError(null);
     try {
-      if (action === 'CLAIM') {
-        await client.claimOrder(organizationId, storeId, orderId);
-        router.push(`${base}/work-orders/${orderId}`);
-        return;
-      }
       if (action === 'START_PREPARATION') {
         await client.startOrderPreparation(organizationId, storeId, orderId);
       } else if (action === 'MARK_READY') {
@@ -94,24 +87,6 @@ export default function TodayWorkspacePage() {
       await load();
     } catch (err) {
       setError(err instanceof ApiClientError ? err.message : 'Действие не выполнено');
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function claimNext() {
-    setBusy(true);
-    setMessage(null);
-    setError(null);
-    try {
-      const result = await getApiClient().claimNextOrder(organizationId, storeId);
-      if (result.code === 'NO_ORDER_AVAILABLE' || !result.order) {
-        setMessage('Нет заказа для взятия в работу.');
-        return;
-      }
-      router.push(`${base}/work-orders/${result.order.id}`);
-    } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Не удалось взять следующий заказ');
     } finally {
       setBusy(false);
     }
@@ -198,16 +173,6 @@ export default function TodayWorkspacePage() {
               <Link href={`${base}/orders`} className="hub-quick__card">
                 <strong>Новый заказ</strong>
               </Link>
-            ) : null}
-            {canClaimNext ? (
-              <button
-                type="button"
-                className="hub-quick__card"
-                disabled={busy}
-                onClick={() => void claimNext()}
-              >
-                <strong>Взять следующий</strong>
-              </button>
             ) : null}
           </div>
         </Section>
@@ -302,7 +267,10 @@ export default function TodayWorkspacePage() {
                   <EmptyState message="Очередь пуста." />
                 ) : (
                   <div className="order-card-list">
-                    {priorityQueue.map((card) => (
+                    {priorityQueue.map((card) => {
+                      const boardAction =
+                        card.primaryAction === 'CLAIM' ? null : card.primaryAction;
+                      return (
                       <OrderCard
                         key={card.id}
                         number={card.number}
@@ -319,11 +287,20 @@ export default function TodayWorkspacePage() {
                             clientCapturedAt={capturedAt}
                           />
                         }
-                        primaryActionLabel={PRIMARY_ACTION_LABEL[card.primaryAction] ?? 'Открыть'}
+                        primaryActionLabel={
+                          boardAction
+                            ? PRIMARY_ACTION_LABEL[boardAction] ?? 'Открыть'
+                            : undefined
+                        }
                         primaryDisabled={busy}
-                        onPrimaryAction={() => void runPrimary(card.id, card.primaryAction)}
+                        onPrimaryAction={
+                          boardAction
+                            ? () => void runPrimary(card.id, boardAction)
+                            : undefined
+                        }
                       />
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
                 <div className="hub-card-footer">

@@ -9,6 +9,14 @@ import { getApiClient } from '@/lib/api-client';
 import { useAuth } from '@/components/auth-provider';
 import { AutoNumberNote, Field } from '@/components/layout/field';
 import { AddressAutocomplete } from '@/components/layout/address-autocomplete';
+import { TimePicker } from '@/components/layout/time-picker';
+import { parseBynToApi } from '@/components/layout/money-byn-input';
+import {
+  type FieldErrors,
+  firstFieldError,
+  hasFieldErrors,
+  requiredText,
+} from '@/lib/form-validation';
 import { FancySelect } from '@/components/layout/fancy-select';
 import {
   PaymentSplitEditor,
@@ -74,6 +82,9 @@ export default function OrderDetailPage() {
   const [editTime, setEditTime] = useState('12:00');
   const [editAddress, setEditAddress] = useState('');
   const [editCity, setEditCity] = useState('');
+  const [editApartment, setEditApartment] = useState('');
+  const [editDeliveryComment, setEditDeliveryComment] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -86,12 +97,9 @@ export default function OrderDetailPage() {
     setError(null);
     try {
       const client = getApiClient();
-      const [detail, catalog, summary, methods, deliveries] = await Promise.all([
+      const [detail, catalog, methods, deliveries] = await Promise.all([
         client.getOrder(organizationId, storeId, orderId),
         client.listItems(organizationId, { pageSize: 100, status: 'ACTIVE' }),
-        canReadPayments
-          ? client.getOrderPaymentSummary(organizationId, storeId, orderId)
-          : Promise.resolve(null),
         canReadPayments &&
         (auth.hasPermission('payments:create') || auth.hasPermission('payments:complete'))
           ? client.listPaymentMethods(organizationId, storeId, { activeOnly: true })
@@ -106,8 +114,17 @@ export default function OrderDetailPage() {
       setEditDate(date);
       setEditTime(time);
       setItems(catalog.items);
-      setPaymentSummary(summary);
       setPaymentMethods(methods);
+      if (canReadPayments) {
+        try {
+          const summary = await client.getOrderPaymentSummary(organizationId, storeId, orderId);
+          setPaymentSummary(summary);
+        } catch {
+          setPaymentSummary(null);
+        }
+      } else {
+        setPaymentSummary(null);
+      }
       if (methods[0]) {
         setPaymentLines((prev) =>
           prev.length === 1 && !prev[0]!.methodId && !prev[0]!.amount
@@ -127,10 +144,14 @@ export default function OrderDetailPage() {
         setDelivery(full);
         setEditAddress(full.addressLine || '');
         setEditCity(full.city || '');
+        setEditApartment(full.apartment || '');
+        setEditDeliveryComment(full.deliveryComment || '');
       } else {
         setDelivery(null);
         setEditAddress('');
         setEditCity('');
+        setEditApartment('');
+        setEditDeliveryComment('');
       }
     } catch (err) {
       setError(err instanceof ApiClientError ? err.message : 'Не удалось загрузить');
@@ -393,40 +414,84 @@ export default function OrderDetailPage() {
                 {draft && auth.hasPermission('orders:update') ? (
                   <form
                     className="stack-form"
+                    noValidate
                     onSubmit={(event) => {
                       event.preventDefault();
-                      if (editType === 'DELIVERY' && !editAddress.trim()) {
-                        setError('Для доставки укажите адрес');
-                        return;
-                      }
-                      void run(() =>
-                        client.updateOrder(organizationId, storeId, orderId, {
-                          recipientName: String(
+                      const errors: FieldErrors = {
+                        recipientName: requiredText(
+                          String(
                             (event.currentTarget.elements.namedItem('recipientName') as HTMLInputElement)
                               ?.value || '',
-                          ) || null,
-                          recipientPhone: String(
-                            (event.currentTarget.elements.namedItem('recipientPhone') as HTMLInputElement)
-                              ?.value || '',
-                          ) || null,
-                          comment: String(
-                            (event.currentTarget.elements.namedItem('comment') as HTMLInputElement)
-                              ?.value || '',
-                          ) || null,
+                          ),
+                          'Укажите получателя',
+                        ),
+                        readyDate: requiredText(editDate, 'Укажите дату'),
+                        readyTime: requiredText(editTime, 'Укажите время'),
+                      };
+                      if (editType === 'DELIVERY') {
+                        errors.deliveryAddress = requiredText(editAddress, 'Укажите адрес доставки');
+                      }
+                      setFieldErrors(errors);
+                      if (hasFieldErrors(errors)) {
+                        setError(firstFieldError(errors));
+                        return;
+                      }
+                      void run(async () => {
+                        const client = getApiClient();
+                        const recipientName = String(
+                          (event.currentTarget.elements.namedItem('recipientName') as HTMLInputElement)
+                            ?.value || '',
+                        ).trim();
+                        const recipientPhone = String(
+                          (event.currentTarget.elements.namedItem('recipientPhone') as HTMLInputElement)
+                            ?.value || '',
+                        ).trim();
+                        const comment = String(
+                          (event.currentTarget.elements.namedItem('comment') as HTMLInputElement)
+                            ?.value || '',
+                        ).trim();
+                        const plannedPriceRaw = String(
+                          (event.currentTarget.elements.namedItem('plannedPrice') as HTMLInputElement)
+                            ?.value || '',
+                        );
+                        await client.updateOrder(organizationId, storeId, orderId, {
+                          recipientName: recipientName || null,
+                          recipientPhone: recipientPhone || null,
+                          comment: comment || null,
                           readyAt:
                             editDate && editTime
                               ? combineDateAndTime(editDate, editTime)
                               : null,
                           type: editType,
-                          plannedPrice: String(
-                            (event.currentTarget.elements.namedItem('plannedPrice') as HTMLInputElement)
-                              ?.value || '',
-                          ) || null,
+                          plannedPrice: parseBynToApi(plannedPriceRaw) ?? (plannedPriceRaw.trim() || null),
                           deliveryAddressLine:
                             editType === 'DELIVERY' ? editAddress.trim() : null,
                           deliveryCity: editType === 'DELIVERY' ? editCity.trim() || null : null,
-                        }),
-                      );
+                          deliveryApartment:
+                            editType === 'DELIVERY' ? editApartment.trim() || null : null,
+                          deliveryComment:
+                            editType === 'DELIVERY' ? editDeliveryComment.trim() || null : null,
+                        });
+                        if (
+                          editType === 'DELIVERY' &&
+                          delivery &&
+                          auth.hasPermission('delivery:update')
+                        ) {
+                          await client.updateDeliveryAddress(organizationId, storeId, delivery.id, {
+                            expectedVersion: delivery.version,
+                            addressLine: editAddress.trim(),
+                            city: editCity.trim(),
+                            postalCode: delivery.postalCode,
+                            entrance: delivery.entrance,
+                            floor: delivery.floor,
+                            apartment: editApartment.trim() || null,
+                            accessCode: delivery.accessCode,
+                            deliveryComment: editDeliveryComment.trim() || null,
+                            recipientName: recipientName || undefined,
+                            recipientPhone: recipientPhone || undefined,
+                          });
+                        }
+                      });
                     }}
                   >
                     <Field label="Способ получения" required>
@@ -441,8 +506,12 @@ export default function OrderDetailPage() {
                         <option value="DELIVERY">Доставка</option>
                       </select>
                     </Field>
-                    <Field label="Получатель">
-                      <Input name="recipientName" defaultValue={order.recipientName ?? ''} />
+                    <Field label="Получатель" required error={fieldErrors.recipientName}>
+                      <Input
+                        name="recipientName"
+                        defaultValue={order.recipientName ?? ''}
+                        required
+                      />
                     </Field>
                     <Field label="Телефон">
                       <Input
@@ -452,24 +521,25 @@ export default function OrderDetailPage() {
                       />
                     </Field>
                     <div className="sale-custom-meta">
-                      <Field label={editType === 'DELIVERY' ? 'Дата доставки' : 'Дата готовности'}>
+                      <Field
+                        label={editType === 'DELIVERY' ? 'Дата доставки' : 'Дата готовности'}
+                        required
+                        error={fieldErrors.readyDate}
+                      >
                         <Input
                           type="date"
                           value={editDate}
                           onChange={(e) => setEditDate(e.target.value)}
+                          required
                         />
                       </Field>
-                      <Field label="Время">
-                        <Input
-                          type="time"
-                          value={editTime}
-                          onChange={(e) => setEditTime(e.target.value)}
-                        />
+                      <Field label="Время" required error={fieldErrors.readyTime}>
+                        <TimePicker value={editTime} onChange={setEditTime} required />
                       </Field>
                     </div>
                     {editType === 'DELIVERY' ? (
                       <>
-                        <Field label="Адрес доставки" required>
+                        <Field label="Адрес доставки" required error={fieldErrors.deliveryAddress}>
                           <AddressAutocomplete
                             organizationId={organizationId}
                             storeId={storeId}
@@ -482,23 +552,43 @@ export default function OrderDetailPage() {
                             required
                           />
                         </Field>
-                        <Field label="Город">
+                        <div className="sale-custom-meta">
+                          <Field label="Квартира / офис">
+                            <Input
+                              value={editApartment}
+                              onChange={(e) => setEditApartment(e.target.value)}
+                              placeholder="12"
+                            />
+                          </Field>
+                          <Field label="Город">
+                            <Input
+                              value={editCity}
+                              onChange={(e) => setEditCity(e.target.value)}
+                              placeholder="Как у магазина"
+                            />
+                          </Field>
+                        </div>
+                        <Field
+                          label="Пометка к адресу"
+                          hint="Для курьера: подъезд, домофон, ориентиры"
+                        >
                           <Input
-                            value={editCity}
-                            onChange={(e) => setEditCity(e.target.value)}
-                            placeholder="Как у магазина"
+                            value={editDeliveryComment}
+                            onChange={(e) => setEditDeliveryComment(e.target.value)}
+                            placeholder="Подъезд 2, домофон 120"
                           />
                         </Field>
                       </>
                     ) : null}
-                    <Field label="Плановая цена, BYN">
+                    <Field label="Плановая цена">
                       <Input
                         name="plannedPrice"
                         defaultValue={order.plannedPrice ?? ''}
                         inputMode="decimal"
+                        placeholder="0.00"
                       />
                     </Field>
-                    <Field label="Пометка">
+                    <Field label="Пометка к заказу">
                       <Input name="comment" defaultValue={order.comment ?? ''} />
                     </Field>
                     <Button type="submit" disabled={busy}>
@@ -552,7 +642,13 @@ export default function OrderDetailPage() {
                       </div>
                       <p className="order-address">
                         <strong>{delivery.displayAddress || delivery.addressLine}</strong>
+                        {delivery.apartment ? (
+                          <span className="field__hint"> · кв. {delivery.apartment}</span>
+                        ) : null}
                       </p>
+                      {delivery.deliveryComment ? (
+                        <p className="field__hint">{delivery.deliveryComment}</p>
+                      ) : null}
                       <Link href={`${base}/deliveries/${delivery.id}`}>
                         <Button type="button" variant="ghost">
                           Открыть на доске доставки
@@ -622,7 +718,13 @@ export default function OrderDetailPage() {
             {canReadPayments ? (
               <Section>
                 <Card title="Оплата">
-                  {paymentSummary ? (
+                  {!order.plannedPrice ? (
+                    <p className="field__hint">
+                      Укажите плановую цену заказа выше — без неё нельзя принять предоплату и
+                      посчитать остаток.
+                    </p>
+                  ) : null}
+                  {paymentSummary && order.plannedPrice ? (
                     <div className="meta-row">
                       <StatusBadge status={paymentSummary.status} />
                       <span>Итого: {paymentSummary.totalAmount}</span>
@@ -632,6 +734,7 @@ export default function OrderDetailPage() {
                   ) : null}
                   {auth.hasPermission('payments:create') &&
                   auth.hasPermission('payments:complete') &&
+                  order.plannedPrice &&
                   order.status !== 'DRAFT' &&
                   order.status !== 'CANCELLED' ? (
                     <form

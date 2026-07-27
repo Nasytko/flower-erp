@@ -19,6 +19,11 @@ export type NavItem = {
  */
 export const PRIMARY_NAV: NavItem[] = [
   {
+    href: '/organizations/{orgId}/stores/{storeId}/home',
+    label: 'Обзор',
+    storeScoped: true,
+  },
+  {
     href: '/organizations/{orgId}/stores/{storeId}/today',
     label: 'Смена',
     permission: 'workspace:read',
@@ -86,14 +91,13 @@ export const NAV_ACTION_SHORTCUTS: NavActionShortcut[] = [
   { id: 'new-order', label: 'Новый заказ', navLabel: 'Заказы' },
   { id: 'new-sale', label: 'Новая продажа', navLabel: 'Продажи' },
   { id: 'stock', label: 'Склад', navLabel: 'Склад' },
-  { id: 'today', label: 'Смена', navLabel: 'Смена' },
+  { id: 'today', label: 'Обзор', navLabel: 'Обзор' },
 ];
 
 /**
  * Post-login / store home:
- * - workspace:read (director, florist) → Смена
- * - delivery:read without workspace (courier) → Доставка
- * - otherwise store base (rare fallback)
+ * - orders/workspace/operations/delivery → unified Обзор (/home)
+ * - fallback store base
  */
 export function resolveStoreHomePath(
   organizationId: string,
@@ -102,11 +106,13 @@ export function resolveStoreHomePath(
 ): string {
   const base = `/organizations/${organizationId}/stores/${storeId}`;
 
-  if (hasPermission('workspace:read')) {
-    return `${base}/today`;
-  }
-  if (hasPermission('delivery:read')) {
-    return `${base}/deliveries`;
+  if (
+    hasPermission('workspace:read') ||
+    hasPermission('orders:read') ||
+    hasPermission('operations:read') ||
+    hasPermission('delivery:read')
+  ) {
+    return `${base}/home`;
   }
   return base;
 }

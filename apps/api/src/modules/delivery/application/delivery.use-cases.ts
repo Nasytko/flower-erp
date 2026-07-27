@@ -1397,6 +1397,8 @@ export class DeliveryUseCases implements DeliveryReadinessPort, DeliveryFulfillm
     recipientPhone?: string | null;
     addressLine?: string | null;
     city?: string | null;
+    apartment?: string | null;
+    deliveryComment?: string | null;
     readyAt?: string | null;
   }): Promise<void> {
     if (input.previousType === input.nextType) return;
@@ -1439,6 +1441,8 @@ export class DeliveryUseCases implements DeliveryReadinessPort, DeliveryFulfillm
       orderId: input.orderId,
       addressLine: input.addressLine,
       city: input.city,
+      apartment: input.apartment,
+      deliveryComment: input.deliveryComment,
       recipientName: input.recipientName,
       recipientPhone: input.recipientPhone,
       readyAt: input.readyAt,
@@ -1451,6 +1455,8 @@ export class DeliveryUseCases implements DeliveryReadinessPort, DeliveryFulfillm
     orderId: string;
     addressLine: string;
     city?: string | null;
+    apartment?: string | null;
+    deliveryComment?: string | null;
     recipientName?: string | null;
     recipientPhone?: string | null;
     readyAt?: string | null;
@@ -1477,6 +1483,8 @@ export class DeliveryUseCases implements DeliveryReadinessPort, DeliveryFulfillm
       recipientPhone: input.recipientPhone,
       addressLine: input.addressLine,
       city: input.city,
+      apartment: input.apartment,
+      deliveryComment: input.deliveryComment,
       deliveryFee: '0',
     });
 

@@ -140,7 +140,7 @@ export function OrderCard({
         </button>
       ) : (
         <Link href={href} className="order-card__action order-card__action--link">
-          Open
+          Открыть
         </Link>
       )}
     </article>

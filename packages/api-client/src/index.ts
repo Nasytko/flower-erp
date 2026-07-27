@@ -928,6 +928,8 @@ export function createApiClient(options: ApiClientOptions) {
         plannedPrice?: string;
         deliveryAddressLine?: string;
         deliveryCity?: string;
+        deliveryApartment?: string;
+        deliveryComment?: string;
       },
     ) =>
       request<{ id: string; number: string; status: string }>(
@@ -1018,6 +1020,8 @@ export function createApiClient(options: ApiClientOptions) {
         plannedPrice?: string | null;
         deliveryAddressLine?: string | null;
         deliveryCity?: string | null;
+        deliveryApartment?: string | null;
+        deliveryComment?: string | null;
       },
     ) =>
       request<{ id: string; status: string }>(

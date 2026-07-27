@@ -15,6 +15,8 @@ export interface DeliveryFulfillmentPort {
     recipientPhone?: string | null;
     addressLine?: string | null;
     city?: string | null;
+    apartment?: string | null;
+    deliveryComment?: string | null;
     readyAt?: string | null;
   }): Promise<void>;
 
@@ -25,6 +27,8 @@ export interface DeliveryFulfillmentPort {
     orderId: string;
     addressLine: string;
     city?: string | null;
+    apartment?: string | null;
+    deliveryComment?: string | null;
     recipientName?: string | null;
     recipientPhone?: string | null;
     readyAt?: string | null;

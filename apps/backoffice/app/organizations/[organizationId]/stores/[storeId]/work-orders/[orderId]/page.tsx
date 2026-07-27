@@ -77,6 +77,8 @@ export default function WorkOrderPage() {
 
   const canRead = auth.hasPermission('workspace:read') || auth.hasPermission('orders:read');
   const canReadDelivery = auth.hasPermission('delivery:read');
+  const canClaim =
+    auth.hasPermission('orders:assign') && auth.hasPermission('orders:prepare');
 
   const syncDrafts = useCallback((workOrder: WorkOrderDto) => {
     if (workOrder.actualLines.length > 0) {
@@ -210,6 +212,14 @@ export default function WorkOrderPage() {
   }> = [];
 
   if (data) {
+    if (data.primaryAction === 'CLAIM' && canClaim) {
+      primaryActions.push({
+        key: 'claim',
+        label: 'Взять в работу',
+        onClick: () =>
+          void run(() => getApiClient().claimOrder(organizationId, storeId, orderId)),
+      });
+    }
     const phase = resolveOrderPhase(
       { status: data.order.status },
       deliveryHint

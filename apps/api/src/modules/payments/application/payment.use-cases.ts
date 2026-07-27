@@ -1074,10 +1074,25 @@ export class PaymentUseCases {
       throw new NotFoundException({ code: 'ORDER_NOT_FOUND', message: 'Order not found' });
     }
     if (!order.totalAmount) {
-      throw new BadRequestException({
-        code: 'ORDER_TOTAL_REQUIRED',
-        message: 'Order planned price is required for payment summary',
-      });
+      const paidAmount = await this.payments.sumActiveCompletedAllocationsForTarget(
+        organizationId,
+        PaymentAllocationTargetType.ORDER,
+        orderId,
+      );
+      const refundedAmount = await this.payments.sumCompletedRefundsForTarget(
+        organizationId,
+        PaymentAllocationTargetType.ORDER,
+        orderId,
+      );
+      return {
+        targetType: PaymentAllocationTargetType.ORDER,
+        targetId: orderId,
+        totalAmount: '0.00',
+        paidAmount,
+        refundedAmount,
+        balanceDue: '0.00',
+        status: computePaymentStatusProjection('0', paidAmount, refundedAmount),
+      };
     }
     return this.buildSummary(
       organizationId,

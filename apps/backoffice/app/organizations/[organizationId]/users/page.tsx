@@ -11,7 +11,14 @@ import { Section } from '@/components/layout/section';
 import { ErrorState, LoadingState } from '@/components/layout/states';
 import { StatusBadge } from '@/components/layout/status-badge';
 import { SettingsLinks } from '@/components/layout/settings-links';
+import { Field } from '@/components/layout/field';
 import { useToast } from '@/components/ui/toast';
+import {
+  type FieldErrors,
+  firstFieldError,
+  hasFieldErrors,
+  requiredText,
+} from '@/lib/form-validation';
 import { formatApiErrorMessage } from '@/lib/format-api-error';
 
 type UserRow = {
@@ -32,6 +39,7 @@ export default function UsersPage() {
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [creating, setCreating] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const toast = useToast();
   const base = `/organizations/${params.organizationId}`;
   const settingsLinks = useMemo(
@@ -97,6 +105,21 @@ export default function UsersPage() {
 
   async function onCreate(event: FormEvent) {
     event.preventDefault();
+    const errors: FieldErrors = {
+      login: requiredText(login, 'Укажите логин'),
+      password: requiredText(password, 'Укажите пароль'),
+      displayName: requiredText(displayName, 'Укажите отображаемое имя'),
+    };
+    if (password.trim() && password.trim().length < 10) {
+      errors.password = 'Пароль должен быть не короче 10 символов';
+    }
+    setFieldErrors(errors);
+    if (hasFieldErrors(errors)) {
+      const message = firstFieldError(errors);
+      setError(message);
+      if (message) toast.error(message);
+      return;
+    }
     setCreating(true);
     setError(null);
     try {
@@ -145,20 +168,41 @@ export default function UsersPage() {
         {auth.hasPermission('users:manage') ? (
           <Section>
             <Card title="Создать пользователя">
-              <form onSubmit={onCreate} className="stack-form">
-                <Input value={login} onChange={(e) => setLogin(e.target.value)} placeholder="Логин" />
-                <Input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Пароль (мин. 10 символов)"
-                />
-                <Input
-                  value={displayName}
-                  onChange={(e) => setDisplayName(e.target.value)}
-                  placeholder="Отображаемое имя"
-                />
-                <p className="field-hint">
+              <form onSubmit={onCreate} className="stack-form" noValidate>
+                <Field label="Логин" required error={fieldErrors.login}>
+                  <Input
+                    value={login}
+                    onChange={(e) => setLogin(e.target.value)}
+                    placeholder="anna.florist"
+                    autoComplete="off"
+                    required
+                  />
+                </Field>
+                <Field
+                  label="Пароль"
+                  required
+                  hint="Минимум 10 символов"
+                  error={fieldErrors.password}
+                >
+                  <Input
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="••••••••••"
+                    autoComplete="new-password"
+                    required
+                    minLength={10}
+                  />
+                </Field>
+                <Field label="Отображаемое имя" required error={fieldErrors.displayName}>
+                  <Input
+                    value={displayName}
+                    onChange={(e) => setDisplayName(e.target.value)}
+                    placeholder="Анна"
+                    required
+                  />
+                </Field>
+                <p className="field__hint">
                   При первом входе пользователь задаст свой пароль и введёт роль латиницей: director,
                   florist или courier.
                 </p>

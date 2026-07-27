@@ -8,7 +8,7 @@ import { resolveNavWorkspace, resolveStoreHomePath } from '@/lib/nav';
 
 /**
  * Legacy «Обзор» (`/`) is no longer a product home screen.
- * Redirect to permission-based store home (Сегодня / Доставка).
+ * Redirect to permission-based store home (Обзор).
  */
 export default function RootRedirectPage() {
   const auth = useAuth();
