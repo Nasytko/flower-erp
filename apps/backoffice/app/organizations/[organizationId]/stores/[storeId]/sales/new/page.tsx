@@ -314,30 +314,47 @@ function NewSalePageInner() {
       }));
     }
 
-    Promise.all([
-      (async () => {
-        let warehouses = await client.listWarehouses(organizationId, storeId);
-        if (warehouses.length === 0 && auth.hasPermission('stores:create')) {
-          warehouses = await client.ensureDefaultWarehouse(organizationId, storeId);
-        }
-        return warehouses;
-      })(),
-      fromOrderId
-        ? Promise.resolve({ items: [] as CatalogItem[] })
-        : client.listItems(organizationId, { pageSize: 200, status: 'ACTIVE' }),
-      fromOrderId ? client.getOrder(organizationId, storeId, fromOrderId) : Promise.resolve(null),
-      loadPaymentMethods(),
-      fromOrderId && canListPay
-        ? client.getOrderPaymentSummary(organizationId, storeId, fromOrderId)
-        : Promise.resolve(null),
-    ])
-      .then(([warehouses, catalog, order, methods, orderPay]) => {
+    async function loadWarehouses() {
+      let warehouses = await client.listWarehouses(organizationId, storeId);
+      if (warehouses.length === 0 && auth.hasPermission('stores:create')) {
+        warehouses = await client.ensureDefaultWarehouse(organizationId, storeId);
+      }
+      return warehouses;
+    }
+
+    void (async () => {
+      try {
+        const [warehouses, methods] = await Promise.all([
+          loadWarehouses(),
+          loadPaymentMethods(),
+        ]);
         if (cancelled) return;
         const defaultWh = warehouses.find((w) => w.isDefault) ?? warehouses[0];
         if (defaultWh) {
           setWarehouseId(defaultWh.id);
           setWarehouseLabel(`${defaultWh.name} (${defaultWh.code})`);
         }
+        setPaymentMethods(methods);
+        if (methods[0]) {
+          setPaymentLines([createEmptyPaymentLine(methods[0].id)]);
+        }
+      } catch (err: unknown) {
+        if (cancelled) return;
+        setError(formatApiError(err, 'Не удалось загрузить склад или способы оплаты'));
+      }
+    })();
+
+    Promise.all([
+      fromOrderId
+        ? Promise.resolve({ items: [] as CatalogItem[] })
+        : client.listItems(organizationId, { pageSize: 100, status: 'ACTIVE' }),
+      fromOrderId ? client.getOrder(organizationId, storeId, fromOrderId) : Promise.resolve(null),
+      fromOrderId && canListPay
+        ? client.getOrderPaymentSummary(organizationId, storeId, fromOrderId)
+        : Promise.resolve(null),
+    ])
+      .then(([catalog, order, orderPay]) => {
+        if (cancelled) return;
         const catalogItems = catalog.items as CatalogItem[];
         setItems(catalogItems);
         if (!fromOrderId) {
@@ -349,15 +366,11 @@ function NewSalePageInner() {
           setOrderTitle(`Заказ ${order.number}`);
           setComment(order.comment ?? '');
         }
-        setPaymentMethods(methods);
-        if (methods[0]) {
-          setPaymentLines([createEmptyPaymentLine(methods[0].id)]);
-        }
         setOrderBalanceDue(orderPay?.balanceDue ?? null);
       })
       .catch((err: unknown) => {
         if (cancelled) return;
-        setError(formatApiError(err, 'Не удалось загрузить данные для продажи'));
+        setError(formatApiError(err, 'Не удалось загрузить каталог для продажи'));
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
