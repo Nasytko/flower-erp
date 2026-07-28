@@ -2,25 +2,18 @@
 
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
+import { type AuditLogEntry } from '@flower/api-client';
 import { getApiClient } from '@/lib/api-client';
 import { useAuth } from '@/components/auth-provider';
+import { EntityAuditHistory } from '@/components/audit/entity-audit-history';
 import { PageContainer } from '@/components/layout/page-container';
 import { PageHeader } from '@/components/layout/page-header';
 import { ErrorState, LoadingState } from '@/components/layout/states';
 
-type AuditRow = {
-  id: string;
-  action: string;
-  entityType: string;
-  entityId: string;
-  actorId: string | null;
-  createdAt: string;
-};
-
 export default function AuditPage() {
   const params = useParams<{ organizationId: string }>();
   const auth = useAuth();
-  const [rows, setRows] = useState<AuditRow[]>([]);
+  const [rows, setRows] = useState<AuditLogEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -51,17 +44,13 @@ export default function AuditPage() {
         />
         {loading ? <LoadingState /> : null}
         {error ? <ErrorState message={error} /> : null}
-        <ul className="list-stack">
-          {rows.map((row) => (
-            <li key={row.id}>
-              <div className="meta-row">
-                <strong>{row.action}</strong>
-                <span>{row.entityType}</span>
-                <span>{new Date(row.createdAt).toLocaleString()}</span>
-              </div>
-            </li>
-          ))}
-        </ul>
+        {!loading && !error ? (
+          <EntityAuditHistory
+            title="Последние события"
+            entries={rows}
+            emptyMessage="Событий пока нет."
+          />
+        ) : null}
       </PageContainer>
     </main>
   );

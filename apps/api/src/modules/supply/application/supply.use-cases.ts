@@ -33,13 +33,17 @@ import {
   canAnnul,
   canCorrectPostedSupplyItems,
   canCreateReceipt,
+  canEditSupplyHeader,
   canEditSupplyItems,
+  canReceiveSupply,
   canSubmit,
   compareQty,
+  isOpenSupply,
 } from '../domain/supply-rules';
 import {
   SUPPLY_REPOSITORY,
   type ReceiptView,
+  type SupplyItemView,
   type SupplyLineCorrectionView,
   type SupplyRepository,
   type SupplyView,
@@ -50,6 +54,75 @@ function domain(error: unknown): never {
     throw new BadRequestException({ code: error.code, message: error.message });
   }
   throw error;
+}
+
+function parseDateOnly(value: string): Date {
+  const d = new Date(`${value}T12:00:00.000Z`);
+  if (Number.isNaN(d.getTime())) {
+    throw new BadRequestException({ code: 'INVALID_DATE', message: 'Invalid date' });
+  }
+  return d;
+}
+
+function dateOnlyFromClock(clock: ClockPort): Date {
+  const now = clock.now();
+  return new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+}
+
+function receiptAtFromDateOnly(date: Date): Date {
+  return new Date(
+    Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), 12, 0, 0),
+  );
+}
+
+function normalizeOptionalDocText(value: string | null | undefined, max: number): string | null {
+  const trimmed = value?.trim();
+  if (!trimmed) return null;
+  if (trimmed.length > max) {
+    throw new BadRequestException({
+      code: 'TEXT_TOO_LONG',
+      message: `Text exceeds ${max} characters`,
+    });
+  }
+  return trimmed;
+}
+
+function dateOnlyIso(value: Date | null | undefined): string | null {
+  if (!value) return null;
+  return value.toISOString().slice(0, 10);
+}
+
+function supplyHeaderSnapshot(supply: SupplyView): Record<string, unknown> {
+  return {
+    receivedDate: dateOnlyIso(supply.receivedDate),
+    paymentDueDate: dateOnlyIso(supply.paymentDueDate),
+    supplierDocumentNumber: supply.supplierDocumentNumber,
+    comment: supply.comment,
+  };
+}
+
+function supplyLineSnapshot(line: SupplyItemView): Record<string, unknown> {
+  return {
+    itemId: line.itemId,
+    itemName: line.item.name,
+    itemCode: line.item.code,
+    quantity: line.orderedQuantity,
+    unitCost: line.plannedUnitPrice,
+    total:
+      line.plannedUnitPrice != null
+        ? (Number(line.orderedQuantity) * Number(line.plannedUnitPrice)).toFixed(2)
+        : null,
+  };
+}
+
+function supplyCreatedSnapshot(supply: SupplyView): Record<string, unknown> {
+  return {
+    number: supply.number,
+    status: supply.status,
+    supplierId: supply.supplierId,
+    ...supplyHeaderSnapshot(supply),
+    itemCount: supply.items.length,
+  };
 }
 
 @Injectable()
@@ -72,6 +145,9 @@ export class SupplyUseCases {
     warehouseId?: string;
     supplierId: string;
     expectedReceiptDate?: string;
+    receivedDate?: string;
+    paymentDueDate?: string;
+    supplierDocumentNumber?: string | null;
     comment?: string | null;
   }): Promise<SupplyView> {
     try {
@@ -82,8 +158,8 @@ export class SupplyUseCases {
       );
       const supplier = await this.suppliers.getSupplier(input.organizationId, input.supplierId);
       assertActiveReference(supplier.status, 'SUPPLIER');
-      return await this.uow.runInTransaction(async () =>
-        this.supplies.createSupply({
+      return await this.uow.runInTransaction(async () => {
+        const created = await this.supplies.createSupply({
           id: randomUUID(),
           organizationId: input.organizationId,
           storeId: input.storeId,
@@ -91,11 +167,85 @@ export class SupplyUseCases {
           supplierId: input.supplierId,
           number: await this.supplies.uniqueNumber('SUP', input.organizationId),
           expectedReceiptDate: input.expectedReceiptDate
-            ? new Date(input.expectedReceiptDate)
+            ? parseDateOnly(input.expectedReceiptDate)
             : null,
+          receivedDate: input.receivedDate
+            ? parseDateOnly(input.receivedDate)
+            : dateOnlyFromClock(this.clock),
+          paymentDueDate: input.paymentDueDate ? parseDateOnly(input.paymentDueDate) : null,
+          supplierDocumentNumber: normalizeOptionalDocText(input.supplierDocumentNumber, 100),
           comment: input.comment?.trim() || null,
-        }),
-      );
+        });
+        await this.auditSupply(
+          input.organizationId,
+          input.storeId,
+          'supply.created',
+          created.id,
+          null,
+          supplyCreatedSnapshot(created),
+        );
+        return created;
+      });
+    } catch (error) {
+      domain(error);
+    }
+  }
+
+  async updateSupply(input: {
+    organizationId: string;
+    storeId: string;
+    supplyId: string;
+    receivedDate?: string | null;
+    paymentDueDate?: string | null;
+    supplierDocumentNumber?: string | null;
+    comment?: string | null;
+  }): Promise<SupplyView> {
+    try {
+      return await this.uow.runInTransaction(async () => {
+        const supply = await this.requireSupply(input.organizationId, input.storeId, input.supplyId);
+        canEditSupplyHeader(supply.status as SupplyStatus);
+        const patch: {
+          receivedDate?: Date | null;
+          paymentDueDate?: Date | null;
+          supplierDocumentNumber?: string | null;
+          comment?: string | null;
+        } = {};
+        if (input.receivedDate !== undefined) {
+          patch.receivedDate = input.receivedDate
+            ? parseDateOnly(input.receivedDate)
+            : dateOnlyFromClock(this.clock);
+        }
+        if (input.paymentDueDate !== undefined) {
+          patch.paymentDueDate = input.paymentDueDate
+            ? parseDateOnly(input.paymentDueDate)
+            : null;
+        }
+        if (input.supplierDocumentNumber !== undefined) {
+          patch.supplierDocumentNumber = normalizeOptionalDocText(input.supplierDocumentNumber, 100);
+        }
+        if (input.comment !== undefined) {
+          patch.comment = input.comment?.trim() || null;
+        }
+        const before = supplyHeaderSnapshot(supply);
+        const updated = await this.supplies.updateSupplyHeader(
+          input.organizationId,
+          input.storeId,
+          supply.id,
+          patch,
+        );
+        const after = supplyHeaderSnapshot(updated);
+        if (JSON.stringify(before) !== JSON.stringify(after)) {
+          await this.auditSupply(
+            input.organizationId,
+            input.storeId,
+            'supply.header_updated',
+            supply.id,
+            before,
+            after,
+          );
+        }
+        return updated;
+      });
     } catch (error) {
       domain(error);
     }
@@ -117,7 +267,7 @@ export class SupplyUseCases {
         assertItemPurchasable(item);
         const unit = await this.units.getUnit(input.organizationId, item.unitId);
         assertQuantityMatchesScale(input.orderedQuantity, unit.quantityScale);
-        return this.supplies.addSupplyItem({
+        const added = await this.supplies.addSupplyItem({
           id: randomUUID(),
           organizationId: input.organizationId,
           supplyId: supply.id,
@@ -125,6 +275,15 @@ export class SupplyUseCases {
           orderedQuantity: input.orderedQuantity,
           plannedUnitPrice: input.plannedUnitPrice ?? null,
         });
+        await this.auditSupply(
+          input.organizationId,
+          input.storeId,
+          'supply.line_added',
+          supply.id,
+          null,
+          supplyLineSnapshot(added),
+        );
+        return added;
       });
     } catch (error) {
       domain(error);
@@ -141,6 +300,14 @@ export class SupplyUseCases {
       await this.uow.runInTransaction(async () => {
         const supply = await this.requireSupply(input.organizationId, input.storeId, input.supplyId);
         canEditSupplyItems(supply.status as SupplyStatus);
+        const line = supply.items.find((entry) => entry.itemId === input.itemId);
+        if (!line) {
+          throw new NotFoundException({
+            code: 'SUPPLY_ITEM_NOT_FOUND',
+            message: 'Supply item not found',
+          });
+        }
+        const before = supplyLineSnapshot(line);
         const result = await this.supplies.removeSupplyItem(
           input.organizationId,
           supply.id,
@@ -152,6 +319,14 @@ export class SupplyUseCases {
             message: 'Supply item not found',
           });
         }
+        await this.auditSupply(
+          input.organizationId,
+          input.storeId,
+          'supply.line_removed',
+          supply.id,
+          before,
+          null,
+        );
       });
     } catch (error) {
       domain(error);
@@ -187,7 +362,9 @@ export class SupplyUseCases {
           });
         }
 
-        if (supply.status === SupplyStatus.DRAFT) {
+        if (isOpenSupply(supply.status)) {
+          const line = supply.items.find((entry) => entry.itemId === item.id);
+          const before = line ? supplyLineSnapshot(line) : null;
           const updated = await this.supplies.updateSupplyItem({
             organizationId: input.organizationId,
             supplyId: supply.id,
@@ -200,6 +377,17 @@ export class SupplyUseCases {
               code: 'SUPPLY_ITEM_NOT_FOUND',
               message: 'Supply item not found',
             });
+          }
+          const after = supplyLineSnapshot(updated);
+          if (JSON.stringify(before) !== JSON.stringify(after)) {
+            await this.auditSupply(
+              input.organizationId,
+              input.storeId,
+              'supply.line_updated',
+              supply.id,
+              before,
+              after,
+            );
           }
           return updated;
         }
@@ -285,19 +473,14 @@ export class SupplyUseCases {
           });
         }
 
-        const ctx = getRequestContext();
-        await this.audit.append({
-          organizationId: input.organizationId,
-          storeId: input.storeId,
-          actorId: ctx?.actorId ?? null,
-          action: 'supply.line_corrected',
-          entityType: 'Supply',
-          entityId: supply.id,
-          beforeState: before,
-          afterState: after,
-          requestId: ctx?.requestId ?? 'unknown',
-          occurredAt: this.clock.now(),
-        });
+        await this.auditSupply(
+          input.organizationId,
+          input.storeId,
+          'supply.line_corrected',
+          supply.id,
+          before,
+          after,
+        );
 
         await this.recalculateSupplyStatus(input.organizationId, input.storeId, supply.id);
 
@@ -381,6 +564,14 @@ export class SupplyUseCases {
         const supply = await this.requireSupply(input.organizationId, input.storeId, input.supplyId);
         canAnnul(supply.status as SupplyStatus);
         await this.supplies.updateSupplyStatus(supply.id, 'ANNULLED');
+        await this.auditSupply(
+          input.organizationId,
+          input.storeId,
+          'supply.annulled',
+          supply.id,
+          { status: supply.status, number: supply.number },
+          { status: 'ANNULLED', number: supply.number },
+        );
         return this.requireSupply(input.organizationId, input.storeId, supply.id);
       });
     } catch (error) {
@@ -410,6 +601,29 @@ export class SupplyUseCases {
       });
     }
     return supply;
+  }
+
+  private auditSupply(
+    organizationId: string,
+    storeId: string,
+    action: string,
+    entityId: string,
+    before: Record<string, unknown> | null,
+    after: Record<string, unknown> | null,
+  ): Promise<void> {
+    const ctx = getRequestContext();
+    return this.audit.append({
+      organizationId,
+      storeId,
+      actorId: ctx?.actorId ?? null,
+      action,
+      entityType: 'Supply',
+      entityId,
+      beforeState: before,
+      afterState: after,
+      requestId: ctx?.requestId ?? 'unknown',
+      occurredAt: this.clock.now(),
+    });
   }
 }
 
@@ -455,8 +669,7 @@ export class GoodsReceiptUseCases {
   }
 
   /**
-   * One-step receiving: DRAFT supply → submit → goods receipt with all lines → post to inventory.
-   * Used when ERP does not send orders to suppliers; staff only records what arrived.
+   * One-step receiving: open supply → goods receipt with all lines → post to inventory.
    */
   async receiveFromSupply(input: {
     organizationId: string;
@@ -469,7 +682,7 @@ export class GoodsReceiptUseCases {
     try {
       return await this.uow.runInTransaction(async () => {
         const supply = await this.requireSupply(input.organizationId, input.storeId, input.supplyId);
-        canSubmit(supply.status as SupplyStatus, supply.items.length);
+        canReceiveSupply(supply.status as SupplyStatus, supply.items.length);
 
         for (const line of supply.items) {
           const price = Number(line.plannedUnitPrice);
@@ -487,13 +700,19 @@ export class GoodsReceiptUseCases {
           }
         }
 
-        await this.supplies.updateSupplyStatus(
-          supply.id,
-          'SUBMITTED_TO_SUPPLIER',
-          this.clock.now(),
-        );
+        if (supply.status === SupplyStatus.DRAFT) {
+          await this.supplies.updateSupplyStatus(
+            supply.id,
+            'SUBMITTED_TO_SUPPLIER',
+            this.clock.now(),
+          );
+        }
 
-        const receivedAt = input.receivedAt ? new Date(input.receivedAt) : this.clock.now();
+        const receivedAt = input.receivedAt
+          ? new Date(input.receivedAt)
+          : supply.receivedDate
+            ? receiptAtFromDateOnly(supply.receivedDate)
+            : this.clock.now();
         const receipt = await this.supplies.createReceipt({
           id: randomUUID(),
           organizationId: input.organizationId,
@@ -525,7 +744,31 @@ export class GoodsReceiptUseCases {
           input.storeId,
           receipt.id,
         );
-        return this.postDraftReceiptInTx(draft, input.idempotencyKey);
+        const beforeReceive = {
+          status: supply.status,
+          number: supply.number,
+          itemCount: supply.items.length,
+        };
+        const posted = await this.postDraftReceiptInTx(draft, input.idempotencyKey);
+        const freshSupply = await this.requireSupply(
+          input.organizationId,
+          input.storeId,
+          supply.id,
+        );
+        await this.auditSupplyAction(
+          input.organizationId,
+          input.storeId,
+          'supply.received',
+          supply.id,
+          beforeReceive,
+          {
+            status: freshSupply.status,
+            number: freshSupply.number,
+            receiptId: posted.id,
+            receiptNumber: posted.number,
+          },
+        );
+        return posted;
       });
     } catch (error) {
       domain(error);
@@ -818,6 +1061,29 @@ export class GoodsReceiptUseCases {
       });
     }
     return receipt;
+  }
+
+  private auditSupplyAction(
+    organizationId: string,
+    storeId: string,
+    action: string,
+    entityId: string,
+    before: Record<string, unknown> | null,
+    after: Record<string, unknown> | null,
+  ): Promise<void> {
+    const ctx = getRequestContext();
+    return this.audit.append({
+      organizationId,
+      storeId,
+      actorId: ctx?.actorId ?? null,
+      action,
+      entityType: 'Supply',
+      entityId,
+      beforeState: before,
+      afterState: after,
+      requestId: ctx?.requestId ?? 'unknown',
+      occurredAt: this.clock.now(),
+    });
   }
 
   private auditAction(

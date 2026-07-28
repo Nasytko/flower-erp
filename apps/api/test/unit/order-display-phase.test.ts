@@ -5,8 +5,8 @@ import {
   resolveOrderDisplayPhase,
 } from '../../src/modules/orders/domain/order-display-phase.js';
 
-test('resolveOrderDisplayPhase distinguishes draft from new queue', () => {
-  assert.equal(resolveOrderDisplayPhase({ status: 'DRAFT' }), 'DRAFT');
+test('resolveOrderDisplayPhase maps legacy draft to new queue', () => {
+  assert.equal(resolveOrderDisplayPhase({ status: 'DRAFT' }), 'NEW');
   assert.equal(resolveOrderDisplayPhase({ status: 'CONFIRMED' }), 'NEW');
   assert.equal(
     resolveOrderDisplayPhase({ status: 'RESERVED', hasActiveAssignment: true }),
@@ -28,7 +28,7 @@ test('delivery delivered maps to handed off', () => {
 });
 
 test('orderDisplayPhaseLabel uses order type for handed off', () => {
-  assert.equal(orderDisplayPhaseLabel('DRAFT'), 'Черновик');
+  assert.equal(orderDisplayPhaseLabel('NEW'), 'Новый');
   assert.equal(orderDisplayPhaseLabel('HANDED_OFF', { type: 'DELIVERY' }), 'Передан (доставка)');
   assert.equal(orderDisplayPhaseLabel('HANDED_OFF', { type: 'PICKUP' }), 'Передан (самовывоз)');
 });

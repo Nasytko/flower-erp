@@ -6,11 +6,13 @@ import {
   HttpCode,
   HttpStatus,
   Param,
+  Patch,
   Post,
   Query,
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { RequirePermissions } from '../../auth/presentation/auth.decorators';
+import { AuditQueryUseCases } from '../../platform/application/audit-query.use-cases';
 import { GoodsReceiptUseCases, SupplyUseCases } from '../application/supply.use-cases';
 import {
   CreateReceiptDto,
@@ -22,6 +24,7 @@ import {
   StoreParamsDto,
   SupplyItemDto,
   SupplyParamsDto,
+  UpdateSupplyDto,
   UpdateSupplyItemDto,
 } from './supply.dto';
 
@@ -32,6 +35,7 @@ export class SupplyController {
   constructor(
     private readonly supplies: SupplyUseCases,
     private readonly receipts: GoodsReceiptUseCases,
+    private readonly auditQuery: AuditQueryUseCases,
   ) {}
 
   @Post('supplies')
@@ -50,6 +54,12 @@ export class SupplyController {
     return this.supplies.getSupply(params.organizationId, params.storeId, params.supplyId);
   }
 
+  @Patch('supplies/:supplyId')
+  @RequirePermissions('supply:create')
+  updateSupply(@Param() params: SupplyParamsDto, @Body() body: UpdateSupplyDto) {
+    return this.supplies.updateSupply({ ...params, ...body });
+  }
+
   @Get('supplies/:supplyId/corrections')
   listCorrections(@Param() params: SupplyParamsDto) {
     return this.supplies.listSupplyCorrections(
@@ -57,6 +67,16 @@ export class SupplyController {
       params.storeId,
       params.supplyId,
     );
+  }
+
+  @Get('supplies/:supplyId/audit-trail')
+  listAuditTrail(@Param() params: SupplyParamsDto) {
+    return this.auditQuery.listEntityAudit({
+      organizationId: params.organizationId,
+      entityType: 'Supply',
+      entityId: params.supplyId,
+      limit: 100,
+    });
   }
 
   @Post('supplies/:supplyId/items')

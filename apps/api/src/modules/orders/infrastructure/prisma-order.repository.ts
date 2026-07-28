@@ -385,6 +385,8 @@ export class PrismaOrderRepository implements OrderRepository {
     plannedPrice: string | null;
     createdByMembershipId: string | null;
     compositionId: string;
+    status?: OrderStatus;
+    confirmedAt?: Date | null;
   }): Promise<OrderView> {
     const row = await this.client().order.create({
       data: {
@@ -394,6 +396,8 @@ export class PrismaOrderRepository implements OrderRepository {
         warehouseId: input.warehouseId,
         customerId: input.customerId,
         number: input.number,
+        status: input.status ?? 'CONFIRMED',
+        confirmedAt: input.confirmedAt ?? null,
         type: input.type,
         occasion: input.occasion,
         orderDate: input.orderDate,

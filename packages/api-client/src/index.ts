@@ -36,6 +36,22 @@ export type ApiClientOptions = {
   credentials?: RequestCredentials;
 };
 
+export type AuditLogEntry = {
+  id: string;
+  organizationId: string;
+  storeId: string | null;
+  action: string;
+  entityType: string;
+  entityId: string;
+  actorId: string | null;
+  actorDisplayName: string | null;
+  reason: string | null;
+  beforeState: Record<string, unknown> | null;
+  afterState: Record<string, unknown> | null;
+  requestId: string;
+  createdAt: string;
+};
+
 function createRequestId(): RequestId {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
     return crypto.randomUUID();
@@ -215,6 +231,8 @@ export function createApiClient(options: ApiClientOptions) {
           failedLoginAttempts: number;
           lockedUntil: string | null;
           lastLoginAt: string | null;
+          mustChangePassword: boolean;
+          passwordChangedAt: string;
           roles: Array<{ code: string; name: string }>;
           storeAccess: {
             mode: 'ALL_STORES' | 'SELECTED_STORES';
@@ -280,24 +298,22 @@ export function createApiClient(options: ApiClientOptions) {
       >(`/organizations/${organizationId}/roles`),
     listAudit: (
       organizationId: string,
-      query?: { storeId?: string; action?: string; entityType?: string; limit?: number },
+      query?: {
+        storeId?: string;
+        entityId?: string;
+        action?: string;
+        entityType?: string;
+        limit?: number;
+      },
     ) => {
       const params = new URLSearchParams();
       if (query?.storeId) params.set('storeId', query.storeId);
+      if (query?.entityId) params.set('entityId', query.entityId);
       if (query?.action) params.set('action', query.action);
       if (query?.entityType) params.set('entityType', query.entityType);
       if (query?.limit) params.set('limit', String(query.limit));
       const qs = params.toString();
-      return request<
-        Array<{
-          id: string;
-          action: string;
-          entityType: string;
-          entityId: string;
-          actorId: string | null;
-          createdAt: string;
-        }>
-      >(`/organizations/${organizationId}/audit${qs ? `?${qs}` : ''}`);
+      return request<AuditLogEntry[]>(`/organizations/${organizationId}/audit${qs ? `?${qs}` : ''}`);
     },
     listStores: (organizationId: string, page = 1, pageSize = 20) =>
       request<{
@@ -385,6 +401,24 @@ export function createApiClient(options: ApiClientOptions) {
         }>
       >(`/organizations/${organizationId}/stores/${storeId}/warehouses/ensure-default`, {
         method: 'POST',
+      }),
+    updateWarehouse: (
+      organizationId: string,
+      storeId: string,
+      warehouseId: string,
+      body: { name?: string },
+    ) =>
+      request<{
+        id: string;
+        name: string;
+        code: string;
+        isDefault: boolean;
+        type: string;
+        status: string;
+      }>(`/organizations/${organizationId}/stores/${storeId}/warehouses/${warehouseId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
       }),
 
     // ─── Master data ────────────────────────────────────────────────────────
@@ -632,6 +666,7 @@ export function createApiClient(options: ApiClientOptions) {
         description?: string;
         isSellable?: boolean;
         isPurchasable?: boolean;
+        minimumStockQuantity?: string | null;
       },
     ) =>
       request<{
@@ -641,6 +676,7 @@ export function createApiClient(options: ApiClientOptions) {
         itemType: string;
         status: string;
         isSellable?: boolean;
+        minimumStockQuantity?: string | null;
         createdAt?: string;
         createdByMembershipId?: string | null;
         createdByDisplayName?: string | null;
@@ -662,10 +698,32 @@ export function createApiClient(options: ApiClientOptions) {
         description: string | null;
         isSellable?: boolean;
         isPurchasable?: boolean;
+        minimumStockQuantity?: string | null;
         createdAt?: string;
         createdByMembershipId?: string | null;
         createdByDisplayName?: string | null;
       }>(`/organizations/${organizationId}/items/${itemId}`),
+    updateItem: (
+      organizationId: string,
+      itemId: string,
+      body: {
+        name?: string;
+        description?: string | null;
+        minimumStockQuantity?: string | null;
+      },
+    ) =>
+      request<{
+        id: string;
+        name: string;
+        code: string;
+        itemType: string;
+        status: string;
+        minimumStockQuantity?: string | null;
+      }>(`/organizations/${organizationId}/items/${itemId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      }),
     archiveItem: (organizationId: string, itemId: string, reason?: string) =>
       request<{ id: string; status: string }>(
         `/organizations/${organizationId}/items/${itemId}/archive`,
@@ -682,12 +740,23 @@ export function createApiClient(options: ApiClientOptions) {
         status: string;
         supplierId: string;
         warehouseId: string;
+        receivedDate?: string | null;
+        paymentDueDate?: string | null;
+        supplierDocumentNumber?: string | null;
         supplier?: { name: string; code: string };
       }>>(`/organizations/${organizationId}/stores/${storeId}/supplies${status ? `?status=${status}` : ''}`),
     createSupply: (
       organizationId: string,
       storeId: string,
-      body: { warehouseId?: string; supplierId: string; expectedReceiptDate?: string; comment?: string },
+      body: {
+        warehouseId?: string;
+        supplierId: string;
+        expectedReceiptDate?: string;
+        receivedDate?: string;
+        paymentDueDate?: string;
+        supplierDocumentNumber?: string;
+        comment?: string;
+      },
     ) =>
       request<{ id: string; number: string; status: string }>(
         `/organizations/${organizationId}/stores/${storeId}/supplies`,
@@ -700,6 +769,9 @@ export function createApiClient(options: ApiClientOptions) {
         status: string;
         warehouseId: string;
         supplierId: string;
+        receivedDate?: string | null;
+        paymentDueDate?: string | null;
+        supplierDocumentNumber?: string | null;
         comment: string | null;
         supplier?: { name: string; code: string };
         items: Array<{
@@ -710,6 +782,30 @@ export function createApiClient(options: ApiClientOptions) {
           item?: { name: string; code: string };
         }>;
       }>(`/organizations/${organizationId}/stores/${storeId}/supplies/${supplyId}`),
+    updateSupply: (
+      organizationId: string,
+      storeId: string,
+      supplyId: string,
+      body: {
+        receivedDate?: string;
+        paymentDueDate?: string | null;
+        supplierDocumentNumber?: string | null;
+        comment?: string | null;
+      },
+    ) =>
+      request<{
+        id: string;
+        number: string;
+        status: string;
+        receivedDate?: string | null;
+        paymentDueDate?: string | null;
+        supplierDocumentNumber?: string | null;
+        comment: string | null;
+      }>(`/organizations/${organizationId}/stores/${storeId}/supplies/${supplyId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      }),
     listSupplyCorrections: (organizationId: string, storeId: string, supplyId: string) =>
       request<
         Array<{
@@ -733,6 +829,10 @@ export function createApiClient(options: ApiClientOptions) {
           reason: string | null;
         }>
       >(`/organizations/${organizationId}/stores/${storeId}/supplies/${supplyId}/corrections`),
+    listSupplyAuditTrail: (organizationId: string, storeId: string, supplyId: string) =>
+      request<AuditLogEntry[]>(
+        `/organizations/${organizationId}/stores/${storeId}/supplies/${supplyId}/audit-trail`,
+      ),
     addSupplyItem: (
       organizationId: string,
       storeId: string,
@@ -1088,6 +1188,10 @@ export function createApiClient(options: ApiClientOptions) {
           createdAt: string;
         }>;
       }>(`/organizations/${organizationId}/stores/${storeId}/orders/${orderId}`),
+    listOrderAuditTrail: (organizationId: string, storeId: string, orderId: string) =>
+      request<AuditLogEntry[]>(
+        `/organizations/${organizationId}/stores/${storeId}/orders/${orderId}/audit-trail`,
+      ),
     updateOrder: (
       organizationId: string,
       storeId: string,
@@ -2594,6 +2698,8 @@ export type WorkspaceTodayDto = {
     handedOffToday: WorkspaceCounterDto;
     today: WorkspaceCounterDto;
     partiallyReserved: WorkspaceCounterDto;
+    flowerShortageOrders: WorkspaceCounterDto;
+    flowersBelowThreshold: WorkspaceCounterDto;
   };
   sections: {
     overdue: WorkspaceOrderCardDto[];
@@ -2665,6 +2771,8 @@ export type OperationalKpisDto = {
   salesToday: number;
   unpaidBalance: string;
   shortages: number;
+  flowerShortageOrders: number;
+  flowersBelowThreshold: number;
   suppliesAwaitingReceipt: number;
 };
 
@@ -2681,6 +2789,8 @@ export type OperationalStockRowDto = {
   onHandQuantity: string;
   reservedQuantity: string;
   availableQuantity: string;
+  minimumStockQuantity: string | null;
+  isBelowMinimum: boolean;
   unitCost: string | null;
 };
 

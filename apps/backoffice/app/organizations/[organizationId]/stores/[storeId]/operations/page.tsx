@@ -140,10 +140,16 @@ export default function OperationsPage() {
                   tone="warning"
                 />
                 <MetricCard
-                  label="Нехватка"
-                  value={data.kpis.shortages}
-                  href={`${base}/stock`}
-                  tone="warning"
+                  label="Нехватка в заказах"
+                  value={data.kpis.flowerShortageOrders}
+                  href={`${base}/orders?filter=partially_reserved`}
+                  tone={data.kpis.flowerShortageOrders > 0 ? 'warning' : 'default'}
+                />
+                <MetricCard
+                  label="Цветы ниже порога"
+                  value={data.kpis.flowersBelowThreshold}
+                  href={`${base}/stock?filter=low`}
+                  tone={data.kpis.flowersBelowThreshold > 0 ? 'warning' : 'default'}
                 />
                 <MetricCard
                   label="Приёмки ожидают проведения"

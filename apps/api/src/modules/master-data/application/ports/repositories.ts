@@ -163,6 +163,7 @@ export interface ItemRepository {
     description: string | null;
     isPurchasable: boolean;
     isSellable: boolean;
+    minimumStockQuantity?: string | null;
     status: MasterDataStatus;
     createdByMembershipId: string | null;
   }): Promise<ItemProps>;
@@ -172,6 +173,15 @@ export interface ItemRepository {
     pagination: PaginationInput,
     filter: ItemListFilter,
   ): Promise<PaginatedResult<ItemProps>>;
+  update(
+    organizationId: string,
+    id: string,
+    data: {
+      name?: string;
+      description?: string | null;
+      minimumStockQuantity?: string | null;
+    },
+  ): Promise<ItemProps>;
   updateStatus(
     organizationId: string,
     id: string,

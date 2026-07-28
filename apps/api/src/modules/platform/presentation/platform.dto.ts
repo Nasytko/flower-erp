@@ -20,6 +20,10 @@ export class ListAuditQueryDto {
   entityType?: string;
 
   @IsOptional()
+  @IsUUID()
+  entityId?: string;
+
+  @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)

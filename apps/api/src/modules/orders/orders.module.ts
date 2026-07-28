@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { OrganizationModule } from '../organization/organization.module';
 import { MasterDataModule } from '../master-data/master-data.module';
 import { InventoryModule } from '../inventory/inventory.module';
+import { PlatformModule } from '../platform/platform.module';
 import { ORDERS_DELIVERY_PORT } from '../delivery/application/ports/orders-delivery.port';
 import { CustomerUseCases } from './application/customer.use-cases';
 import { OrderUseCases } from './application/order.use-cases';
@@ -16,7 +17,7 @@ import { OrdersController } from './presentation/orders.controller';
 import { CustomersController } from './presentation/customers.controller';
 
 @Module({
-  imports: [OrganizationModule, MasterDataModule, InventoryModule],
+  imports: [OrganizationModule, MasterDataModule, InventoryModule, PlatformModule],
   controllers: [OrdersController, CustomersController],
   providers: [
     CustomerUseCases,

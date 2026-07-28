@@ -271,6 +271,39 @@ export class CreateItemDto {
   @IsOptional()
   @IsBoolean()
   isSellable?: boolean;
+
+  @ApiPropertyOptional({
+    description: 'Low-stock alert threshold (available qty). Flowers only; omit for no alert.',
+    example: '10',
+  })
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  minimumStockQuantity?: string | null;
+}
+
+export class UpdateItemDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MinLength(2)
+  @MaxLength(200)
+  name?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  description?: string | null;
+
+  @ApiPropertyOptional({
+    description: 'Low-stock alert threshold; null clears the threshold.',
+    example: '10',
+  })
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  minimumStockQuantity?: string | null;
 }
 
 export class ListItemsQueryDto extends PaginationQueryDto {

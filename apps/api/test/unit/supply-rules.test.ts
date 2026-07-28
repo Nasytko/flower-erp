@@ -5,18 +5,33 @@ import {
   assertReceiptLine,
   canAnnul,
   canCreateReceipt,
+  canEditSupplyHeader,
   canEditSupplyItems,
+  canReceiveSupply,
   canSubmit,
+  isOpenSupply,
   recalculateSupplyStatus,
 } from '../../src/modules/supply/domain/supply-rules.js';
 import { DomainError } from '../../src/modules/master-data/domain/master-data-rules.js';
 
-test('supply transitions enforce draft and receipt eligibility', () => {
+test('open supplies stay editable before posting', () => {
+  assert.equal(isOpenSupply(SupplyStatus.DRAFT), true);
+  assert.equal(isOpenSupply(SupplyStatus.SUBMITTED_TO_SUPPLIER), true);
+  assert.equal(isOpenSupply(SupplyStatus.RECEIVED), false);
+
   assert.doesNotThrow(() => canEditSupplyItems(SupplyStatus.DRAFT));
-  assert.throws(() => canEditSupplyItems(SupplyStatus.SUBMITTED_TO_SUPPLIER), (error: unknown) => error instanceof DomainError);
+  assert.doesNotThrow(() => canEditSupplyItems(SupplyStatus.SUBMITTED_TO_SUPPLIER));
+  assert.doesNotThrow(() => canEditSupplyHeader(SupplyStatus.SUBMITTED_TO_SUPPLIER));
+  assert.throws(() => canEditSupplyItems(SupplyStatus.RECEIVED), (error: unknown) => error instanceof DomainError);
+});
+
+test('supply transitions enforce items and receipt eligibility', () => {
   assert.throws(() => canSubmit(SupplyStatus.DRAFT, 0), (error: unknown) => error instanceof DomainError && error.code === 'SUPPLY_HAS_NO_ITEMS');
   assert.doesNotThrow(() => canSubmit(SupplyStatus.DRAFT, 1));
-  assert.doesNotThrow(() => canAnnul(SupplyStatus.DRAFT));
+  assert.doesNotThrow(() => canSubmit(SupplyStatus.SUBMITTED_TO_SUPPLIER, 1));
+  assert.doesNotThrow(() => canReceiveSupply(SupplyStatus.SUBMITTED_TO_SUPPLIER, 2));
+  assert.doesNotThrow(() => canAnnul(SupplyStatus.SUBMITTED_TO_SUPPLIER));
+  assert.throws(() => canAnnul(SupplyStatus.RECEIVED), (error: unknown) => error instanceof DomainError);
   assert.doesNotThrow(() => canCreateReceipt(SupplyStatus.PARTIALLY_RECEIVED));
   assert.throws(() => canCreateReceipt(SupplyStatus.RECEIVED), (error: unknown) => error instanceof DomainError);
 });

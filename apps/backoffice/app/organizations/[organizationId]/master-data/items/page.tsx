@@ -10,7 +10,7 @@ import { PageHeader } from '@/components/layout/page-header';
 import { Section } from '@/components/layout/section';
 import { EmptyState, ErrorState, LoadingState } from '@/components/layout/states';
 import { StatusBadge } from '@/components/layout/status-badge';
-import { AutoNumberNote, Field } from '@/components/layout/field';
+import { Field } from '@/components/layout/field';
 import { FancySelect } from '@/components/layout/fancy-select';
 import { formatApiErrorMessage } from '@/lib/format-api-error';
 import {
@@ -27,6 +27,7 @@ type Item = {
   itemType: string;
   status: string;
   isSellable?: boolean;
+  minimumStockQuantity?: string | null;
   createdAt?: string;
   createdByDisplayName?: string | null;
 };
@@ -67,6 +68,7 @@ export default function ItemsPage() {
   const [unitId, setUnitId] = useState('');
   const [description, setDescription] = useState('');
   const [isSellable, setIsSellable] = useState(false);
+  const [minimumStock, setMinimumStock] = useState('');
   const [creating, setCreating] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
@@ -124,10 +126,13 @@ export default function ItemsPage() {
         description: description.trim() || undefined,
         isSellable,
         isPurchasable: true,
+        minimumStockQuantity:
+          itemType === 'FLOWER' && minimumStock.trim() ? minimumStock.trim() : undefined,
       });
       setName('');
       setDescription('');
       setIsSellable(false);
+      setMinimumStock('');
       await load();
     } catch (err) {
       setError(formatApiErrorMessage(err, 'Не удалось создать товар'));
@@ -268,6 +273,9 @@ export default function ItemsPage() {
                       >
                         Добавил: {item.createdByDisplayName ?? 'неизвестно'}
                         {formatWhen(item.createdAt) ? ` · ${formatWhen(item.createdAt)}` : null}
+                        {item.itemType === 'FLOWER' && item.minimumStockQuantity
+                          ? ` · порог ${item.minimumStockQuantity}`
+                          : null}
                       </div>
                     </div>
                     {item.status !== 'ARCHIVED' ? (
@@ -304,7 +312,6 @@ export default function ItemsPage() {
         <Section>
           <Card title="Создать товар">
             <form onSubmit={onCreate} className="form-grid" noValidate>
-              <AutoNumberNote label="Код товара" />
               <Field
                 label="Название"
                 required
@@ -356,6 +363,22 @@ export default function ItemsPage() {
                   aria-label="Описание товара"
                 />
               </Field>
+              {itemType === 'FLOWER' ? (
+                <Field
+                  label="Минимальный остаток"
+                  hint="KPI «Ниже порога» на главной магазина; необязательно"
+                >
+                  <Input
+                    type="number"
+                    min={0}
+                    step="any"
+                    value={minimumStock}
+                    onChange={(e) => setMinimumStock(e.target.value)}
+                    placeholder="Не задан"
+                    aria-label="Минимальный остаток"
+                  />
+                </Field>
+              ) : null}
               <label
                 style={{
                   display: 'flex',

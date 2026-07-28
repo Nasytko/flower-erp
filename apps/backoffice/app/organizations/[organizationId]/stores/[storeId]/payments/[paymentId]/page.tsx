@@ -134,14 +134,14 @@ export default function PaymentDetailPage() {
     <main>
       <PageContainer>
         <PageHeader
-          title={payment ? `Платёж ${payment.number}` : 'Платёж'}
-          description="DRAFT → COMPLETED → ANNULLED. Возвраты отдельно."
+          title="Платёж"
+          refCode={payment?.number}
           breadcrumbs={[
             { label: 'Организации', href: '/organizations' },
             { label: 'Организация', href: `/organizations/${organizationId}` },
             { label: 'Магазин', href: base },
             { label: 'Платежи', href: `${base}/payments` },
-            { label: payment?.number ?? 'Payment' },
+            { label: 'Карточка' },
           ]}
           actions={payment ? <StatusBadge status={payment.status} /> : undefined}
         />

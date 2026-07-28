@@ -91,7 +91,7 @@ export function resolvePrimaryAction(input: {
   hasDeficit?: boolean;
 }): WorkspacePrimaryAction {
   const { status, hasActiveAssignment, assignedToCurrentUser, hasActiveSale, hasDeficit } = input;
-  if (status === 'CANCELLED' || status === 'COMPLETED' || status === 'DRAFT') {
+  if (status === 'CANCELLED' || status === 'COMPLETED') {
     return 'VIEW';
   }
   if (status === 'READY') {

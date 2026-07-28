@@ -18,6 +18,8 @@ type AddressAutocompleteProps = {
   required?: boolean;
   disabled?: boolean;
   name?: string;
+  /** When this changes, suggestion state resets (e.g. after loading saved address). */
+  resetKey?: string;
 };
 
 export function AddressAutocomplete({
@@ -31,9 +33,13 @@ export function AddressAutocomplete({
   required,
   disabled,
   name,
+  resetKey,
 }: AddressAutocompleteProps) {
   const listId = useId();
+  const inputName = name ?? `address-${listId.replace(/:/g, '')}`;
   const rootRef = useRef<HTMLDivElement>(null);
+  const userEditedRef = useRef(false);
+  const [userEdited, setUserEdited] = useState(false);
   const [open, setOpen] = useState(false);
   const [hits, setHits] = useState<AddressSearchHitDto[]>([]);
   const [loading, setLoading] = useState(false);
@@ -41,6 +47,23 @@ export function AddressAutocomplete({
   const [hint, setHint] = useState<string | null>(null);
 
   useEffect(() => {
+    userEditedRef.current = false;
+    setUserEdited(false);
+    setOpen(false);
+    setHits([]);
+    setHint(null);
+    setLoading(false);
+  }, [resetKey]);
+
+  useEffect(() => {
+    if (!userEditedRef.current) {
+      setHits([]);
+      setOpen(false);
+      setHint(null);
+      setLoading(false);
+      return;
+    }
+
     const trimmed = value.trim();
     if (trimmed.length < 2) {
       setHits([]);
@@ -85,23 +108,28 @@ export function AddressAutocomplete({
   }, [open]);
 
   function pick(hit: AddressSearchHitDto) {
+    userEditedRef.current = true;
+    setUserEdited(true);
     onChange(hit.addressLine);
     onSelect?.(hit);
     setOpen(false);
     setHits([]);
+    setHint(null);
   }
 
   return (
     <div ref={rootRef} className={`fancy-select address-autocomplete${open ? ' fancy-select--open' : ''}`}>
       <Input
-        name={name}
+        name={inputName}
         value={value}
         onChange={(e) => {
+          userEditedRef.current = true;
+          setUserEdited(true);
           onChange(e.target.value);
           setOpen(true);
         }}
         onFocus={() => {
-          if (hits.length > 0) setOpen(true);
+          if (userEditedRef.current && hits.length > 0) setOpen(true);
         }}
         onKeyDown={(e) => {
           if (!open || hits.length === 0) return;
@@ -123,6 +151,11 @@ export function AddressAutocomplete({
         required={required}
         disabled={disabled}
         autoComplete="off"
+        autoCorrect="off"
+        autoCapitalize="off"
+        spellCheck={false}
+        data-1p-ignore
+        data-lpignore="true"
         role="combobox"
         aria-expanded={open}
         aria-controls={listId}
@@ -149,8 +182,12 @@ export function AddressAutocomplete({
           </ul>
         </div>
       ) : null}
-      {loading ? <p className="field__hint address-autocomplete__hint">Ищем на карте…</p> : null}
-      {!loading && hint ? <p className="field__hint address-autocomplete__hint">{hint}</p> : null}
+      {userEdited && loading ? (
+        <p className="field__hint address-autocomplete__hint">Ищем на карте…</p>
+      ) : null}
+      {userEdited && !loading && hint ? (
+        <p className="field__hint address-autocomplete__hint">{hint}</p>
+      ) : null}
     </div>
   );
 }

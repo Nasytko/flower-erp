@@ -4,12 +4,13 @@ import Link from 'next/link';
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useParams } from 'next/navigation';
 import { Button, Card, Input } from '@flower/ui';
-import { ApiClientError, type DeliveryJobDto } from '@flower/api-client';
+import { ApiClientError, type AuditLogEntry, type DeliveryJobDto } from '@flower/api-client';
 import { getApiClient } from '@/lib/api-client';
+import { EntityAuditHistory } from '@/components/audit/entity-audit-history';
 import { useAuth } from '@/components/auth-provider';
-import { AutoNumberNote, Field } from '@/components/layout/field';
+import { Field } from '@/components/layout/field';
 import { AddressAutocomplete } from '@/components/layout/address-autocomplete';
-import { TimePicker } from '@/components/layout/time-picker';
+import { ReadyAtField } from '@/components/layout/ready-at-field';
 import { parseBynToApi } from '@/components/layout/money-byn-input';
 import {
   type FieldErrors,
@@ -34,7 +35,7 @@ import { deliveryStatusLabel } from '@/lib/delivery-labels';
 import { newIdempotencyKey } from '@/lib/idempotency';
 import {
   combineDateAndTime,
-  formatReadyAt,
+  isOrderHeaderEditable,
   orderLifecycleSteps,
   orderPhaseLabel,
   resolveOrderPhase,
@@ -50,7 +51,6 @@ type PaymentMethod = Awaited<
 >[number];
 
 const PHASE_TONE: Record<OrderPhase, string> = {
-  DRAFT: 'neutral',
   NEW: 'warning',
   IN_WORK: 'info',
   READY: 'success',
@@ -97,6 +97,7 @@ export default function OrderDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [auditTrail, setAuditTrail] = useState<AuditLogEntry[]>([]);
 
   const canReadPayments = auth.hasPermission('payments:read');
   const canReadDelivery = auth.hasPermission('delivery:read');
@@ -106,7 +107,7 @@ export default function OrderDetailPage() {
     setError(null);
     try {
       const client = getApiClient();
-      const [detail, catalog, methods, deliveries] = await Promise.all([
+      const [detail, catalog, methods, deliveries, history] = await Promise.all([
         client.getOrder(organizationId, storeId, orderId),
         client.listItems(organizationId, { pageSize: 100, status: 'ACTIVE' }),
         canReadPayments &&
@@ -116,8 +117,10 @@ export default function OrderDetailPage() {
         canReadDelivery
           ? client.listDeliveries(organizationId, storeId)
           : Promise.resolve([]),
+        client.listOrderAuditTrail(organizationId, storeId, orderId).catch(() => []),
       ]);
       setOrder(detail);
+      setAuditTrail(history);
       setEditType(detail.type === 'DELIVERY' ? 'DELIVERY' : 'PICKUP');
       const { date, time } = splitReadyAt(detail.readyAt);
       setEditDate(date);
@@ -306,7 +309,7 @@ export default function OrderDetailPage() {
     [order, delivery],
   );
 
-  const lifecycleSteps = orderLifecycleSteps(order?.status === 'DRAFT');
+  const lifecycleSteps = orderLifecycleSteps();
   const currentStepIdx =
     phase && order?.status !== 'CANCELLED' ? lifecycleSteps.indexOf(phase) : -1;
 
@@ -315,12 +318,8 @@ export default function OrderDetailPage() {
   }
 
   const client = getApiClient();
-  const draft = order?.status === 'DRAFT';
-  const compositionCount = order?.composition?.items?.length ?? 0;
-  const canConfirm =
-    draft &&
-    compositionCount > 0 &&
-    auth.hasPermission('orders:confirm');
+  const editable = order ? isOrderHeaderEditable(order.status) : false;
+  const canUpdate = editable && auth.hasPermission('orders:update');
   const needsReserve =
     order?.status === 'CONFIRMED' ||
     (order?.status === 'PARTIALLY_RESERVED' && Boolean(order.hasDeficit));
@@ -332,12 +331,12 @@ export default function OrderDetailPage() {
     <main>
       <PageContainer>
         <PageHeader
-          title={order ? `Заказ ${order.number}` : 'Заказ'}
-          description="Новый → в работе → готов → передан клиенту."
+          title="Заказ"
+          refCode={order?.number}
           breadcrumbs={[
             { label: 'Магазин', href: base },
             { label: 'Заказы', href: `${base}/orders` },
-            { label: order?.number ?? 'Карточка' },
+            { label: order?.recipientName?.trim() || 'Карточка' },
           ]}
           actions={
             phase && order ? (
@@ -372,12 +371,6 @@ export default function OrderDetailPage() {
 
             <Section>
               <Card title="Действия">
-                {draft ? (
-                  <InlineAlert tone="info" title="Черновик">
-                    Добавьте состав и подтвердите заказ — после этого он появится в очереди «Новые» на
-                    обзоре.
-                  </InlineAlert>
-                ) : null}
                 {(order.status === 'CONFIRMED' || order.status === 'PARTIALLY_RESERVED') &&
                 order.hasDeficit ? (
                   <InlineAlert tone="warning" title="Не хватает на складе">
@@ -386,17 +379,6 @@ export default function OrderDetailPage() {
                   </InlineAlert>
                 ) : null}
                 <div className="order-next-actions">
-                  {canConfirm ? (
-                    <Button
-                      type="button"
-                      disabled={busy}
-                      onClick={() =>
-                        void run(() => client.confirmOrder(organizationId, storeId, orderId))
-                      }
-                    >
-                      Подтвердить заказ
-                    </Button>
-                  ) : null}
                   {canReserve ? (
                     <Button
                       type="button"
@@ -486,9 +468,57 @@ export default function OrderDetailPage() {
             </Section>
 
             <Section>
+              <Card title="Срок">
+                {canUpdate ? (
+                  <form
+                    className="stack-form"
+                    noValidate
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      const errors: FieldErrors = {
+                        readyDate: requiredText(editDate, 'Укажите дату'),
+                        readyTime: requiredText(editTime, 'Укажите время'),
+                      };
+                      setFieldErrors(errors);
+                      if (hasFieldErrors(errors)) {
+                        setError(firstFieldError(errors));
+                        return;
+                      }
+                      void run(() =>
+                        client.updateOrder(organizationId, storeId, orderId, {
+                          readyAt: combineDateAndTime(editDate, editTime),
+                        }),
+                      );
+                    }}
+                  >
+                    <ReadyAtField
+                      date={editDate}
+                      time={editTime}
+                      onDateChange={setEditDate}
+                      onTimeChange={setEditTime}
+                      dateError={fieldErrors.readyDate}
+                      timeError={fieldErrors.readyTime}
+                      required
+                    />
+                    <Button type="submit" disabled={busy}>
+                      Сохранить срок
+                    </Button>
+                  </form>
+                ) : (
+                  <ReadyAtField
+                    date={splitReadyAt(order.readyAt).date}
+                    time={splitReadyAt(order.readyAt).time}
+                    onDateChange={() => {}}
+                    onTimeChange={() => {}}
+                    disabled
+                  />
+                )}
+              </Card>
+            </Section>
+
+            <Section>
               <Card title="Заказ">
-                <AutoNumberNote label="Номер заказа" value={order.number} />
-                {draft && auth.hasPermission('orders:update') ? (
+                {canUpdate ? (
                   <form
                     className="stack-form"
                     noValidate
@@ -502,8 +532,6 @@ export default function OrderDetailPage() {
                           ),
                           'Укажите получателя',
                         ),
-                        readyDate: requiredText(editDate, 'Укажите дату'),
-                        readyTime: requiredText(editTime, 'Укажите время'),
                       };
                       if (editType === 'DELIVERY') {
                         errors.deliveryAddress = requiredText(editAddress, 'Укажите адрес доставки');
@@ -535,10 +563,6 @@ export default function OrderDetailPage() {
                           recipientName: recipientName || null,
                           recipientPhone: recipientPhone || null,
                           comment: comment || null,
-                          readyAt:
-                            editDate && editTime
-                              ? combineDateAndTime(editDate, editTime)
-                              : null,
                           type: editType,
                           plannedPrice: parseBynToApi(plannedPriceRaw) ?? (plannedPriceRaw.trim() || null),
                           deliveryAddressLine:
@@ -597,23 +621,6 @@ export default function OrderDetailPage() {
                         inputMode="tel"
                       />
                     </Field>
-                    <div className="sale-custom-meta">
-                      <Field
-                        label={editType === 'DELIVERY' ? 'Дата доставки' : 'Дата готовности'}
-                        required
-                        error={fieldErrors.readyDate}
-                      >
-                        <Input
-                          type="date"
-                          value={editDate}
-                          onChange={(e) => setEditDate(e.target.value)}
-                          required
-                        />
-                      </Field>
-                      <Field label="Время" required error={fieldErrors.readyTime}>
-                        <TimePicker value={editTime} onChange={setEditTime} required />
-                      </Field>
-                    </div>
                     {editType === 'DELIVERY' ? (
                       <>
                         <Field label="Адрес доставки" required error={fieldErrors.deliveryAddress}>
@@ -626,6 +633,7 @@ export default function OrderDetailPage() {
                               if (hit.city) setEditCity(hit.city);
                             }}
                             city={editCity || undefined}
+                            resetKey={`${orderId}-${delivery?.id ?? 'new'}-${delivery?.version ?? 0}`}
                             required
                           />
                         </Field>
@@ -686,10 +694,6 @@ export default function OrderDetailPage() {
                       <span className="order-facts__label">Телефон</span>
                       <strong>{order.recipientPhone ?? '—'}</strong>
                     </div>
-                    <div>
-                      <span className="order-facts__label">Срок</span>
-                      <strong>{formatReadyAt(order.readyAt)}</strong>
-                    </div>
                     {order.plannedPrice ? (
                       <div>
                         <span className="order-facts__label">Цена</span>
@@ -736,8 +740,8 @@ export default function OrderDetailPage() {
                     </div>
                   ) : (
                     <p className="field__hint">
-                      {draft
-                        ? 'Укажите адрес выше и сохраните — доставка создастся автоматически.'
+                      {canUpdate
+                        ? 'Укажите адрес ниже и сохраните — доставка создастся автоматически.'
                         : 'Доставка ещё не создана.'}
                     </p>
                   )}
@@ -764,7 +768,7 @@ export default function OrderDetailPage() {
                 {(order.composition?.items ?? []).length === 0 ? (
                   <p className="field__hint">Добавьте позиции перед сборкой.</p>
                 ) : null}
-                {draft && auth.hasPermission('orders:update') ? (
+                {canUpdate ? (
                   <form
                     onSubmit={onAddCompositionItem}
                     className="stack-form"
@@ -814,7 +818,6 @@ export default function OrderDetailPage() {
                   {auth.hasPermission('payments:create') &&
                   auth.hasPermission('payments:complete') &&
                   order.plannedPrice &&
-                  order.status !== 'DRAFT' &&
                   order.status !== 'CANCELLED' ? (
                     <form
                       onSubmit={onAddPrepayment}
@@ -879,6 +882,10 @@ export default function OrderDetailPage() {
                   </form>
                 ) : null}
               </Card>
+            </Section>
+
+            <Section>
+              <EntityAuditHistory entries={auditTrail} />
             </Section>
           </>
         ) : null}

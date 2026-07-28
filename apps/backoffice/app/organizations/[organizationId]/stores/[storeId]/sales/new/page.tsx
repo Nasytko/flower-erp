@@ -6,7 +6,7 @@ import { Button, Card, Input } from '@flower/ui';
 import { ApiClientError } from '@flower/api-client';
 import { getApiClient } from '@/lib/api-client';
 import { useAuth } from '@/components/auth-provider';
-import { AutoNumberNote, Field } from '@/components/layout/field';
+import { Field } from '@/components/layout/field';
 import { FancySelect } from '@/components/layout/fancy-select';
 import { MoneyBynInput, parseBynToApi } from '@/components/layout/money-byn-input';
 import {
@@ -744,7 +744,6 @@ function NewSalePageInner() {
                   )}
 
                   <div className="stack-form">
-                    <AutoNumberNote label="Номер продажи" />
 
                     {fromOrderId ? (
                       <>
@@ -770,9 +769,6 @@ function NewSalePageInner() {
                             onClick={() => switchMode('READY')}
                           >
                             <span className="sale-mode__title">Готовый букет</span>
-                            <span className="sale-mode__text">
-                              Продажа из витрины / справочника (отмечен как «продаётся»)
-                            </span>
                             {selectedReady.length > 0 ? (
                               <span className="sale-mode__badge">
                                 {selectedReady.reduce((s, p) => s + (Number(p.quantity) || 0), 0)} шт
@@ -787,9 +783,6 @@ function NewSalePageInner() {
                             onClick={() => switchMode('CUSTOM')}
                           >
                             <span className="sale-mode__title">Собрать букет</span>
-                            <span className="sale-mode__text">
-                              Набрать цветы и материалы по количеству, задать цену букета
-                            </span>
                             {customPartsCount > 0 ? (
                               <span className="sale-mode__badge">{customPartsCount} поз.</span>
                             ) : null}

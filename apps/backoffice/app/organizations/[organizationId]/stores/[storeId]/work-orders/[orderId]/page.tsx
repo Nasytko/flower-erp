@@ -232,7 +232,11 @@ export default function WorkOrderPage() {
           void run(async () => {
             const client = getApiClient();
             await client.claimOrder(organizationId, storeId, orderId);
-            const fresh = await client.getWorkOrder(organizationId, storeId, orderId);
+            let fresh = await client.getWorkOrder(organizationId, storeId, orderId);
+            if (fresh.order.status === 'CONFIRMED') {
+              await client.reserveOrder(organizationId, storeId, orderId);
+              fresh = await client.getWorkOrder(organizationId, storeId, orderId);
+            }
             if (
               fresh.order.status === 'RESERVED' ||
               fresh.order.status === 'PARTIALLY_RESERVED'
@@ -320,11 +324,12 @@ export default function WorkOrderPage() {
     <main className="work-order-page">
       <PageContainer>
         <PageHeader
-          title={data ? `Рабочий заказ ${data.order.number}` : 'Рабочий заказ'}
-          description={data ? `${data.order.status} · ${data.order.occasion}` : 'Загрузка…'}
+          title="Рабочий заказ"
+          refCode={data?.order.number}
+          description={data ? `${data.order.status} · ${data.order.occasion}` : undefined}
           breadcrumbs={[
             { label: 'Обзор', href: `${base}/home` },
-            { label: data?.order.number ?? 'Рабочий заказ' },
+            { label: data?.order.customerNameSnapshot?.trim() || 'Сборка' },
           ]}
           actions={
             <div className="work-order-actions work-order-actions--desktop">

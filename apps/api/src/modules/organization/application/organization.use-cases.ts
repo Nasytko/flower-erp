@@ -25,6 +25,7 @@ import {
   StoreStatus,
   assertOrganizationName,
   assertStoreName,
+  assertWarehouseName,
   canArchiveOrganization,
   canArchiveStore,
   canCreateStoreInOrganization,
@@ -82,6 +83,13 @@ export type UpdateStoreInput = {
   address?: string | null;
   city?: string | null;
   timezone?: string;
+};
+
+export type UpdateWarehouseInput = {
+  organizationId: string;
+  storeId: string;
+  warehouseId: string;
+  name?: string;
 };
 
 @Injectable()
@@ -381,6 +389,48 @@ export class OrganizationUseCases {
   async listWarehouses(organizationId: string, storeId: string): Promise<WarehouseProps[]> {
     await this.getStore(organizationId, storeId);
     return this.warehouses.listByStore(organizationId, storeId);
+  }
+
+  async updateWarehouse(input: UpdateWarehouseInput): Promise<WarehouseProps> {
+    try {
+      const ctx = getRequestContext();
+      return await this.uow.runInTransaction(async () => {
+        const warehouse = await this.getWarehouse(
+          input.organizationId,
+          input.storeId,
+          input.warehouseId,
+        );
+        if (input.name === undefined) {
+          return warehouse;
+        }
+        const name = assertWarehouseName(input.name);
+        const updated = await this.warehouses.update(
+          input.organizationId,
+          input.storeId,
+          input.warehouseId,
+          { name },
+        );
+        await this.audit.append({
+          organizationId: input.organizationId,
+          storeId: input.storeId,
+          actorId: ctx?.actorId ?? null,
+          action: 'warehouse.updated',
+          entityType: 'Warehouse',
+          entityId: warehouse.id,
+          beforeState: { name: warehouse.name },
+          afterState: { name: updated.name },
+          reason: null,
+          requestId: ctx?.requestId ?? 'unknown',
+          occurredAt: this.clock.now(),
+        });
+        return updated;
+      });
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      mapDomainError(error);
+    }
   }
 
   /**

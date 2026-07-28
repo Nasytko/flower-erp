@@ -34,7 +34,18 @@ export class WorkspaceQueryUseCases {
     const membershipId = getRequestContext()?.auth?.membershipId ?? null;
     const permissions = getRequestContext()?.auth?.permissions ?? [];
 
-    const [counters, overdue, soon, unassigned, inPreparation, ready, attentionItems, lowStock] =
+    const [
+      counters,
+      overdue,
+      soon,
+      unassigned,
+      inPreparation,
+      ready,
+      attentionItems,
+      lowStock,
+      flowerShortageOrders,
+      flowersBelowThreshold,
+    ] =
       await Promise.all([
         this.reads.countWorkspaceBuckets({
           organizationId,
@@ -97,7 +108,14 @@ export class WorkspaceQueryUseCases {
         this.reads.listLowStockWarnings({
           organizationId,
           storeId,
-          threshold: this.env.WORKSPACE_LOW_STOCK_THRESHOLD,
+        }),
+        this.reads.countFlowerShortageOrders({
+          organizationId,
+          storeId,
+        }),
+        this.reads.countFlowersBelowThreshold({
+          organizationId,
+          storeId,
         }),
       ]);
 
@@ -129,6 +147,14 @@ export class WorkspaceQueryUseCases {
         partiallyReserved: {
           count: counters.partially_reserved,
           filterLink: 'partially_reserved',
+        },
+        flowerShortageOrders: {
+          count: flowerShortageOrders,
+          filterLink: 'partially_reserved',
+        },
+        flowersBelowThreshold: {
+          count: flowersBelowThreshold,
+          filterLink: null,
         },
       },
       sections: {

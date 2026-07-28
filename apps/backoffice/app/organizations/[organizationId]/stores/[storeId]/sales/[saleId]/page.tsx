@@ -6,7 +6,7 @@ import { useParams, useSearchParams } from 'next/navigation';
 import { Button, Card } from '@flower/ui';
 import { getApiClient } from '@/lib/api-client';
 import { useAuth } from '@/components/auth-provider';
-import { AutoNumberNote, Field } from '@/components/layout/field';
+import { Field } from '@/components/layout/field';
 import {
   PaymentSplitEditor,
   createEmptyPaymentLine,
@@ -205,16 +205,12 @@ function SaleDetailPageInner() {
     <main>
       <PageContainer>
         <PageHeader
-          title={sale ? `Продажа ${sale.number}` : 'Продажа'}
-          description={
-            sale?.orderId
-              ? 'Продажа по заказу. Номер присвоен системой и не меняется.'
-              : 'Продажа в магазине. Номер присвоен системой и не меняется.'
-          }
+          title="Продажа"
+          refCode={sale?.number}
           breadcrumbs={[
             { label: 'Магазин', href: base },
             { label: 'Продажи', href: `${base}/sales` },
-            { label: sale?.number ?? 'Карточка' },
+            { label: sale?.orderId ? 'По заказу' : 'Карточка' },
           ]}
           actions={sale ? <StatusBadge status={sale.status} /> : undefined}
         />
@@ -234,7 +230,6 @@ function SaleDetailPageInner() {
             <Section>
               <Card title="Сводка">
                 <div className="stack-form">
-                  <AutoNumberNote label="Номер продажи" value={sale.number} />
                   <div className="meta-row">
                     <StatusBadge status={sale.type} />
                     <StatusBadge status={sale.salesChannel} />

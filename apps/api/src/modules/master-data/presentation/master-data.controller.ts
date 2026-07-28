@@ -5,6 +5,7 @@ import {
   HttpCode,
   HttpStatus,
   Param,
+  Patch,
   Post,
   Query,
 } from '@nestjs/common';
@@ -22,6 +23,7 @@ import {
   CategoryIdParamDto,
   CreateCategoryDto,
   CreateItemDto,
+  UpdateItemDto,
   CreatePolicyDto,
   CreateSupplierDto,
   CreateUnitDto,
@@ -263,6 +265,17 @@ export class MasterDataController {
   @ApiOperation({ summary: 'Get item' })
   getItem(@Param() params: ItemIdParamDto) {
     return this.items.getItem(params.organizationId, params.itemId);
+  }
+
+  @Patch('items/:itemId')
+  @RequirePermissions('master-data:manage')
+  @ApiOperation({ summary: 'Update item' })
+  updateItem(@Param() params: ItemIdParamDto, @Body() body: UpdateItemDto) {
+    return this.items.updateItem({
+      organizationId: params.organizationId,
+      itemId: params.itemId,
+      ...body,
+    });
   }
 
   @Post('items/:itemId/archive')

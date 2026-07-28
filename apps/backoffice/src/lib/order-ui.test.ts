@@ -6,8 +6,8 @@ import {
   resolveOrderPhase,
 } from './order-ui';
 
-test('resolveOrderPhase separates draft from new', () => {
-  assert.equal(resolveOrderPhase({ status: 'DRAFT' }), 'DRAFT');
+test('resolveOrderPhase maps legacy draft to new queue', () => {
+  assert.equal(resolveOrderPhase({ status: 'DRAFT' }), 'NEW');
   assert.equal(resolveOrderPhase({ status: 'CONFIRMED' }), 'NEW');
   assert.equal(
     resolveOrderPhase({ status: 'RESERVED', hasActiveAssignment: true }),
@@ -45,5 +45,5 @@ test('handed off today filter', () => {
 
 test('orderPhaseLabel for handed off by type', () => {
   assert.equal(orderPhaseLabel('HANDED_OFF', { type: 'DELIVERY' }), 'Передан (доставка)');
-  assert.equal(orderPhaseLabel('DRAFT'), 'Черновик');
+  assert.equal(orderPhaseLabel('NEW'), 'Новый');
 });

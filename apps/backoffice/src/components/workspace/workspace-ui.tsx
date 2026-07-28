@@ -2,6 +2,7 @@
 
 import type { ReactNode } from 'react';
 import Link from 'next/link';
+import { DocRef } from '@/components/layout/doc-ref';
 import {
   ATTENTION_SEVERITY_LABELS_RU,
   formatAttentionAge,
@@ -113,7 +114,8 @@ export function OrderCard({
     <article className="order-card">
       <div className="order-card__main">
         <Link href={href} className="order-card__title">
-          {number}
+          <span className="order-card__title-text">{customerName?.trim() || 'Заказ'}</span>
+          <DocRef className="order-card__ref">{number}</DocRef>
         </Link>
         <div className="order-card__meta">
           <span className="status-badge status-badge--neutral">{status}</span>
@@ -127,11 +129,7 @@ export function OrderCard({
           ) : null}
           {countdown}
         </div>
-        {(customerName || occasion) && (
-          <p className="order-card__sub">
-            {[customerName, occasion].filter(Boolean).join(' · ')}
-          </p>
-        )}
+        {occasion ? <p className="order-card__sub">{occasion}</p> : null}
       </div>
       {primaryActionLabel && onPrimaryAction ? (
         <button

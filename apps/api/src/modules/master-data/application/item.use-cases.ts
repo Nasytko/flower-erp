@@ -43,6 +43,20 @@ function actorMembershipId(): string | null {
   return getRequestContext()?.auth?.membershipId ?? null;
 }
 
+function normalizeMinimumStockQuantity(value: string | null | undefined): string | null {
+  if (value === undefined || value === null || value.trim() === '') {
+    return null;
+  }
+  const num = Number(value);
+  if (!Number.isFinite(num) || num < 0) {
+    throw new BadRequestException({
+      code: 'INVALID_MINIMUM_STOCK',
+      message: 'Minimum stock quantity must be a non-negative number',
+    });
+  }
+  return num.toString();
+}
+
 @Injectable()
 export class ItemUseCases {
   constructor(
@@ -125,6 +139,7 @@ export class ItemUseCases {
     description?: string | null;
     isPurchasable?: boolean;
     isSellable?: boolean;
+    minimumStockQuantity?: string | null;
   }): Promise<ItemProps> {
     try {
       await this.organizations.getOrganization(input.organizationId);
@@ -187,6 +202,14 @@ export class ItemUseCases {
         assertAvailableForNewDocuments(policy.status, 'POLICY');
         assertItemPolicyTypeMatch(input.itemType, policy.itemType);
 
+        const minimumStockQuantity = normalizeMinimumStockQuantity(input.minimumStockQuantity);
+        if (minimumStockQuantity !== null && input.itemType !== ItemType.FLOWER) {
+          throw new BadRequestException({
+            code: 'MINIMUM_STOCK_FLOWERS_ONLY',
+            message: 'Minimum stock threshold applies to flowers only',
+          });
+        }
+
         const item = await this.items.create({
           id: randomUUID(),
           organizationId: input.organizationId,
@@ -199,6 +222,7 @@ export class ItemUseCases {
           description,
           isPurchasable: input.isPurchasable ?? true,
           isSellable: input.isSellable ?? false,
+          minimumStockQuantity,
           status: MasterDataStatus.ACTIVE,
           createdByMembershipId,
         });
@@ -248,6 +272,90 @@ export class ItemUseCases {
       });
     }
     return item;
+  }
+
+  async updateItem(input: {
+    organizationId: string;
+    itemId: string;
+    name?: string;
+    description?: string | null;
+    minimumStockQuantity?: string | null;
+  }): Promise<ItemProps> {
+    try {
+      const ctx = getRequestContext();
+      return await this.uow.runInTransaction(async () => {
+        const item = await this.items.findById(input.organizationId, input.itemId);
+        if (!item) {
+          throw new NotFoundException({
+            code: 'ITEM_NOT_FOUND',
+            message: 'Item not found in this organization',
+          });
+        }
+        if (item.status === MasterDataStatus.ARCHIVED) {
+          throw new BadRequestException({
+            code: 'ITEM_ARCHIVED',
+            message: 'Archived items cannot be updated',
+          });
+        }
+
+        const patch: {
+          name?: string;
+          description?: string | null;
+          minimumStockQuantity?: string | null;
+        } = {};
+
+        if (input.name !== undefined) {
+          patch.name = assertEntityName(input.name, 'ITEM');
+        }
+        if (input.description !== undefined) {
+          patch.description = assertOptionalText(input.description, 2000);
+        }
+        if (input.minimumStockQuantity !== undefined) {
+          if (item.itemType !== ItemType.FLOWER && input.minimumStockQuantity !== null) {
+            throw new BadRequestException({
+              code: 'MINIMUM_STOCK_FLOWERS_ONLY',
+              message: 'Minimum stock threshold applies to flowers only',
+            });
+          }
+          patch.minimumStockQuantity = normalizeMinimumStockQuantity(input.minimumStockQuantity);
+        }
+
+        if (Object.keys(patch).length === 0) {
+          return item;
+        }
+
+        const updated = await this.items.update(input.organizationId, input.itemId, patch);
+        await this.audit.append({
+          organizationId: input.organizationId,
+          actorId: ctx?.actorId ?? null,
+          action: 'item.updated',
+          entityType: 'Item',
+          entityId: item.id,
+          beforeState: {
+            name: item.name,
+            description: item.description,
+            minimumStockQuantity: item.minimumStockQuantity,
+          },
+          afterState: {
+            name: updated.name,
+            description: updated.description,
+            minimumStockQuantity: updated.minimumStockQuantity,
+          },
+          requestId: ctx?.requestId ?? 'unknown',
+          occurredAt: this.clock.now(),
+        });
+        return updated;
+      });
+    } catch (error) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof ConflictException ||
+        error instanceof BadRequestException
+      ) {
+        throw error;
+      }
+      mapDomainError(error);
+    }
   }
 
   async listItems(

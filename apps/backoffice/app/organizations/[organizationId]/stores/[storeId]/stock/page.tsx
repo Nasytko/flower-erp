@@ -1,7 +1,7 @@
 ﻿'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
 import { Button, Card, Input } from '@flower/ui';
 import { ApiClientError, type OperationalStockDto } from '@flower/api-client';
 import { getApiClient } from '@/lib/api-client';
@@ -16,6 +16,7 @@ type StockFilter = 'all' | 'available' | 'reserved' | 'low';
 
 export default function OperationalStockPage() {
   const params = useParams<{ organizationId: string; storeId: string }>();
+  const searchParams = useSearchParams();
   const auth = useAuth();
   const { organizationId, storeId } = params;
   const base = `/organizations/${organizationId}/stores/${storeId}`;
@@ -24,7 +25,15 @@ export default function OperationalStockPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
-  const [filter, setFilter] = useState<StockFilter>('all');
+  const [filter, setFilter] = useState<StockFilter>(
+    searchParams.get('filter') === 'low' ? 'low' : 'all',
+  );
+
+  useEffect(() => {
+    if (searchParams.get('filter') === 'low') {
+      setFilter('low');
+    }
+  }, [searchParams]);
 
   const canRead =
     auth.hasPermission('inventory:read') ||
@@ -61,7 +70,7 @@ export default function OperationalStockPage() {
       const reserved = Number(row.reservedQuantity);
       if (filter === 'available') return available > 0;
       if (filter === 'reserved') return reserved > 0;
-      if (filter === 'low') return available <= 5;
+      if (filter === 'low') return row.isBelowMinimum;
       return true;
     });
   }, [data, filter, query]);
@@ -133,7 +142,7 @@ export default function OperationalStockPage() {
                       { value: 'all', label: 'Все' },
                       { value: 'available', label: 'Доступно' },
                       { value: 'reserved', label: 'Зарезервировано' },
-                      { value: 'low', label: 'Мало' },
+                      { value: 'low', label: 'Ниже порога' },
                     ]}
                   />
                 </div>
@@ -156,6 +165,12 @@ export default function OperationalStockPage() {
                             <span>На складе {row.onHandQuantity}</span>
                             <span>Зарезервировано {row.reservedQuantity}</span>
                             <span>Доступно {row.availableQuantity}</span>
+                            {row.minimumStockQuantity ? (
+                              <span>Порог {row.minimumStockQuantity}</span>
+                            ) : null}
+                            {row.isBelowMinimum ? (
+                              <span className="status-badge status-badge--warning">Ниже порога</span>
+                            ) : null}
                             {!data.costRedacted && row.unitCost != null ? (
                               <span>Себестоимость {row.unitCost}</span>
                             ) : null}

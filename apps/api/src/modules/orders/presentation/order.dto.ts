@@ -322,7 +322,6 @@ export class ListOrdersQueryDto {
 
   @IsOptional()
   @IsIn([
-    'DRAFT',
     'NEW',
     'IN_WORK',
     'READY',

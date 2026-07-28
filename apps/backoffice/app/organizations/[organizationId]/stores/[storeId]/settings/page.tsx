@@ -6,10 +6,12 @@ import { useParams } from 'next/navigation';
 import { Button, Card, Input } from '@flower/ui';
 import { getApiClient } from '@/lib/api-client';
 import { useAuth } from '@/components/auth-provider';
+import { DocRef } from '@/components/layout/doc-ref';
 import { PageContainer } from '@/components/layout/page-container';
 import { PageHeader } from '@/components/layout/page-header';
 import { Section } from '@/components/layout/section';
 import { ErrorState, LoadingState } from '@/components/layout/states';
+import { StatusBadge } from '@/components/layout/status-badge';
 import { Field } from '@/components/layout/field';
 import { useToast } from '@/components/ui/toast';
 import {
@@ -30,6 +32,15 @@ type Store = {
   timezone: string;
 };
 
+type Warehouse = {
+  id: string;
+  name: string;
+  code: string;
+  isDefault: boolean;
+  type: string;
+  status: string;
+};
+
 export default function StoreSettingsPage() {
   const params = useParams<{ organizationId: string; storeId: string }>();
   const auth = useAuth();
@@ -38,38 +49,44 @@ export default function StoreSettingsPage() {
   const base = `/organizations/${organizationId}/stores/${storeId}`;
 
   const [store, setStore] = useState<Store | null>(null);
+  const [warehouse, setWarehouse] = useState<Warehouse | null>(null);
   const [name, setName] = useState('');
   const [address, setAddress] = useState('');
   const [city, setCity] = useState('');
   const [timezone, setTimezone] = useState('Europe/Moscow');
+  const [warehouseName, setWarehouseName] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
-  useEffect(() => {
-    let cancelled = false;
+  async function load() {
     setLoading(true);
-    getApiClient()
-      .getStore(organizationId, storeId)
-      .then((data) => {
-        if (cancelled) return;
-        setStore(data);
-        setName(data.name);
-        setAddress(data.address ?? '');
-        setCity(data.city ?? '');
-        setTimezone(data.timezone);
-      })
-      .catch((err: unknown) => {
-        if (cancelled) return;
-        setError(formatApiErrorMessage(err, 'Не удалось загрузить магазин'));
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
+    setError(null);
+    try {
+      const client = getApiClient();
+      const [storeData, warehouses] = await Promise.all([
+        client.getStore(organizationId, storeId),
+        client.listWarehouses(organizationId, storeId),
+      ]);
+      const defaultWh = warehouses.find((w) => w.isDefault) ?? warehouses[0] ?? null;
+      setStore(storeData);
+      setWarehouse(defaultWh);
+      setName(storeData.name);
+      setAddress(storeData.address ?? '');
+      setCity(storeData.city ?? '');
+      setTimezone(storeData.timezone);
+      setWarehouseName(defaultWh?.name ?? '');
+    } catch (err) {
+      setError(formatApiErrorMessage(err, 'Не удалось загрузить магазин'));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    void load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [organizationId, storeId]);
 
   async function onSave(event: FormEvent) {
@@ -78,6 +95,9 @@ export default function StoreSettingsPage() {
       name: requiredText(name, 'Укажите название магазина'),
       timezone: requiredText(timezone, 'Укажите часовой пояс'),
     };
+    if (warehouse) {
+      errors.warehouseName = requiredText(warehouseName, 'Укажите название склада');
+    }
     setFieldErrors(errors);
     if (hasFieldErrors(errors)) {
       const message = firstFieldError(errors);
@@ -89,14 +109,26 @@ export default function StoreSettingsPage() {
     setSaving(true);
     setError(null);
     try {
-      const updated = await getApiClient().updateStore(organizationId, storeId, {
+      const client = getApiClient();
+      const updated = await client.updateStore(organizationId, storeId, {
         name: name.trim(),
         address: address.trim() || null,
         city: city.trim() || null,
         timezone: timezone.trim(),
       });
       setStore(updated);
-      toast.success('Настройки магазина сохранены');
+
+      if (warehouse) {
+        const updatedWh = await client.updateWarehouse(
+          organizationId,
+          storeId,
+          warehouse.id,
+          { name: warehouseName.trim() },
+        );
+        setWarehouse(updatedWh);
+      }
+
+      toast.success('Настройки сохранены');
     } catch (err) {
       const message = formatApiErrorMessage(err, 'Не удалось сохранить');
       setError(message);
@@ -115,13 +147,14 @@ export default function StoreSettingsPage() {
       <PageContainer>
         <PageHeader
           title="Настройки магазина"
-          description={store ? `${store.name} (${store.code})` : 'Редактирование профиля магазина'}
+          refCode={store?.code}
           breadcrumbs={[
             { label: 'Организации', href: '/organizations' },
             { label: 'Организация', href: `/organizations/${organizationId}` },
             { label: store?.name ?? 'Магазин', href: base },
             { label: 'Настройки' },
           ]}
+          actions={store ? <StatusBadge status={store.status} /> : undefined}
         />
 
         {loading ? <LoadingState message="Загрузка…" /> : null}
@@ -129,41 +162,66 @@ export default function StoreSettingsPage() {
 
         {!loading && store ? (
           <Section>
-            <Card title="Профиль магазина">
-              <form onSubmit={onSave} className="stack-form" noValidate>
-                <Field label="Название" required error={fieldErrors.name}>
-                  <Input value={name} onChange={(e) => setName(e.target.value)} required />
-                </Field>
-                <Field label="Город">
-                  <Input
-                    value={city}
-                    onChange={(e) => setCity(e.target.value)}
-                    placeholder="Москва"
-                  />
-                </Field>
-                <Field label="Адрес">
-                  <Input
-                    value={address}
-                    onChange={(e) => setAddress(e.target.value)}
-                    placeholder="ул. Примерная, 1"
-                  />
-                </Field>
-                <Field label="Часовой пояс" required error={fieldErrors.timezone}>
-                  <Input
-                    value={timezone}
-                    onChange={(e) => setTimezone(e.target.value)}
-                    placeholder="Europe/Moscow"
-                    required
-                  />
-                </Field>
-                <p className="field__hint">
-                  Код магазина ({store.code}) меняется отдельно и здесь не редактируется.
-                </p>
+            <Card title="Магазин и склад">
+              <form onSubmit={onSave} className="stack-form admin-settings-form" noValidate>
+                <div className="admin-settings-form__group">
+                  <h3 className="admin-settings-form__heading">Магазин</h3>
+                  <Field label="Название" required error={fieldErrors.name}>
+                    <Input value={name} onChange={(e) => setName(e.target.value)} required />
+                  </Field>
+                  <div className="sale-custom-meta">
+                    <Field label="Город">
+                      <Input
+                        value={city}
+                        onChange={(e) => setCity(e.target.value)}
+                        placeholder="Минск"
+                      />
+                    </Field>
+                    <Field label="Часовой пояс" required error={fieldErrors.timezone}>
+                      <Input
+                        value={timezone}
+                        onChange={(e) => setTimezone(e.target.value)}
+                        placeholder="Europe/Minsk"
+                        required
+                      />
+                    </Field>
+                  </div>
+                  <Field label="Адрес">
+                    <Input
+                      value={address}
+                      onChange={(e) => setAddress(e.target.value)}
+                      placeholder="ул. Примерная, 1"
+                    />
+                  </Field>
+                </div>
+
+                {warehouse ? (
+                  <div className="admin-settings-form__group">
+                    <h3 className="admin-settings-form__heading">Склад</h3>
+                    <Field label="Название склада" required error={fieldErrors.warehouseName}>
+                      <Input
+                        value={warehouseName}
+                        onChange={(e) => setWarehouseName(e.target.value)}
+                        required
+                      />
+                    </Field>
+                    <div className="admin-settings-form__meta">
+                      <DocRef>{warehouse.code}</DocRef>
+                      <StatusBadge status={warehouse.status} />
+                      {warehouse.isDefault ? (
+                        <span className="user-card__pill">Основной</span>
+                      ) : null}
+                    </div>
+                  </div>
+                ) : (
+                  <p className="field__hint">Склад не найден — он создаётся вместе с магазином.</p>
+                )}
+
                 <div className="meta-row">
                   <Button type="submit" disabled={saving}>
                     {saving ? 'Сохранение…' : 'Сохранить'}
                   </Button>
-                  <Link href={base}>Назад к магазину</Link>
+                  <Link href={base}>Назад</Link>
                 </div>
               </form>
             </Card>

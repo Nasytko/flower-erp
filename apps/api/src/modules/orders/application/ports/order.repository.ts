@@ -254,6 +254,8 @@ export interface OrderRepository {
     plannedPrice: string | null;
     createdByMembershipId: string | null;
     compositionId: string;
+    status?: OrderStatus;
+    confirmedAt?: Date | null;
   }): Promise<OrderView>;
   getOrder(organizationId: string, storeId: string, orderId: string): Promise<OrderView | null>;
   listOrders(

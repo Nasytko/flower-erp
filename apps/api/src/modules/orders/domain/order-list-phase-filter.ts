@@ -30,11 +30,9 @@ export function buildOrderListPhaseWhere(input: {
   const deliveredToday = input.deliveredTodayOrderIds ?? [];
 
   switch (input.phase) {
-    case 'DRAFT':
-      return { status: 'DRAFT' };
     case 'NEW':
       return {
-        status: { in: ['CONFIRMED', 'PARTIALLY_RESERVED', 'RESERVED'] },
+        status: { in: ['DRAFT', 'CONFIRMED', 'PARTIALLY_RESERVED', 'RESERVED'] },
         assignments: { none: { releasedAt: null } },
       };
     case 'IN_WORK':

@@ -4,13 +4,15 @@ import Link from 'next/link';
 import { useEffect, useId, useState, type FormEvent } from 'react';
 import { useParams } from 'next/navigation';
 import { Button, Card, Input } from '@flower/ui';
+import { type AuditLogEntry } from '@flower/api-client';
 import { getApiClient } from '@/lib/api-client';
+import { EntityAuditHistory } from '@/components/audit/entity-audit-history';
 import { PageContainer } from '@/components/layout/page-container';
 import { PageHeader } from '@/components/layout/page-header';
 import { Section } from '@/components/layout/section';
 import { ErrorState, LoadingState } from '@/components/layout/states';
 import { StatusBadge } from '@/components/layout/status-badge';
-import { AutoNumberNote, Field } from '@/components/layout/field';
+import { Field } from '@/components/layout/field';
 import { FancySelect } from '@/components/layout/fancy-select';
 import { ConfirmDialog } from '@/components/workspace/workspace-ui';
 import { useToast } from '@/components/ui/toast';
@@ -48,6 +50,30 @@ function lineTotal(qty: string, price: string | null | undefined): string | null
   return (q * p).toFixed(2);
 }
 
+function todayDateInput(): string {
+  const d = new Date();
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+function dateInputFromIso(iso: string | null | undefined): string {
+  if (!iso) return todayDateInput();
+  return iso.slice(0, 10);
+}
+
+function receiptAtFromDateInput(date: string): string {
+  return new Date(`${date}T12:00:00`).toISOString();
+}
+
+function formatDateLabel(iso: string | null | undefined): string {
+  if (!iso) return '—';
+  try {
+    return new Date(iso).toLocaleDateString('ru-RU');
+  } catch {
+    return iso.slice(0, 10);
+  }
+}
+
 function formatMoney(value: string | null | undefined): string {
   if (value == null || value === '') return '—';
   return `${value} BYN`;
@@ -65,6 +91,10 @@ export default function SupplyDetailPage() {
     number: string;
     status: string;
     warehouseId: string;
+    receivedDate?: string | null;
+    paymentDueDate?: string | null;
+    supplierDocumentNumber?: string | null;
+    comment?: string | null;
     supplier?: { name: string; code: string };
     items: SupplyLine[];
   } | null>(null);
@@ -85,26 +115,11 @@ export default function SupplyDetailPage() {
   const [busy, setBusy] = useState(false);
   const [confirm, setConfirm] = useState<PendingConfirm>(null);
   const toast = useToast();
-  const [corrections, setCorrections] = useState<
-    Array<{
-      id: string;
-      createdAt: string;
-      beforeState: {
-        itemName?: string;
-        itemCode?: string;
-        quantity?: string;
-        unitCost?: string | null;
-        total?: string | null;
-      } | null;
-      afterState: {
-        itemName?: string;
-        itemCode?: string;
-        quantity?: string;
-        unitCost?: string | null;
-        total?: string | null;
-      } | null;
-    }>
-  >([]);
+  const [receivedDate, setReceivedDate] = useState(todayDateInput);
+  const [paymentDueDate, setPaymentDueDate] = useState('');
+  const [supplierDocumentNumber, setSupplierDocumentNumber] = useState('');
+  const [headerComment, setHeaderComment] = useState('');
+  const [auditTrail, setAuditTrail] = useState<AuditLogEntry[]>([]);
 
   async function load(selectItemId?: string) {
     setLoading(true);
@@ -115,10 +130,14 @@ export default function SupplyDetailPage() {
         client.getSupply(organizationId, storeId, supplyId),
         client.listItems(organizationId, { pageSize: 100, status: 'ACTIVE' }),
         client.listUnits(organizationId, 1, 100),
-        client.listSupplyCorrections(organizationId, storeId, supplyId).catch(() => []),
+        client.listSupplyAuditTrail(organizationId, storeId, supplyId).catch(() => []),
       ]);
       setSupply(s);
-      setCorrections(history);
+      setReceivedDate(dateInputFromIso(s.receivedDate));
+      setPaymentDueDate(s.paymentDueDate ? dateInputFromIso(s.paymentDueDate) : '');
+      setSupplierDocumentNumber(s.supplierDocumentNumber ?? '');
+      setHeaderComment(s.comment ?? '');
+      setAuditTrail(history);
       const purchasable = items.items.filter((item) => item.isPurchasable !== false);
       setCatalog(purchasable);
       setItemId((current) => {
@@ -288,6 +307,29 @@ export default function SupplyDetailPage() {
     }
   }
 
+  async function onSaveHeader(event: FormEvent) {
+    event.preventDefault();
+    if (!open) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await getApiClient().updateSupply(organizationId, storeId, supplyId, {
+        receivedDate,
+        paymentDueDate: paymentDueDate.trim() || null,
+        supplierDocumentNumber: supplierDocumentNumber.trim() || null,
+        comment: headerComment.trim() || null,
+      });
+      toast.success('Данные документа сохранены');
+      await load();
+    } catch (err) {
+      const message = formatApiErrorMessage(err, 'Не удалось сохранить');
+      setError(message);
+      toast.error(message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   function onReceive() {
     setConfirm({ kind: 'receive' });
   }
@@ -296,11 +338,18 @@ export default function SupplyDetailPage() {
     setBusy(true);
     setError(null);
     try {
-      await getApiClient().receiveSupply(
+      const client = getApiClient();
+      await client.updateSupply(organizationId, storeId, supplyId, {
+        receivedDate,
+        paymentDueDate: paymentDueDate.trim() || null,
+        supplierDocumentNumber: supplierDocumentNumber.trim() || null,
+        comment: headerComment.trim() || null,
+      });
+      await client.receiveSupply(
         organizationId,
         storeId,
         supplyId,
-        { receivedAt: new Date().toISOString() },
+        { receivedAt: receiptAtFromDateInput(receivedDate) },
         newIdempotencyKey('supply'),
       );
       toast.success('Приёмка проведена на склад');
@@ -362,7 +411,7 @@ export default function SupplyDetailPage() {
     if (confirm.kind === 'annul') {
       return {
         title: 'Аннулировать приёмку',
-        message: 'Аннулировать черновик приёмки? Это действие нельзя отменить.',
+        message: 'Аннулировать приёмку? Это действие нельзя отменить.',
         destructive: true,
         confirmLabel: 'Аннулировать',
       };
@@ -385,9 +434,10 @@ export default function SupplyDetailPage() {
 
   const dialog = confirmDialogProps();
 
-  const draft = supply?.status === 'DRAFT';
+  const open =
+    supply?.status === 'DRAFT' || supply?.status === 'SUBMITTED_TO_SUPPLIER';
   const posted = supply?.status === 'RECEIVED' || supply?.status === 'PARTIALLY_RECEIVED';
-  const canEditLines = Boolean(draft || posted);
+  const canEditLines = Boolean(open || posted);
   const draftTotal = lineTotal(qty, unitCost);
   const supplyTotal =
     supply?.items.reduce((sum, line) => {
@@ -395,7 +445,7 @@ export default function SupplyDetailPage() {
       return sum + (part ? Number(part) : 0);
     }, 0) ?? 0;
   const canReceive =
-    draft &&
+    open &&
     supply.items.length > 0 &&
     supply.items.every(
       (line) =>
@@ -404,42 +454,13 @@ export default function SupplyDetailPage() {
         Number(line.orderedQuantity) > 0,
     );
 
-  function formatWhen(iso: string): string {
-    try {
-      return new Date(iso).toLocaleString('ru-RU', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-      });
-    } catch {
-      return iso;
-    }
-  }
-
-  function formatCorrectionSide(
-    state: {
-      itemName?: string;
-      quantity?: string;
-      unitCost?: string | null;
-      total?: string | null;
-    } | null,
-  ): string {
-    if (!state) return '—';
-    const qty = state.quantity ?? '—';
-    const cost = state.unitCost != null && state.unitCost !== '' ? `${state.unitCost} BYN` : '—';
-    const total = state.total != null && state.total !== '' ? `${state.total} BYN` : null;
-    return `${qty} × ${cost}${total ? ` = ${total}` : ''}`;
-  }
-
   return (
     <main>
       <PageContainer>
         <PageHeader
           title={supply?.number ?? 'Приёмка'}
           description={
-            draft
+            open
               ? 'Добавьте товары, укажите количество и себестоимость. Когда всё верно — проведите на склад.'
               : posted
                 ? 'Документ проведён. Можно исправить количество или себестоимость — изменения появятся в истории ниже.'
@@ -466,11 +487,84 @@ export default function SupplyDetailPage() {
             ) : null}
 
             <Section>
+              <Card title="Документ">
+                {open ? (
+                  <form onSubmit={(event) => void onSaveHeader(event)} className="form-grid">
+                    <Field label="Дата прихода">
+                      <Input
+                        type="date"
+                        value={receivedDate}
+                        onChange={(e) => setReceivedDate(e.target.value)}
+                        aria-label="Дата прихода"
+                      />
+                    </Field>
+                    <Field label="Оплатить до">
+                      <Input
+                        type="date"
+                        value={paymentDueDate}
+                        onChange={(e) => setPaymentDueDate(e.target.value)}
+                        aria-label="Срок оплаты"
+                      />
+                    </Field>
+                    <Field label="Номер накладной">
+                      <Input
+                        value={supplierDocumentNumber}
+                        onChange={(e) => setSupplierDocumentNumber(e.target.value)}
+                        placeholder="Номер документа поставщика"
+                        aria-label="Номер накладной"
+                      />
+                    </Field>
+                    <Field label="Комментарий">
+                      <Input
+                        value={headerComment}
+                        onChange={(e) => setHeaderComment(e.target.value)}
+                        aria-label="Комментарий"
+                      />
+                    </Field>
+                    <div>
+                      <Button type="submit" variant="secondary" disabled={busy}>
+                        Сохранить
+                      </Button>
+                    </div>
+                  </form>
+                ) : (
+                  <dl
+                    style={{
+                      display: 'grid',
+                      gap: 10,
+                      fontSize: 'var(--text-sm)',
+                      margin: 0,
+                    }}
+                  >
+                    <div>
+                      <dt style={{ color: 'var(--color-muted)' }}>Дата прихода</dt>
+                      <dd style={{ margin: 0 }}>{formatDateLabel(supply.receivedDate)}</dd>
+                    </div>
+                    <div>
+                      <dt style={{ color: 'var(--color-muted)' }}>Оплатить до</dt>
+                      <dd style={{ margin: 0 }}>{formatDateLabel(supply.paymentDueDate)}</dd>
+                    </div>
+                    <div>
+                      <dt style={{ color: 'var(--color-muted)' }}>Номер накладной</dt>
+                      <dd style={{ margin: 0 }}>{supply.supplierDocumentNumber?.trim() || '—'}</dd>
+                    </div>
+                    {supply.comment ? (
+                      <div>
+                        <dt style={{ color: 'var(--color-muted)' }}>Комментарий</dt>
+                        <dd style={{ margin: 0 }}>{supply.comment}</dd>
+                      </div>
+                    ) : null}
+                  </dl>
+                )}
+              </Card>
+            </Section>
+
+            <Section>
               <Card title="Позиции">
                 {supply.items.length > 0 ? (
                   <p className="supply-lines__sum" style={{ margin: '0 0 12px', fontSize: 'var(--text-sm)' }}>
                     Итого: {supplyTotal.toFixed(2)} BYN
-                    {draft ? (
+                    {open ? (
                       <span style={{ fontWeight: 400, color: 'var(--color-muted)' }}>
                         {' '}
                         · можно править до проведения
@@ -564,7 +658,7 @@ export default function SupplyDetailPage() {
                               >
                                 Изменить
                               </Button>
-                              {draft ? (
+                              {open ? (
                                 <Button
                                   type="button"
                                   variant="ghost"
@@ -600,7 +694,7 @@ export default function SupplyDetailPage() {
                     );
                   })}
 
-                  {draft ? (
+                  {open ? (
                     <form className="supply-lines__row supply-lines__row--draft" onSubmit={onAddItem}>
                       <div className="supply-lines__cell">
                         <span className="supply-lines__label">Товар *</span>
@@ -660,7 +754,7 @@ export default function SupplyDetailPage() {
                   ) : null}
                 </div>
 
-                {draft ? (
+                {open ? (
                   <div className="page-header__actions" style={{ marginTop: 16 }}>
                     <Button
                       type="button"
@@ -673,7 +767,7 @@ export default function SupplyDetailPage() {
                   </div>
                 ) : null}
 
-                {draft && showQuickCreate ? (
+                {open && showQuickCreate ? (
                   <form
                     onSubmit={onQuickCreate}
                     className="form-grid"
@@ -697,7 +791,6 @@ export default function SupplyDetailPage() {
                       Создаст товар и подставит его в новую строку. Затем укажите количество и
                       себестоимость.
                     </p>
-                    <AutoNumberNote label="Код товара" />
                     <Field label="Название" required>
                       <Input
                         value={quickName}
@@ -738,7 +831,7 @@ export default function SupplyDetailPage() {
 
             <Section>
               <div className="page-header__actions">
-                {draft ? (
+                {open ? (
                   <Button
                     type="button"
                     disabled={busy || !canReceive || editingItemId != null}
@@ -747,7 +840,7 @@ export default function SupplyDetailPage() {
                     Провести на склад
                   </Button>
                 ) : null}
-                {draft ? (
+                {open ? (
                   <Button
                     type="button"
                     variant="ghost"
@@ -768,75 +861,16 @@ export default function SupplyDetailPage() {
                   </Button>
                 </Link>
               </div>
-              {draft && supply.items.length > 0 && !canReceive ? (
+              {open && supply.items.length > 0 && !canReceive ? (
                 <p style={{ marginTop: 12, fontSize: 'var(--text-sm)', color: 'var(--color-muted)' }}>
                   Чтобы провести, у каждой позиции должны быть количество и себестоимость.
                 </p>
               ) : null}
             </Section>
 
-            {posted || corrections.length > 0 ? (
-              <Section>
-                <Card title="История правок">
-                  {corrections.length === 0 ? (
-                    <p style={{ margin: 0, color: 'var(--color-muted)', fontSize: 'var(--text-sm)' }}>
-                      Пока правок не было. После изменения позиции здесь появится «было → стало».
-                    </p>
-                  ) : (
-                    <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: 12 }}>
-                      {corrections.map((entry) => {
-                        const name =
-                          entry.afterState?.itemName ??
-                          entry.beforeState?.itemName ??
-                          'Позиция';
-                        return (
-                          <li
-                            key={entry.id}
-                            style={{
-                              padding: '12px 14px',
-                              border: '1px solid var(--color-border)',
-                              borderRadius: 10,
-                              background: 'var(--color-surface)',
-                            }}
-                          >
-                            <div
-                              style={{
-                                display: 'flex',
-                                flexWrap: 'wrap',
-                                gap: '8px 16px',
-                                justifyContent: 'space-between',
-                                marginBottom: 8,
-                              }}
-                            >
-                              <strong>{name}</strong>
-                              <span style={{ color: 'var(--color-muted)', fontSize: 'var(--text-sm)' }}>
-                                {formatWhen(entry.createdAt)}
-                              </span>
-                            </div>
-                            <div
-                              style={{
-                                display: 'grid',
-                                gap: 6,
-                                fontSize: 'var(--text-sm)',
-                              }}
-                            >
-                              <div>
-                                <span style={{ color: 'var(--color-muted)' }}>Было: </span>
-                                {formatCorrectionSide(entry.beforeState)}
-                              </div>
-                              <div>
-                                <span style={{ color: 'var(--color-muted)' }}>Стало: </span>
-                                {formatCorrectionSide(entry.afterState)}
-                              </div>
-                            </div>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  )}
-                </Card>
-              </Section>
-            ) : null}
+            <Section>
+              <EntityAuditHistory entries={auditTrail} />
+            </Section>
           </>
         ) : null}
       </PageContainer>

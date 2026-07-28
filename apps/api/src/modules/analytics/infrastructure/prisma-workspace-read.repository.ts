@@ -418,7 +418,24 @@ export class PrismaWorkspaceReadRepository implements WorkspaceReadRepository {
         status: 'PARTIALLY_RESERVED',
       },
     });
-    if (shortages > 0) {
+    const flowerShortageOrders = await this.countFlowerShortageOrders({
+      organizationId: input.organizationId,
+      storeId: input.storeId,
+    });
+    if (flowerShortageOrders > 0) {
+      items.push({
+        id: 'flower-shortages',
+        severity: 'WARNING',
+        code: 'FLOWER_ORDER_SHORTAGE',
+        title: `${flowerShortageOrders} заказ(ов) — нехватка цветов`,
+        reason: 'В составе заказов не хватает цветов на складе',
+        entityType: 'Order',
+        entityId: input.storeId,
+        recommendedAction: 'Пополните склад или замените позиции',
+        filterLink: 'partially_reserved',
+        ageMinutes: 0,
+      });
+    } else if (shortages > 0) {
       items.push({
         id: 'shortages',
         severity: 'WARNING',
@@ -458,15 +475,28 @@ export class PrismaWorkspaceReadRepository implements WorkspaceReadRepository {
     const lowStock = await this.listLowStockWarnings({
       organizationId: input.organizationId,
       storeId: input.storeId,
-      threshold: input.lowStockThreshold,
     });
+    if (lowStock.length > 0) {
+      items.push({
+        id: 'flowers-below-threshold',
+        severity: 'WARNING',
+        code: 'FLOWERS_BELOW_THRESHOLD',
+        title: `${lowStock.length} цвет(ов) ниже порога`,
+        reason: 'Остаток на складе ниже минимума из справочника',
+        entityType: 'Item',
+        entityId: input.storeId,
+        recommendedAction: 'Проверьте остатки и пополните склад',
+        filterLink: null,
+        ageMinutes: 0,
+      });
+    }
     for (const warn of lowStock.slice(0, 20)) {
       items.push({
         id: `low-stock:${warn.itemId}`,
         severity: 'WARNING',
         code: 'LOW_STOCK',
         title: `Мало на складе: ${warn.itemName}`,
-        reason: `Доступно ${warn.availableQuantity} из порога ${warn.threshold}`,
+        reason: `Доступно ${warn.availableQuantity}, порог ${warn.threshold}`,
         entityType: 'Item',
         entityId: warn.itemId,
         recommendedAction: 'Проверьте остаток — это не заявка на закупку',
@@ -493,6 +523,8 @@ export class PrismaWorkspaceReadRepository implements WorkspaceReadRepository {
       overdue,
       salesToday,
       shortages,
+      flowerShortageOrders,
+      flowersBelowThreshold,
       suppliesAwaitingReceipt,
       completedSales,
     ] = await Promise.all([
@@ -552,6 +584,14 @@ export class PrismaWorkspaceReadRepository implements WorkspaceReadRepository {
           status: 'PARTIALLY_RESERVED',
         },
       }),
+      this.countFlowerShortageOrders({
+        organizationId: input.organizationId,
+        storeId: input.storeId,
+      }),
+      this.countFlowersBelowThreshold({
+        organizationId: input.organizationId,
+        storeId: input.storeId,
+      }),
       this.prisma.supply.count({
         where: {
           organizationId: input.organizationId,
@@ -595,14 +635,65 @@ export class PrismaWorkspaceReadRepository implements WorkspaceReadRepository {
       salesToday,
       unpaidBalance: unpaid.toFixed(2),
       shortages,
+      flowerShortageOrders,
+      flowersBelowThreshold,
       suppliesAwaitingReceipt,
     };
+  }
+
+  async countFlowerShortageOrders(input: {
+    organizationId: string;
+    storeId: string;
+  }): Promise<number> {
+    const flowerLines = await this.prisma.orderCompositionItem.findMany({
+      where: {
+        organizationId: input.organizationId,
+        item: { itemType: 'FLOWER' },
+        composition: {
+          order: {
+            storeId: input.storeId,
+            status: {
+              in: ['CONFIRMED', 'PARTIALLY_RESERVED', 'RESERVED', 'IN_PREPARATION'],
+            },
+          },
+        },
+      },
+      select: {
+        id: true,
+        composition: { select: { orderId: true } },
+      },
+    });
+    if (flowerLines.length === 0) {
+      return 0;
+    }
+    const deficitSet = await this.compositionItemsWithDeficit(
+      input.organizationId,
+      flowerLines.map((line) => line.id),
+    );
+    const orderIds = new Set<string>();
+    for (const line of flowerLines) {
+      if (deficitSet.has(line.id)) {
+        orderIds.add(line.composition.orderId);
+      }
+    }
+    return orderIds.size;
+  }
+
+  async countFlowersBelowThreshold(input: {
+    organizationId: string;
+    storeId: string;
+  }): Promise<number> {
+    const warnings = await this.listLowStockWarnings({
+      organizationId: input.organizationId,
+      storeId: input.storeId,
+    });
+    return warnings.length;
   }
 
   async listLowStockWarnings(input: {
     organizationId: string;
     storeId: string;
-    threshold: number;
+    threshold?: number;
   }): Promise<LowStockWarning[]> {
     const warehouse = await this.prisma.warehouse.findFirst({
       where: {
@@ -619,21 +710,31 @@ export class PrismaWorkspaceReadRepository implements WorkspaceReadRepository {
         organizationId: input.organizationId,
         storeId: input.storeId,
         warehouseId: warehouse.id,
-        availableQuantity: { lte: input.threshold },
+        item: {
+          itemType: 'FLOWER',
+          status: 'ACTIVE',
+          minimumStockQuantity: { not: null },
+        },
       },
       include: { item: true },
       orderBy: { availableQuantity: 'asc' },
-      take: 50,
+      take: 100,
     });
 
-    return rows.map((row) => ({
-      itemId: row.itemId,
-      itemName: row.item.name,
-      itemCode: row.item.code,
-      warehouseId: warehouse.id,
-      availableQuantity: row.availableQuantity.toString(),
-      threshold: String(input.threshold),
-    }));
+    return rows
+      .filter(
+        (row) =>
+          Number(row.availableQuantity.toString()) <=
+          Number(row.item.minimumStockQuantity!.toString()),
+      )
+      .map((row) => ({
+        itemId: row.itemId,
+        itemName: row.item.name,
+        itemCode: row.item.code,
+        warehouseId: warehouse.id,
+        availableQuantity: row.availableQuantity.toString(),
+        threshold: row.item.minimumStockQuantity!.toString(),
+      }));
   }
 
   async listOperationalStock(input: {
@@ -682,15 +783,23 @@ export class PrismaWorkspaceReadRepository implements WorkspaceReadRepository {
       }
     }
 
-    return balances.map((row) => ({
-      itemId: row.itemId,
-      itemName: row.item.name,
-      itemCode: row.item.code,
-      onHandQuantity: row.onHandQuantity.toString(),
-      reservedQuantity: row.reservedQuantity.toString(),
-      availableQuantity: row.availableQuantity.toString(),
-      unitCost: input.includeCost ? (costByItem.get(row.itemId) ?? null) : null,
-    }));
+    return balances.map((row) => {
+      const minimumStockQuantity = row.item.minimumStockQuantity?.toString() ?? null;
+      const isBelowMinimum =
+        minimumStockQuantity !== null &&
+        Number(row.availableQuantity.toString()) <= Number(minimumStockQuantity);
+      return {
+        itemId: row.itemId,
+        itemName: row.item.name,
+        itemCode: row.item.code,
+        onHandQuantity: row.onHandQuantity.toString(),
+        reservedQuantity: row.reservedQuantity.toString(),
+        availableQuantity: row.availableQuantity.toString(),
+        minimumStockQuantity,
+        isBelowMinimum,
+        unitCost: input.includeCost ? (costByItem.get(row.itemId) ?? null) : null,
+      };
+    });
   }
 
   async listInventoryOpsAttention(input: {

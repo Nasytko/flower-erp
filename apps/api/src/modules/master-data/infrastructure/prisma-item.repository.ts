@@ -27,6 +27,7 @@ function mapItem(row: PrismaItem, createdByDisplayName: string | null): ItemProp
     description: row.description,
     isPurchasable: row.isPurchasable,
     isSellable: row.isSellable,
+    minimumStockQuantity: row.minimumStockQuantity?.toString() ?? null,
     status: row.status as MasterDataStatus,
     createdByMembershipId: row.createdByMembershipId,
     createdByDisplayName,
@@ -74,10 +75,19 @@ export class PrismaItemRepository implements ItemRepository {
     description: string | null;
     isPurchasable: boolean;
     isSellable: boolean;
+    minimumStockQuantity?: string | null;
     status: MasterDataStatus;
     createdByMembershipId: string | null;
   }): Promise<ItemProps> {
-    const row = await this.client().item.create({ data });
+    const row = await this.client().item.create({
+      data: {
+        ...data,
+        minimumStockQuantity:
+          data.minimumStockQuantity != null
+            ? data.minimumStockQuantity
+            : null,
+      },
+    });
     const names = await this.resolveDisplayNames([row.createdByMembershipId]);
     return mapItem(
       row,
@@ -142,6 +152,32 @@ export class PrismaItemRepository implements ItemRepository {
       page: pagination.page,
       pageSize: pagination.pageSize,
     };
+  }
+
+  async update(
+    organizationId: string,
+    id: string,
+    data: {
+      name?: string;
+      description?: string | null;
+      minimumStockQuantity?: string | null;
+    },
+  ): Promise<ItemProps> {
+    await this.client().item.updateMany({
+      where: { id, organizationId },
+      data: {
+        ...(data.name !== undefined ? { name: data.name } : {}),
+        ...(data.description !== undefined ? { description: data.description } : {}),
+        ...(data.minimumStockQuantity !== undefined
+          ? { minimumStockQuantity: data.minimumStockQuantity }
+          : {}),
+      },
+    });
+    const row = await this.findById(organizationId, id);
+    if (!row) {
+      throw new Error('Item missing after update');
+    }
+    return row;
   }
 
   async updateStatus(

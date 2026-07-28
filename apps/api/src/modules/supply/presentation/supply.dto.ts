@@ -1,4 +1,4 @@
-import { IsDateString, IsEnum, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
+import { IsDateString, IsEnum, IsOptional, IsString, IsUUID, MaxLength, ValidateIf } from 'class-validator';
 import { SupplyStatus } from '../domain/supply-rules';
 
 export class StoreParamsDto {
@@ -11,7 +11,19 @@ export class CreateSupplyDto {
   @IsOptional() @IsUUID() warehouseId?: string;
   @IsUUID() supplierId!: string;
   @IsOptional() @IsDateString() expectedReceiptDate?: string;
+  @IsOptional() @IsDateString() receivedDate?: string;
+  @IsOptional() @IsDateString() paymentDueDate?: string;
+  @IsOptional() @IsString() @MaxLength(100) supplierDocumentNumber?: string;
   @IsOptional() @IsString() @MaxLength(2000) comment?: string;
+}
+export class UpdateSupplyDto {
+  @IsOptional() @IsDateString() receivedDate?: string;
+  @IsOptional()
+  @ValidateIf((_, value) => value != null && value !== '')
+  @IsDateString()
+  paymentDueDate?: string | null;
+  @IsOptional() @IsString() @MaxLength(100) supplierDocumentNumber?: string | null;
+  @IsOptional() @IsString() @MaxLength(2000) comment?: string | null;
 }
 export class SupplyItemDto {
   @IsUUID() itemId!: string;

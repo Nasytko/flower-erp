@@ -115,7 +115,11 @@ export default function PaymentsPage() {
                 <li key={payment.id}>
                   <Link href={`${base}/payments/${payment.id}`}>
                     <div className="meta-row">
-                      <strong>{payment.number}</strong>
+                      <div className="list-row__primary">
+                        <strong>
+                          {payment.amount} {payment.currencyCode}
+                        </strong>
+                      </div>
                       <StatusBadge status={payment.status} />
                       <StatusBadge status={payment.type} />
                       <span>

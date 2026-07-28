@@ -6,11 +6,12 @@ import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { Button, Card, Input } from '@flower/ui';
 import { getApiClient } from '@/lib/api-client';
 import { useAuth } from '@/components/auth-provider';
-import { AutoNumberNote, Field } from '@/components/layout/field';
+import { Field } from '@/components/layout/field';
 import { AddressAutocomplete } from '@/components/layout/address-autocomplete';
 import { FancySelect } from '@/components/layout/fancy-select';
 import { MoneyBynInput, parseBynToApi } from '@/components/layout/money-byn-input';
-import { TimePicker } from '@/components/layout/time-picker';
+import { defaultReadyDate, ReadyAtField } from '@/components/layout/ready-at-field';
+import { DocRef } from '@/components/layout/doc-ref';
 import { PageContainer } from '@/components/layout/page-container';
 import { PageHeader } from '@/components/layout/page-header';
 import { Section } from '@/components/layout/section';
@@ -54,7 +55,6 @@ type DeliveryRow = {
 
 const ORDER_LIST_FILTERS: OrderListFilter[] = [
   'ALL',
-  'DRAFT',
   'NEW',
   'IN_WORK',
   'READY',
@@ -65,7 +65,6 @@ const ORDER_LIST_FILTERS: OrderListFilter[] = [
 type CustomerOption = { id: string; name: string; phone: string; status: string };
 
 const PHASE_TONE: Record<OrderPhase, string> = {
-  DRAFT: 'neutral',
   NEW: 'warning',
   IN_WORK: 'info',
   READY: 'success',
@@ -104,7 +103,7 @@ export default function OrdersPage() {
   const [customerId, setCustomerId] = useState('');
   const [recipientName, setRecipientName] = useState('');
   const [recipientPhone, setRecipientPhone] = useState('');
-  const [readyDate, setReadyDate] = useState('');
+  const [readyDate, setReadyDate] = useState(defaultReadyDate);
   const [readyTime, setReadyTime] = useState('12:00');
   const [comment, setComment] = useState('');
   const [plannedPrice, setPlannedPrice] = useState('');
@@ -245,7 +244,6 @@ export default function OrdersPage() {
       <PageContainer>
         <PageHeader
           title="Заказы"
-          description="Черновик → новый → в работе → готов → передан."
           breadcrumbs={[
             { label: 'Магазин', href: base },
             { label: 'Заказы' },
@@ -263,8 +261,6 @@ export default function OrdersPage() {
           <Section>
             <Card title="Новый заказ">
               <form onSubmit={onCreate} className="stack-form" noValidate>
-                <AutoNumberNote label="Номер заказа" />
-
                 <div className="sale-mode" role="tablist" aria-label="Способ получения">
                   <button
                     type="button"
@@ -274,7 +270,6 @@ export default function OrdersPage() {
                     onClick={() => setOrderType('PICKUP')}
                   >
                     <span className="sale-mode__title">Самовывоз</span>
-                    <span className="sale-mode__text">Клиент заберёт к указанному времени</span>
                   </button>
                   <button
                     type="button"
@@ -284,7 +279,6 @@ export default function OrdersPage() {
                     onClick={() => setOrderType('DELIVERY')}
                   >
                     <span className="sale-mode__title">Доставка</span>
-                    <span className="sale-mode__text">Доставка появится на доске сразу после создания</span>
                   </button>
                 </div>
 
@@ -331,37 +325,29 @@ export default function OrdersPage() {
                   </Field>
                 </div>
 
-                <div className="sale-custom-meta">
-                  <Field
-                    label={orderType === 'DELIVERY' ? 'Дата доставки' : 'Дата готовности'}
+                <Field
+                  label={orderType === 'DELIVERY' ? 'Срок доставки' : 'Срок готовности'}
+                  required
+                  error={fieldErrors.readyDate || fieldErrors.readyTime}
+                >
+                  <ReadyAtField
+                    date={readyDate}
+                    time={readyTime}
+                    onDateChange={(value) => {
+                      setReadyDate(value);
+                      if (fieldErrors.readyDate) {
+                        setFieldErrors((prev) => ({ ...prev, readyDate: undefined }));
+                      }
+                    }}
+                    onTimeChange={(value) => {
+                      setReadyTime(value);
+                      if (fieldErrors.readyTime) {
+                        setFieldErrors((prev) => ({ ...prev, readyTime: undefined }));
+                      }
+                    }}
                     required
-                    error={fieldErrors.readyDate}
-                  >
-                    <Input
-                      type="date"
-                      value={readyDate}
-                      onChange={(e) => {
-                        setReadyDate(e.target.value);
-                        if (fieldErrors.readyDate) {
-                          setFieldErrors((prev) => ({ ...prev, readyDate: undefined }));
-                        }
-                      }}
-                      required
-                    />
-                  </Field>
-                  <Field label="Время" required error={fieldErrors.readyTime}>
-                    <TimePicker
-                      value={readyTime}
-                      onChange={(value) => {
-                        setReadyTime(value);
-                        if (fieldErrors.readyTime) {
-                          setFieldErrors((prev) => ({ ...prev, readyTime: undefined }));
-                        }
-                      }}
-                      required
-                    />
-                  </Field>
-                </div>
+                  />
+                </Field>
 
                 {orderType === 'DELIVERY' ? (
                   <>
@@ -448,7 +434,6 @@ export default function OrdersPage() {
             {(
               [
                 ['ALL', 'Все'],
-                ['DRAFT', 'Черновики'],
                 ['NEW', 'Новые'],
                 ['IN_WORK', 'В работе'],
                 ['READY', 'Готовы'],
@@ -491,10 +476,12 @@ export default function OrdersPage() {
                     <Link href={`${base}/orders/${item.id}`}>
                       <div className="meta-row">
                         <div>
-                          <strong>{item.number}</strong>
+                          <div className="list-row__primary">
+                            <strong>{item.recipientName?.trim() || 'Заказ'}</strong>
+                            <DocRef>{item.number}</DocRef>
+                          </div>
                           <div className="order-queue__meta">
                             {item.type ? statusLabelRu(item.type) : null}
-                            {item.recipientName ? ` · ${item.recipientName}` : null}
                             {item.readyAt ? ` · ${formatReadyAt(item.readyAt)}` : null}
                           </div>
                         </div>

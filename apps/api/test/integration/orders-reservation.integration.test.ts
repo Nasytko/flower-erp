@@ -146,6 +146,7 @@ test('composition confirm: full reserve, partial, assignment, ready without stoc
     customerId: customer.id,
     readyAt: new Date(Date.now() + 3600_000).toISOString(),
   });
+  assert.equal(order.status, 'CONFIRMED');
   await orders.addCompositionItem({
     organizationId: auth.organizationId,
     storeId: auth.storeId,
@@ -154,7 +155,7 @@ test('composition confirm: full reserve, partial, assignment, ready without stoc
     quantity: '4',
   });
 
-  const confirmed = await orders.confirmOrder({
+  const confirmed = await orders.reserveOrder({
     organizationId: auth.organizationId,
     storeId: auth.storeId,
     orderId: order.id,
@@ -183,7 +184,7 @@ test('composition confirm: full reserve, partial, assignment, ready without stoc
     itemId: item.id,
     quantity: '100',
   });
-  const partial = await orders.confirmOrder({
+  const partial = await orders.reserveOrder({
     organizationId: auth.organizationId,
     storeId: auth.storeId,
     orderId: short.id,

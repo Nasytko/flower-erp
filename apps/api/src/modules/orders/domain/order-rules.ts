@@ -35,9 +35,39 @@ export class DomainError extends Error {
   }
 }
 
+const PRE_PREPARATION_STATUSES: readonly OrderStatus[] = [
+  OrderStatus.DRAFT,
+  OrderStatus.CONFIRMED,
+  OrderStatus.PARTIALLY_RESERVED,
+  OrderStatus.RESERVED,
+] as const;
+
+function isPrePreparationStatus(status: OrderStatus): boolean {
+  return (PRE_PREPARATION_STATUSES as readonly OrderStatus[]).includes(status);
+}
+
+/** @deprecated Use assertOrderHeaderEditable — kept for legacy callers/tests */
 export function assertDraftEditable(status: OrderStatus): void {
   if (status !== OrderStatus.DRAFT) {
     throw new DomainError('ORDER_NOT_DRAFT', 'Order can be edited only in DRAFT status');
+  }
+}
+
+export function assertOrderHeaderEditable(status: OrderStatus): void {
+  if (!isPrePreparationStatus(status)) {
+    throw new DomainError(
+      'ORDER_NOT_EDITABLE',
+      'Order header can be edited only before preparation starts',
+    );
+  }
+}
+
+export function assertCompositionEditable(status: OrderStatus): void {
+  if (!isPrePreparationStatus(status)) {
+    throw new DomainError(
+      'ORDER_NOT_EDITABLE',
+      'Composition can be edited only before preparation starts',
+    );
   }
 }
 

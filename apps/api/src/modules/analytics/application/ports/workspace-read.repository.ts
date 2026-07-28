@@ -89,6 +89,8 @@ export type OperationalKpis = {
   salesToday: number;
   unpaidBalance: string;
   shortages: number;
+  flowerShortageOrders: number;
+  flowersBelowThreshold: number;
   suppliesAwaitingReceipt: number;
 };
 
@@ -108,6 +110,8 @@ export type OperationalStockRow = {
   onHandQuantity: string;
   reservedQuantity: string;
   availableQuantity: string;
+  minimumStockQuantity: string | null;
+  isBelowMinimum: boolean;
   /** Present only when caller may view cost — otherwise null. */
   unitCost: string | null;
 };
@@ -186,10 +190,20 @@ export interface WorkspaceReadRepository {
     now: Date;
   }): Promise<OperationalKpis>;
 
+  countFlowerShortageOrders(input: {
+    organizationId: string;
+    storeId: string;
+  }): Promise<number>;
+
+  countFlowersBelowThreshold(input: {
+    organizationId: string;
+    storeId: string;
+  }): Promise<number>;
+
   listLowStockWarnings(input: {
     organizationId: string;
     storeId: string;
-    threshold: number;
+    threshold?: number;
   }): Promise<LowStockWarning[]>;
 
   listOperationalStock(input: {

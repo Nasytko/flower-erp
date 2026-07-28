@@ -7,7 +7,7 @@ const now = new Date('2026-07-27T12:00:00.000Z');
 test('buildOrderListPhaseWhere maps NEW to unassigned open statuses', () => {
   const where = buildOrderListPhaseWhere({ phase: 'NEW', now });
   assert.deepEqual(where, {
-    status: { in: ['CONFIRMED', 'PARTIALLY_RESERVED', 'RESERVED'] },
+    status: { in: ['DRAFT', 'CONFIRMED', 'PARTIALLY_RESERVED', 'RESERVED'] },
     assignments: { none: { releasedAt: null } },
   });
 });

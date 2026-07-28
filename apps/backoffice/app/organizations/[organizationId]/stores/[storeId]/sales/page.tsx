@@ -7,6 +7,7 @@ import { Button, Card } from '@flower/ui';
 import { ApiClientError } from '@flower/api-client';
 import { getApiClient } from '@/lib/api-client';
 import { useAuth } from '@/components/auth-provider';
+import { DocRef } from '@/components/layout/doc-ref';
 import { PageContainer } from '@/components/layout/page-container';
 import { PageHeader } from '@/components/layout/page-header';
 import { Section } from '@/components/layout/section';
@@ -75,7 +76,6 @@ export default function SalesPage() {
       <PageContainer>
         <PageHeader
           title="Продажи"
-          description="Продажа — выдача букета клиенту с оплатой и списанием со склада. Номер присваивается автоматически."
           breadcrumbs={[
             { label: 'Магазин', href: base },
             { label: 'Продажи' },
@@ -112,8 +112,7 @@ export default function SalesPage() {
           <Section>
             <Card title="Быстрая продажа">
               <p className="form-lead">
-                Соберите букет, укажите оплату и оформите продажу. Номер документа система назначит
-                сама.
+                Соберите букет, укажите оплату и оформите продажу.
               </p>
               <div className="page-header__actions">
                 <Button type="button" onClick={() => router.push(`${base}/sales/new`)}>
@@ -136,7 +135,10 @@ export default function SalesPage() {
                   <li key={order.id}>
                     <div className="meta-row">
                       <Link href={`${base}/orders/${order.id}`}>
-                        <strong>{order.number}</strong>
+                        <div className="list-row__primary">
+                          <strong>Заказ</strong>
+                          <DocRef>{order.number}</DocRef>
+                        </div>
                       </Link>
                       <StatusBadge status={order.status} />
                       {canCreate ? (
@@ -168,7 +170,12 @@ export default function SalesPage() {
                 <li key={sale.id}>
                   <Link href={`${base}/sales/${sale.id}`}>
                     <div className="meta-row">
-                      <strong>{sale.number}</strong>
+                      <div className="list-row__primary">
+                        <strong>
+                          {sale.netAmount} {sale.currencyCode}
+                        </strong>
+                        <DocRef>{sale.number}</DocRef>
+                      </div>
                       <StatusBadge status={sale.status} />
                       <StatusBadge status={sale.type} />
                       <span>

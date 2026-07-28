@@ -10,7 +10,7 @@ import { PageHeader } from '@/components/layout/page-header';
 import { Section } from '@/components/layout/section';
 import { EmptyState, ErrorState, LoadingState } from '@/components/layout/states';
 import { StatusBadge } from '@/components/layout/status-badge';
-import { AutoNumberNote, Field } from '@/components/layout/field';
+import { Field } from '@/components/layout/field';
 import { FancySelect } from '@/components/layout/fancy-select';
 import { formatApiErrorMessage } from '@/lib/format-api-error';
 
@@ -125,7 +125,6 @@ export default function PaymentMethodsPage() {
         <Section>
           <Card title="Новый метод">
             <form onSubmit={onCreate} className="form-grid">
-              <AutoNumberNote label="Код метода" />
               <Field label="Название" required hint="Как способ оплаты виден кассиру">
                 <Input
                   value={name}

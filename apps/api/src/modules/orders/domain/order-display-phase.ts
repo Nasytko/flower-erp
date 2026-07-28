@@ -1,5 +1,5 @@
 /** Simplified order lifecycle for UI (maps backend statuses). */
-export type OrderDisplayPhase = 'DRAFT' | 'NEW' | 'IN_WORK' | 'READY' | 'HANDED_OFF';
+export type OrderDisplayPhase = 'NEW' | 'IN_WORK' | 'READY' | 'HANDED_OFF';
 
 export type OrderDisplayPhaseInput = {
   status: string;
@@ -17,7 +17,7 @@ export function resolveOrderDisplayPhase(
   delivery?: DeliveryDisplayPhaseInput,
 ): OrderDisplayPhase {
   if (order.status === 'CANCELLED') return 'NEW';
-  if (order.status === 'DRAFT') return 'DRAFT';
+  if (order.status === 'DRAFT') return 'NEW';
   if (order.status === 'COMPLETED') return 'HANDED_OFF';
   if (delivery?.status === 'DELIVERED') return 'HANDED_OFF';
   if (order.status === 'READY') return 'READY';
@@ -30,8 +30,6 @@ export function orderDisplayPhaseLabel(
   order?: Pick<OrderDisplayPhaseInput, 'type'>,
 ): string {
   switch (phase) {
-    case 'DRAFT':
-      return 'Черновик';
     case 'NEW':
       return 'Новый';
     case 'IN_WORK':

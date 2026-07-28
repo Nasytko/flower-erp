@@ -6,7 +6,9 @@ import {
   assertCanConfirm,
   assertCanReserve,
   assertCanStartPreparation,
+  assertCompositionEditable,
   assertDraftEditable,
+  assertOrderHeaderEditable,
   assertQuantityPositive,
   claimNextPriorityBucket,
   isClaimEligibleStatus,
@@ -19,6 +21,13 @@ test('draft editable and confirm guards', () => {
   assert.throws(() => assertDraftEditable(OrderStatus.CONFIRMED));
   assert.doesNotThrow(() => assertCanConfirm(OrderStatus.DRAFT, 1));
   assert.throws(() => assertCanConfirm(OrderStatus.DRAFT, 0));
+});
+
+test('pre-preparation edit guards', () => {
+  assert.doesNotThrow(() => assertOrderHeaderEditable(OrderStatus.CONFIRMED));
+  assert.doesNotThrow(() => assertCompositionEditable(OrderStatus.RESERVED));
+  assert.throws(() => assertOrderHeaderEditable(OrderStatus.IN_PREPARATION));
+  assert.throws(() => assertCompositionEditable(OrderStatus.READY));
 });
 
 test('reservation outcome maps to status', () => {

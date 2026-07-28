@@ -10,6 +10,7 @@ import {
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { RequirePermissions } from '../../auth/presentation/auth.decorators';
+import { AuditQueryUseCases } from '../../platform/application/audit-query.use-cases';
 import { OrderUseCases } from '../application/order.use-cases';
 import { OrderOccasion, OrderStatus, OrderType } from '../domain/order-rules';
 import {
@@ -32,7 +33,10 @@ import {
 @RequirePermissions('orders:read')
 @Controller('organizations/:organizationId/stores/:storeId')
 export class OrdersController {
-  constructor(private readonly orders: OrderUseCases) {}
+  constructor(
+    private readonly orders: OrderUseCases,
+    private readonly auditQuery: AuditQueryUseCases,
+  ) {}
 
   @Get('orders/dashboard')
   dashboard(@Param() params: StoreParamsDto) {
@@ -69,6 +73,16 @@ export class OrdersController {
   @Get('orders/:orderId')
   get(@Param() params: OrderParamsDto) {
     return this.orders.getOrder(params.organizationId, params.storeId, params.orderId);
+  }
+
+  @Get('orders/:orderId/audit-trail')
+  listAuditTrail(@Param() params: OrderParamsDto) {
+    return this.auditQuery.listEntityAudit({
+      organizationId: params.organizationId,
+      entityType: 'Order',
+      entityId: params.orderId,
+      limit: 100,
+    });
   }
 
   @Post('orders/:orderId/update')

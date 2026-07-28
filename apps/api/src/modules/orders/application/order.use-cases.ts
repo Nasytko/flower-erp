@@ -55,7 +55,8 @@ import {
   assertCanMarkReady,
   assertCanReserve,
   assertCanStartPreparation,
-  assertDraftEditable,
+  assertCompositionEditable,
+  assertOrderHeaderEditable,
   assertQuantityPositive,
   isClaimEligibleStatus,
   statusFromReservationOutcome,
@@ -234,9 +235,12 @@ export class OrderUseCases {
         plannedPrice: input.plannedPrice ?? null,
         createdByMembershipId: actorMembershipId(),
         compositionId,
+        status: OrderStatus.CONFIRMED,
+        confirmedAt: now,
       });
 
       await this.appendTimeline(created, 'ORDER_CREATED', 'Order created', null);
+      await this.appendTimeline(created, 'CONFIRMED', 'Order placed in queue', null);
       await this.auditOrder(created, 'ORDER_CREATED', null, created);
       return created;
     });
@@ -286,7 +290,7 @@ export class OrderUseCases {
   }) {
     const existing = await this.requireOrder(input.organizationId, input.storeId, input.orderId);
     try {
-      assertDraftEditable(existing.status as OrderStatus);
+      assertOrderHeaderEditable(existing.status as OrderStatus);
     } catch (e) {
       mapDomain(e);
     }
@@ -401,7 +405,7 @@ export class OrderUseCases {
   }) {
     const order = await this.requireOrder(input.organizationId, input.storeId, input.orderId);
     try {
-      assertDraftEditable(order.status as OrderStatus);
+      assertCompositionEditable(order.status as OrderStatus);
     } catch (e) {
       mapDomain(e);
     }
@@ -460,7 +464,7 @@ export class OrderUseCases {
   }) {
     const order = await this.requireOrder(input.organizationId, input.storeId, input.orderId);
     try {
-      assertDraftEditable(order.status as OrderStatus);
+      assertCompositionEditable(order.status as OrderStatus);
       assertQuantityPositive(input.quantity);
     } catch (e) {
       mapDomain(e);
@@ -534,7 +538,7 @@ export class OrderUseCases {
   }) {
     const order = await this.requireOrder(input.organizationId, input.storeId, input.orderId);
     try {
-      assertDraftEditable(order.status as OrderStatus);
+      assertCompositionEditable(order.status as OrderStatus);
     } catch (e) {
       mapDomain(e);
     }
@@ -587,11 +591,28 @@ export class OrderUseCases {
   }
 
   async confirmOrder(input: { organizationId: string; storeId: string; orderId: string }) {
-    return this.uow.runInTransaction(async () => {
-      const order = await this.requireOrder(input.organizationId, input.storeId, input.orderId);
-      const items = order.composition?.items ?? [];
+    const order = await this.requireOrder(input.organizationId, input.storeId, input.orderId);
+    const status = order.status as OrderStatus;
+    if (status !== OrderStatus.DRAFT) {
+      if (
+        status === OrderStatus.CONFIRMED ||
+        status === OrderStatus.PARTIALLY_RESERVED ||
+        status === OrderStatus.RESERVED
+      ) {
+        return this.reserveOrder(input);
+      }
       try {
-        assertCanConfirm(order.status as OrderStatus, items.length);
+        assertCanConfirm(status, order.composition?.items.length ?? 0);
+      } catch (e) {
+        mapDomain(e);
+      }
+    }
+
+    return this.uow.runInTransaction(async () => {
+      const fresh = await this.requireOrder(input.organizationId, input.storeId, input.orderId);
+      const items = fresh.composition?.items ?? [];
+      try {
+        assertCanConfirm(fresh.status as OrderStatus, items.length);
       } catch (e) {
         mapDomain(e);
       }
@@ -606,10 +627,10 @@ export class OrderUseCases {
 
       const now = this.clock.now();
       const result = await this.reservations.reserveComposition({
-        organizationId: order.organizationId,
-        storeId: order.storeId,
-        warehouseId: order.warehouseId,
-        orderId: order.id,
+        organizationId: fresh.organizationId,
+        storeId: fresh.storeId,
+        warehouseId: fresh.warehouseId,
+        orderId: fresh.id,
         lines: items.map((i) => ({
           compositionItemId: i.id,
           itemId: i.itemId,
@@ -636,7 +657,7 @@ export class OrderUseCases {
         `Reservation ${result.outcome.toLowerCase()}`,
         result,
       );
-      await this.auditOrder(updated, 'ORDER_CONFIRMED', order, { status, reservation: result });
+      await this.auditOrder(updated, 'ORDER_CONFIRMED', fresh, { status, reservation: result });
       return this.enrichWithReservation(updated);
     });
   }
@@ -650,6 +671,12 @@ export class OrderUseCases {
         mapDomain(e);
       }
       const items = order.composition?.items ?? [];
+      if (items.length < 1) {
+        throw new BadRequestException({
+          code: 'ORDER_EMPTY',
+          message: 'Order must have at least one composition item before reservation',
+        });
+      }
       const now = this.clock.now();
       const result = await this.reservations.reserveComposition({
         organizationId: order.organizationId,

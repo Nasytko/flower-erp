@@ -24,6 +24,7 @@ import {
   StoreIdParamDto,
   UpdateIntegrationSettingsDto,
   UpdateStoreDto,
+  UpdateWarehouseDto,
   WarehouseIdParamDto,
 } from './organization.dto';
 
@@ -188,5 +189,17 @@ export class OrganizationController {
       params.storeId,
       params.warehouseId,
     );
+  }
+
+  @Patch(':organizationId/stores/:storeId/warehouses/:warehouseId')
+  @RequirePermissions('stores:create')
+  @ApiOperation({ summary: 'Update warehouse profile (name)' })
+  updateWarehouse(@Param() params: WarehouseIdParamDto, @Body() body: UpdateWarehouseDto) {
+    return this.useCases.updateWarehouse({
+      organizationId: params.organizationId,
+      storeId: params.storeId,
+      warehouseId: params.warehouseId,
+      ...body,
+    });
   }
 }

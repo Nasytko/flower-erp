@@ -12,6 +12,7 @@ import {
 } from '@flower/api-client';
 import { getApiClient } from '@/lib/api-client';
 import { useAuth } from '@/components/auth-provider';
+import { DocRef } from '@/components/layout/doc-ref';
 import { PageContainer } from '@/components/layout/page-container';
 import { Section } from '@/components/layout/section';
 import { EmptyState, ErrorState, LoadingState } from '@/components/layout/states';
@@ -61,7 +62,6 @@ const HOME_BOARD_SECTIONS: DeliverySectionKey[] = [
 ];
 
 const PHASE_TONE: Record<OrderPhase, string> = {
-  DRAFT: 'neutral',
   NEW: 'warning',
   IN_WORK: 'info',
   READY: 'success',
@@ -405,6 +405,48 @@ export default function StoreHomePage() {
               </Section>
             ) : null}
 
+            {showOverviewSections && (operations || workspace) ? (
+              <Section>
+                <h2 className="home-section-title">Склад</h2>
+                <div className="metric-grid">
+                  <MetricCard
+                    label="Нехватка в заказах"
+                    value={
+                      operations?.kpis.flowerShortageOrders ??
+                      workspace?.counters.flowerShortageOrders?.count ??
+                      0
+                    }
+                    href={`${base}/orders?filter=partially_reserved`}
+                    tone={
+                      (operations?.kpis.flowerShortageOrders ??
+                        workspace?.counters.flowerShortageOrders?.count ??
+                        0) > 0
+                        ? 'warning'
+                        : 'default'
+                    }
+                    tint={1}
+                  />
+                  <MetricCard
+                    label="Ниже порога"
+                    value={
+                      operations?.kpis.flowersBelowThreshold ??
+                      workspace?.counters.flowersBelowThreshold?.count ??
+                      0
+                    }
+                    href={`${base}/stock?filter=low`}
+                    tone={
+                      (operations?.kpis.flowersBelowThreshold ??
+                        workspace?.counters.flowersBelowThreshold?.count ??
+                        0) > 0
+                        ? 'warning'
+                        : 'default'
+                    }
+                    tint={2}
+                  />
+                </div>
+              </Section>
+            ) : null}
+
             {showOverviewSections && operations ? (
               <Section>
                 <h2 className="home-section-title">Магазин</h2>
@@ -418,17 +460,10 @@ export default function StoreHomePage() {
                     tint={2}
                   />
                   <MetricCard
-                    label="Нехватка"
-                    value={operations.kpis.shortages}
-                    href={`${base}/stock`}
-                    tone="warning"
-                    tint={3}
-                  />
-                  <MetricCard
                     label="Приёмки ждут проведения"
                     value={operations.kpis.suppliesAwaitingReceipt}
                     href={`${base}/supplies`}
-                    tint={4}
+                    tint={3}
                   />
                 </div>
               </Section>
@@ -546,7 +581,12 @@ export default function StoreHomePage() {
                                     className="delivery-board-card delivery-board-card--compact"
                                   >
                                     <div className="meta-row">
-                                      <strong>{card.number}</strong>
+                                      <div className="list-row__primary">
+                                        <strong>
+                                          {card.displayAddress?.trim() || card.addressLine?.trim() || 'Доставка'}
+                                        </strong>
+                                        <DocRef>{card.number}</DocRef>
+                                      </div>
                                       <OrderPhaseBadge
                                         phase={resolveOrderPhase(
                                           {
@@ -562,13 +602,13 @@ export default function StoreHomePage() {
                                       />
                                     </div>
                                     <p className="order-card__sub">
-                                      {[
-                                        card.orderNumber ? `Заказ ${card.orderNumber}` : null,
-                                        formatWindow(card.windowStart, card.windowEnd),
-                                        card.displayAddress,
-                                      ]
-                                        .filter(Boolean)
-                                        .join(' · ')}
+                                      {formatWindow(card.windowStart, card.windowEnd)}
+                                      {card.orderNumber ? (
+                                        <>
+                                          {' · '}
+                                          <DocRef>{card.orderNumber}</DocRef>
+                                        </>
+                                      ) : null}
                                     </p>
                                   </Link>
                                 </li>

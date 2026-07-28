@@ -40,7 +40,6 @@ import {
 import { NavigationButtons } from '@/components/delivery/navigation-buttons';
 
 const PHASE_TONE: Record<OrderPhase, string> = {
-  DRAFT: 'neutral',
   NEW: 'warning',
   IN_WORK: 'info',
   READY: 'success',
@@ -264,15 +263,16 @@ export default function DeliveryDetailPage() {
     <main>
       <PageContainer>
         <PageHeader
-          title={job ? `Доставка ${job.number}` : 'Доставка'}
+          title="Доставка"
+          refCode={job?.number}
           description={
             job
               ? `${deliveryStatusLabel(job.status)} · ${formatWindow(job.windowStart, job.windowEnd)}`
-              : 'Загрузка…'
+              : undefined
           }
           breadcrumbs={[
             { label: 'Доставка', href: `${base}/deliveries` },
-            { label: job?.number ?? deliveryId },
+            { label: job?.displayAddress?.trim() || job?.addressLine?.trim() || 'Карточка' },
           ]}
           actions={
             <Button type="button" variant="secondary" disabled={busy} onClick={() => void load()}>

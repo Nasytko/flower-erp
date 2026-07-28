@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useState, type FormEvent } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { Button, Card } from '@flower/ui';
+import { Button, Card, Input } from '@flower/ui';
 import { ApiClientError } from '@flower/api-client';
 import { getApiClient } from '@/lib/api-client';
 import { PageContainer } from '@/components/layout/page-container';
@@ -26,8 +26,26 @@ type SupplyRow = {
   status: string;
   supplierId: string;
   warehouseId: string;
+  receivedDate?: string | null;
+  paymentDueDate?: string | null;
+  supplierDocumentNumber?: string | null;
   supplier?: { name: string; code: string };
 };
+
+function todayDateInput(): string {
+  const d = new Date();
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+function formatDateLabel(iso: string | null | undefined): string | null {
+  if (!iso) return null;
+  try {
+    return new Date(iso).toLocaleDateString('ru-RU');
+  } catch {
+    return iso.slice(0, 10);
+  }
+}
 
 export default function SuppliesPage() {
   const params = useParams<{ organizationId: string; storeId: string }>();
@@ -40,6 +58,10 @@ export default function SuppliesPage() {
     [],
   );
   const [supplierId, setSupplierId] = useState('');
+  const [receivedDate, setReceivedDate] = useState(todayDateInput);
+  const [paymentDueDate, setPaymentDueDate] = useState('');
+  const [supplierDocumentNumber, setSupplierDocumentNumber] = useState('');
+  const [comment, setComment] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
@@ -85,6 +107,10 @@ export default function SuppliesPage() {
     try {
       const created = await getApiClient().createSupply(organizationId, storeId, {
         supplierId,
+        receivedDate,
+        paymentDueDate: paymentDueDate.trim() || undefined,
+        supplierDocumentNumber: supplierDocumentNumber.trim() || undefined,
+        comment: comment.trim() || undefined,
       });
       router.push(`${base}/supplies/${created.id}`);
     } catch (err) {
@@ -129,6 +155,37 @@ export default function SuppliesPage() {
                     aria-label="Поставщик"
                   />
                 </Field>
+                <Field label="Дата прихода" hint="По умолчанию — сегодня">
+                  <Input
+                    type="date"
+                    value={receivedDate}
+                    onChange={(e) => setReceivedDate(e.target.value)}
+                    aria-label="Дата прихода"
+                  />
+                </Field>
+                <Field label="Оплатить до" hint="Необязательно">
+                  <Input
+                    type="date"
+                    value={paymentDueDate}
+                    onChange={(e) => setPaymentDueDate(e.target.value)}
+                    aria-label="Срок оплаты"
+                  />
+                </Field>
+                <Field label="Номер накладной" hint="Номер документа поставщика">
+                  <Input
+                    value={supplierDocumentNumber}
+                    onChange={(e) => setSupplierDocumentNumber(e.target.value)}
+                    placeholder="Например, 124/А"
+                    aria-label="Номер накладной"
+                  />
+                </Field>
+                <Field label="Комментарий">
+                  <Input
+                    value={comment}
+                    onChange={(e) => setComment(e.target.value)}
+                    aria-label="Комментарий"
+                  />
+                </Field>
                 <Button type="submit" disabled={creating || !supplierId}>
                   {creating ? 'Создание…' : 'Создать и заполнить'}
                 </Button>
@@ -154,6 +211,12 @@ export default function SuppliesPage() {
                         {item.supplier?.name ? (
                           <div style={{ fontSize: 'var(--text-sm)', color: 'var(--color-muted)' }}>
                             {item.supplier.name}
+                            {item.supplierDocumentNumber
+                              ? ` · накладная ${item.supplierDocumentNumber}`
+                              : null}
+                            {formatDateLabel(item.receivedDate)
+                              ? ` · приход ${formatDateLabel(item.receivedDate)}`
+                              : null}
                           </div>
                         ) : null}
                       </div>

@@ -7,6 +7,7 @@ import { Button, Card, Input } from '@flower/ui';
 import { ApiClientError, type DeliveryBoardDto } from '@flower/api-client';
 import { getApiClient } from '@/lib/api-client';
 import { useAuth } from '@/components/auth-provider';
+import { DocRef } from '@/components/layout/doc-ref';
 import { PageContainer } from '@/components/layout/page-container';
 import { PageHeader } from '@/components/layout/page-header';
 import { Section } from '@/components/layout/section';
@@ -27,7 +28,6 @@ import {
 type SectionKey = keyof DeliveryBoardDto['sections'];
 
 const PHASE_TONE: Record<OrderPhase, string> = {
-  DRAFT: 'neutral',
   NEW: 'warning',
   IN_WORK: 'info',
   READY: 'success',
@@ -210,7 +210,10 @@ export default function DeliveriesBoardPage() {
                             className="delivery-board-card"
                           >
                             <div className="meta-row">
-                              <strong>{card.number}</strong>
+                              <div className="list-row__primary">
+                                <strong>{card.displayAddress?.trim() || card.addressLine?.trim() || 'Адрес'}</strong>
+                                <DocRef>{card.number}</DocRef>
+                              </div>
                               <StatusBadge status={card.status} />
                               <span>{deliveryStatusLabel(card.status)}</span>
                               <OrderPhaseBadge

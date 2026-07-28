@@ -82,6 +82,9 @@ function mapSupply(row: Prisma.SupplyGetPayload<{ include: typeof supplyInclude 
     status: row.status,
     submittedAt: row.submittedAt,
     expectedReceiptDate: row.expectedReceiptDate,
+    receivedDate: row.receivedDate,
+    paymentDueDate: row.paymentDueDate,
+    supplierDocumentNumber: row.supplierDocumentNumber,
     comment: row.comment,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
@@ -146,12 +149,41 @@ export class PrismaSupplyRepository implements SupplyRepository {
     supplierId: string;
     number: string;
     expectedReceiptDate: Date | null;
+    receivedDate: Date | null;
+    paymentDueDate: Date | null;
+    supplierDocumentNumber: string | null;
     comment: string | null;
   }): Promise<SupplyView> {
     const row = await this.client.supply.create({
-      data: { ...input, status: 'DRAFT' },
+      data: { ...input, status: 'SUBMITTED_TO_SUPPLIER', submittedAt: new Date() },
       include: supplyInclude,
     });
+    return mapSupply(row);
+  }
+
+  async updateSupplyHeader(
+    organizationId: string,
+    storeId: string,
+    id: string,
+    data: {
+      expectedReceiptDate?: Date | null;
+      receivedDate?: Date | null;
+      paymentDueDate?: Date | null;
+      supplierDocumentNumber?: string | null;
+      comment?: string | null;
+    },
+  ): Promise<SupplyView> {
+    await this.client.supply.updateMany({
+      where: { id, organizationId, storeId },
+      data,
+    });
+    const row = await this.client.supply.findFirst({
+      where: { id, organizationId, storeId },
+      include: supplyInclude,
+    });
+    if (!row) {
+      throw new Error('Supply missing after header update');
+    }
     return mapSupply(row);
   }
 

@@ -55,24 +55,3 @@ export function Field({ label, hint, tooltip, htmlFor, required, error, children
     </div>
   );
 }
-
-/** Read-only document number block — numbers are system-assigned. */
-export function AutoNumberNote({
-  label = 'Номер документа',
-  value,
-}: {
-  label?: string;
-  value?: string | null;
-}) {
-  return (
-    <div className="field field--readonly">
-      <div className="field__label-row">
-        <span className="field__label">{label}</span>
-      </div>
-      <div className="field__readonly">
-        {value?.trim() ? value : 'Присвоится автоматически после сохранения'}
-      </div>
-      <p className="field__hint">Номер выдаёт система. Изменить его нельзя.</p>
-    </div>
-  );
-}

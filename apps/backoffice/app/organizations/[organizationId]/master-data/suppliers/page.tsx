@@ -10,7 +10,7 @@ import { PageHeader } from '@/components/layout/page-header';
 import { Section } from '@/components/layout/section';
 import { EmptyState, ErrorState, LoadingState } from '@/components/layout/states';
 import { StatusBadge } from '@/components/layout/status-badge';
-import { AutoNumberNote, Field } from '@/components/layout/field';
+import { Field } from '@/components/layout/field';
 import { formatApiErrorMessage } from '@/lib/format-api-error';
 import {
   type FieldErrors,
@@ -198,7 +198,6 @@ export default function SuppliersPage() {
         <Section>
           <Card title="Создать поставщика">
             <form onSubmit={onCreate} className="form-grid" noValidate>
-              <AutoNumberNote label="Код поставщика" />
               <Field
                 label="Название"
                 required

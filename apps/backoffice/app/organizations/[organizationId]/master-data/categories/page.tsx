@@ -9,7 +9,7 @@ import { PageHeader } from '@/components/layout/page-header';
 import { Section } from '@/components/layout/section';
 import { EmptyState, ErrorState, LoadingState } from '@/components/layout/states';
 import { StatusBadge } from '@/components/layout/status-badge';
-import { AutoNumberNote, Field } from '@/components/layout/field';
+import { Field } from '@/components/layout/field';
 import { FancySelect } from '@/components/layout/fancy-select';
 import { formatApiErrorMessage } from '@/lib/format-api-error';
 import {
@@ -154,7 +154,6 @@ export default function CategoriesPage() {
         <Section>
           <Card title="Создать категорию">
             <form onSubmit={onCreate} className="form-grid" noValidate>
-              <AutoNumberNote label="Код категории" />
               <Field
                 label="Название"
                 required

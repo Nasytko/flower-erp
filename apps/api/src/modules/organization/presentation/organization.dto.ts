@@ -82,6 +82,15 @@ export class UpdateStoreDto {
   timezone?: string;
 }
 
+export class UpdateWarehouseDto {
+  @ApiPropertyOptional({ example: 'Центральный — основной' })
+  @IsOptional()
+  @IsString()
+  @MinLength(2)
+  @MaxLength(200)
+  name?: string;
+}
+
 export class ArchiveDto {
   @ApiPropertyOptional()
   @IsOptional()

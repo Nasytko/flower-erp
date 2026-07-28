@@ -347,6 +347,8 @@ model Item {
   description             String?
   isPurchasable           Boolean          @default(true) @map("is_purchasable")
   isSellable              Boolean          @default(false) @map("is_sellable")
+  /// Minimum available stock before low-stock KPI / attention (flowers); null = no alert.
+  minimumStockQuantity    Decimal?         @map("minimum_stock_quantity") @db.Decimal(18, 3)
   status                  MasterDataStatus @default(ACTIVE)
   createdByMembershipId   String?          @map("created_by_membership_id") @db.Uuid
   createdAt               DateTime         @default(now()) @map("created_at")
@@ -410,6 +412,9 @@ model Supply {
   status              SupplyStatus @default(DRAFT)
   submittedAt         DateTime?    @map("submitted_at")
   expectedReceiptDate DateTime?    @map("expected_receipt_date") @db.Date
+  receivedDate        DateTime?    @map("received_date") @db.Date
+  paymentDueDate      DateTime?    @map("payment_due_date") @db.Date
+  supplierDocumentNumber String?   @map("supplier_document_number")
   comment             String?
   createdAt           DateTime     @default(now()) @map("created_at")
   updatedAt           DateTime     @updatedAt @map("updated_at")

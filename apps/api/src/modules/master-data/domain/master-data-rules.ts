@@ -78,6 +78,7 @@ export type ItemProps = {
   description: string | null;
   isPurchasable: boolean;
   isSellable: boolean;
+  minimumStockQuantity: string | null;
   status: MasterDataStatus;
   createdByMembershipId: string | null;
   createdByDisplayName: string | null;

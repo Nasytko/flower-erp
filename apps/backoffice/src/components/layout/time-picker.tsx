@@ -49,11 +49,7 @@ export function TimePicker({ value, onChange, required, id, disabled }: TimePick
           );
         })}
       </div>
-      <div className="time-picker__custom">
-        <label className="time-picker__custom-label" htmlFor={inputId}>
-          Точное время
-        </label>
-        <Input
+      <Input
           id={inputId}
           type="time"
           value={value}
@@ -61,8 +57,8 @@ export function TimePicker({ value, onChange, required, id, disabled }: TimePick
           required={required}
           disabled={disabled}
           className="time-picker__input"
+          aria-label="Время"
         />
-      </div>
     </div>
   );
 }

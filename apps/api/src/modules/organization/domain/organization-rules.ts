@@ -102,6 +102,14 @@ export function assertStoreName(name: string): string {
   return trimmed;
 }
 
+export function assertWarehouseName(name: string): string {
+  const trimmed = name.trim();
+  if (trimmed.length < 2 || trimmed.length > 200) {
+    throw new DomainError('INVALID_WAREHOUSE_NAME', 'Warehouse name must be 2–200 characters');
+  }
+  return trimmed;
+}
+
 export function canArchiveOrganization(status: OrganizationStatus): void {
   if (status === OrganizationStatus.ARCHIVED) {
     throw new DomainError('ORGANIZATION_ALREADY_ARCHIVED', 'Organization is already archived');

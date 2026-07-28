@@ -74,6 +74,25 @@ export class PrismaWarehouseRepository implements WarehouseRepository {
     return rows.map(mapWarehouse);
   }
 
+  async update(
+    organizationId: string,
+    storeId: string,
+    warehouseId: string,
+    data: { name?: string },
+  ): Promise<WarehouseProps> {
+    const existing = await this.findById(organizationId, storeId, warehouseId);
+    if (!existing) {
+      throw new Error('WAREHOUSE_NOT_FOUND');
+    }
+    const row = await this.client().warehouse.update({
+      where: { id: warehouseId },
+      data: {
+        ...(data.name !== undefined ? { name: data.name } : {}),
+      },
+    });
+    return mapWarehouse(row);
+  }
+
   async hasDefault(storeId: string): Promise<boolean> {
     const count = await this.client().warehouse.count({
       where: { storeId, isDefault: true },

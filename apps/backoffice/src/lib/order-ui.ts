@@ -1,8 +1,7 @@
 /** Simplified order lifecycle shown in backoffice (maps backend statuses). */
-export type OrderPhase = 'DRAFT' | 'NEW' | 'IN_WORK' | 'READY' | 'HANDED_OFF';
+export type OrderPhase = 'NEW' | 'IN_WORK' | 'READY' | 'HANDED_OFF';
 
 export const ORDER_PHASE_LABELS: Record<Exclude<OrderPhase, 'HANDED_OFF'>, string> = {
-  DRAFT: 'Черновик',
   NEW: 'Новый',
   IN_WORK: 'Взят в работу',
   READY: 'Готов',
@@ -31,7 +30,7 @@ export function resolveOrderPhase(
     return order.displayPhase;
   }
   if (order.status === 'CANCELLED') return 'NEW';
-  if (order.status === 'DRAFT') return 'DRAFT';
+  if (order.status === 'DRAFT') return 'NEW';
   if (order.status === 'COMPLETED') return 'HANDED_OFF';
   if (delivery?.status === 'DELIVERED') return 'HANDED_OFF';
   if (order.status === 'READY') return 'READY';
@@ -40,7 +39,7 @@ export function resolveOrderPhase(
 }
 
 function isOrderPhase(value: string): value is OrderPhase {
-  return ['DRAFT', 'NEW', 'IN_WORK', 'READY', 'HANDED_OFF'].includes(value);
+  return ['NEW', 'IN_WORK', 'READY', 'HANDED_OFF'].includes(value);
 }
 
 /** Human label; last step differs for delivery vs pickup. */
@@ -57,9 +56,7 @@ export function orderPhaseLabel(
   return ORDER_PHASE_LABELS[phase];
 }
 
-/** Lifecycle steps for stepper (draft orders show draft step only until confirmed). */
-export function orderLifecycleSteps(isDraft: boolean): OrderPhase[] {
-  if (isDraft) return ['DRAFT', 'NEW', 'IN_WORK', 'READY', 'HANDED_OFF'];
+export function orderLifecycleSteps(): OrderPhase[] {
   return ['NEW', 'IN_WORK', 'READY', 'HANDED_OFF'];
 }
 
@@ -71,9 +68,12 @@ export function orderPhaseFromStatus(
   return resolveOrderPhase({ status, hasActiveAssignment });
 }
 
+export function isOrderHeaderEditable(status: string): boolean {
+  return ['DRAFT', 'CONFIRMED', 'PARTIALLY_RESERVED', 'RESERVED'].includes(status);
+}
+
 export type OrderListFilter =
   | 'ALL'
-  | 'DRAFT'
   | 'NEW'
   | 'IN_WORK'
   | 'READY'
@@ -104,7 +104,6 @@ export function matchesOrderListFilter(
   if (filter === 'HANDED_OFF_TODAY') {
     return phase === 'HANDED_OFF' && isCompletedToday(order.completedAt);
   }
-  if (filter === 'DRAFT') return phase === 'DRAFT';
   return phase === filter;
 }
 

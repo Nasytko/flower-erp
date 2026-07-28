@@ -87,5 +87,11 @@ export interface WarehouseRepository {
     organizationId: string,
     storeId: string,
   ): Promise<WarehouseProps[]>;
+  update(
+    organizationId: string,
+    storeId: string,
+    warehouseId: string,
+    data: { name?: string },
+  ): Promise<WarehouseProps>;
   hasDefault(storeId: string): Promise<boolean>;
 }
