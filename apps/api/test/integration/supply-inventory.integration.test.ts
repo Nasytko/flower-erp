@@ -11,7 +11,6 @@ import { SupplyModule } from '../../src/modules/supply/supply.module.js';
 import { OrganizationUseCases } from '../../src/modules/organization/application/organization.use-cases.js';
 import { ItemUseCases } from '../../src/modules/master-data/application/item.use-cases.js';
 import { CategoryUseCases } from '../../src/modules/master-data/application/category.use-cases.js';
-import { UnitUseCases } from '../../src/modules/master-data/application/unit.use-cases.js';
 import { PolicyUseCases } from '../../src/modules/master-data/application/policy.use-cases.js';
 import { SupplierUseCases } from '../../src/modules/master-data/application/supplier.use-cases.js';
 import { GoodsReceiptUseCases, SupplyUseCases } from '../../src/modules/supply/application/supply.use-cases.js';
@@ -33,7 +32,6 @@ async function boot() {
 async function seed(moduleRef: Awaited<ReturnType<typeof boot>>) {
   const orgs = moduleRef.get(OrganizationUseCases);
   const categories = moduleRef.get(CategoryUseCases);
-  const units = moduleRef.get(UnitUseCases);
   const policies = moduleRef.get(PolicyUseCases);
   const items = moduleRef.get(ItemUseCases);
   const suppliers = moduleRef.get(SupplierUseCases);
@@ -50,12 +48,6 @@ async function seed(moduleRef: Awaited<ReturnType<typeof boot>>) {
     name: 'Roses',
     code: `C-${suffix}`,
   });
-  const unit = await units.createUnit({
-    organizationId: org.id,
-    name: 'шт',
-    symbol: `u${suffix.slice(-3)}`,
-    quantityScale: 0,
-  });
   const policy = await policies.createInventoryPolicy({
     organizationId: org.id,
     name: 'Flower',
@@ -67,7 +59,6 @@ async function seed(moduleRef: Awaited<ReturnType<typeof boot>>) {
   const item = await items.createItem({
     organizationId: org.id,
     categoryId: category.id,
-    unitId: unit.id,
     inventoryPolicyId: policy.id,
     name: 'Rose',
     code: `I-${suffix}`,

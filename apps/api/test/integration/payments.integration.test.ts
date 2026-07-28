@@ -15,7 +15,6 @@ import { OrderUseCases } from '../../src/modules/orders/application/order.use-ca
 import { PaymentUseCases } from '../../src/modules/payments/application/payment.use-cases.js';
 import { ItemUseCases } from '../../src/modules/master-data/application/item.use-cases.js';
 import { CategoryUseCases } from '../../src/modules/master-data/application/category.use-cases.js';
-import { UnitUseCases } from '../../src/modules/master-data/application/unit.use-cases.js';
 import { PolicyUseCases } from '../../src/modules/master-data/application/policy.use-cases.js';
 import { ItemType, TrackingMethod } from '../../src/modules/master-data/domain/master-data-rules.js';
 import { PaymentStatusProjection } from '../../src/modules/payments/domain/payment-rules.js';
@@ -49,7 +48,6 @@ test('order prepayment complete posts cash and updates summary; idempotent', {
   const orders = moduleRef.get(OrderUseCases);
   const customers = moduleRef.get(CustomerUseCases);
   const categories = moduleRef.get(CategoryUseCases);
-  const units = moduleRef.get(UnitUseCases);
   const policies = moduleRef.get(PolicyUseCases);
   const itemsUc = moduleRef.get(ItemUseCases);
   const prisma = moduleRef.get(PrismaService);
@@ -69,12 +67,6 @@ test('order prepayment complete posts cash and updates summary; idempotent', {
     name: 'PayCat',
     code: `PC-${suffix}`,
   });
-  const unit = await units.createUnit({
-    organizationId: auth.organizationId,
-    name: 'шт',
-    symbol: `p${suffix.slice(-2)}`,
-    quantityScale: 0,
-  });
   const policy = await policies.createInventoryPolicy({
     organizationId: auth.organizationId,
     name: 'Mat',
@@ -85,7 +77,6 @@ test('order prepayment complete posts cash and updates summary; idempotent', {
   const item = await itemsUc.createItem({
     organizationId: auth.organizationId,
     categoryId: category.id,
-    unitId: unit.id,
     inventoryPolicyId: policy.id,
     name: 'Paper',
     code: `PP-${suffix}`,

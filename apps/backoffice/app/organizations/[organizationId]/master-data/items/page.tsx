@@ -32,8 +32,6 @@ type Item = {
   createdByDisplayName?: string | null;
 };
 
-type Ref = { id: string; name: string; status?: string };
-
 function itemTypeLabel(type: string) {
   return type === 'MATERIAL' ? 'Материал' : 'Цветок';
 }
@@ -61,11 +59,8 @@ export default function ItemsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [units, setUnits] = useState<Ref[]>([]);
-
   const [name, setName] = useState('');
   const [itemType, setItemType] = useState<'FLOWER' | 'MATERIAL'>('FLOWER');
-  const [unitId, setUnitId] = useState('');
   const [description, setDescription] = useState('');
   const [isSellable, setIsSellable] = useState(false);
   const [minimumStock, setMinimumStock] = useState('');
@@ -77,8 +72,7 @@ export default function ItemsPage() {
     setError(null);
     try {
       const client = getApiClient();
-      const [list, unts] = await Promise.all([
-        client.listItems(organizationId, {
+      const list = await client.listItems(organizationId, {
           page,
           pageSize: 10,
           name: nameFilter || undefined,
@@ -86,14 +80,9 @@ export default function ItemsPage() {
           status: statusFilter || undefined,
           sortBy: 'name',
           sortDir: 'asc',
-        }),
-        client.listUnits(organizationId, 1, 100),
-      ]);
+        });
       setItems(list.items);
       setTotalPages(list.totalPages);
-      const activeUnits = unts.items.filter((u) => u.status === 'ACTIVE');
-      setUnits(activeUnits);
-      setUnitId((current) => current || activeUnits[0]?.id || '');
     } catch (err) {
       setError(formatApiErrorMessage(err, 'Не удалось загрузить товары'));
     } finally {
@@ -109,7 +98,6 @@ export default function ItemsPage() {
     event.preventDefault();
     const errors: FieldErrors = {
       name: requiredText(name, 'Укажите название'),
-      unitId: requiredText(unitId, 'Выберите единицу измерения'),
     };
     setFieldErrors(errors);
     if (hasFieldErrors(errors)) {
@@ -122,7 +110,6 @@ export default function ItemsPage() {
       await getApiClient().createItem(organizationId, {
         name,
         itemType,
-        unitId,
         description: description.trim() || undefined,
         isSellable,
         isPurchasable: true,
@@ -233,7 +220,7 @@ export default function ItemsPage() {
             {loading ? <LoadingState /> : null}
             {error ? <ErrorState message={error} /> : null}
             {!loading && !error && items.length === 0 ? (
-              <EmptyState message="Товаров пока нет. Создайте единицу измерения, затем товар." />
+              <EmptyState message="Товаров пока нет. Создайте первый товар ниже." />
             ) : null}
             <ul className="list-stack">
               {items.map((item) => (
@@ -342,20 +329,6 @@ export default function ItemsPage() {
                   aria-label="Тип товара"
                 />
               </Field>
-              <Field
-                label="Единица измерения"
-                required
-                error={fieldErrors.unitId}
-                hint="Например: штука, ветка, метр"
-              >
-                <FancySelect
-                  value={unitId}
-                  onChange={setUnitId}
-                  options={units.map((u) => ({ value: u.id, label: u.name }))}
-                  required
-                  aria-label="Единица"
-                />
-              </Field>
               <Field label="Описание" hint="Необязательно">
                 <Input
                   value={description}
@@ -395,7 +368,7 @@ export default function ItemsPage() {
                 />
                 Готовый букет (продаётся в магазине как готовая позиция)
               </label>
-              <Button type="submit" disabled={creating || !unitId}>
+              <Button type="submit" disabled={creating}>
                 {creating ? 'Создание…' : 'Создать'}
               </Button>
             </form>

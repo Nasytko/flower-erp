@@ -5,6 +5,8 @@ import {
   InventoryPolicyPresetCode,
   ItemType,
   MasterDataStatus,
+  DEFAULT_QUANTITY_SCALE,
+  DEFAULT_UNIT_SYMBOL,
 } from '../domain/master-data-rules';
 import {
   INVENTORY_POLICY_REPOSITORY,
@@ -25,11 +27,7 @@ export class SeedDefaultMasterDataUseCases {
   ) {}
 
   async seedDefaults(organizationId: string): Promise<void> {
-    const units = [
-      { name: 'Штука', symbol: 'шт', quantityScale: 0 },
-      { name: 'Ветка', symbol: 'ветка', quantityScale: 0 },
-      { name: 'Метр', symbol: 'метр', quantityScale: 2 },
-    ];
+    const units = [{ name: 'Штука', symbol: DEFAULT_UNIT_SYMBOL, quantityScale: DEFAULT_QUANTITY_SCALE }];
     for (const unit of units) {
       if (!(await this.units.existsSymbol(organizationId, unit.symbol))) {
         await this.units.create({

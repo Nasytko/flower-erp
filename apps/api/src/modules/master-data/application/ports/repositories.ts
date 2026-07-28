@@ -117,6 +117,7 @@ export interface UnitOfMeasureRepository {
     status: MasterDataStatus,
   ): Promise<UnitOfMeasureProps>;
   existsSymbol(organizationId: string, symbol: string): Promise<boolean>;
+  findBySymbol(organizationId: string, symbol: string): Promise<UnitOfMeasureProps | null>;
   countItems(organizationId: string, unitId: string): Promise<number>;
 }
 

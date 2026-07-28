@@ -9,8 +9,8 @@ import { Section } from '@/components/layout/section';
 
 const SECTIONS = [
   { href: 'items', title: 'Товары', description: 'Единый справочник Item (FLOWER / MATERIAL)' },
+  { href: 'retail-prices', title: 'Розничные цены', description: 'Цветы за штуку, материалы как услуга — по неделям' },
   { href: 'categories', title: 'Категории', description: 'Дерево категорий без ограничения глубины' },
-  { href: 'units', title: 'Единицы', description: 'Единицы измерения (шт, ветка, метр…)' },
   { href: 'suppliers', title: 'Поставщики', description: 'Поставщики организации' },
   { href: 'policies', title: 'Политики учета', description: 'InventoryPolicy без остатков и партий' },
 ] as const;
@@ -25,7 +25,7 @@ export default function MasterDataHubPage() {
       <PageContainer>
         <PageHeader
           title="Справочники"
-          description="Справочники. Без поставок, остатков и цен."
+          description="Справочники и розничные цены."
           breadcrumbs={[
             { label: 'Организации', href: '/organizations' },
             { label: 'Организация', href: `/organizations/${organizationId}` },

@@ -99,6 +99,13 @@ export class PrismaUnitOfMeasureRepository implements UnitOfMeasureRepository {
     return Boolean(row);
   }
 
+  async findBySymbol(organizationId: string, symbol: string): Promise<UnitOfMeasureProps | null> {
+    const row = await this.client().unitOfMeasure.findFirst({
+      where: { organizationId, symbol },
+    });
+    return row ? mapUnit(row) : null;
+  }
+
   async countItems(organizationId: string, unitId: string): Promise<number> {
     return this.client().item.count({
       where: {

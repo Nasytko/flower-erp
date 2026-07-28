@@ -19,7 +19,6 @@ test('e2e write-off smoke', { skip: !runE2E }, async () => {
   const storeBase = `${base}/stores/${auth.storeId}`;
 
   const cat = await request(server).post(`${base}/categories`).set(headers).send({ name: 'Ops', code: `EO${suffix}` }).expect(201);
-  const unit = await request(server).post(`${base}/units`).set(headers).send({ name: 'шт', symbol: `eo${suffix}`, quantityScale: 0 }).expect(201);
   const policy = await request(server)
     .post(`${base}/policies`)
     .set(headers)
@@ -30,7 +29,6 @@ test('e2e write-off smoke', { skip: !runE2E }, async () => {
     .set(headers)
     .send({
       categoryId: cat.body.id,
-      unitId: unit.body.id,
       inventoryPolicyId: policy.body.id,
       name: 'Rose',
       code: `EOI${suffix}`,

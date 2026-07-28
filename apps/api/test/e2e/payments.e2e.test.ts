@@ -38,11 +38,6 @@ test('e2e payment methods ensure + order prepayment draft/complete/summary', {
     .set(headers)
     .send({ name: 'Cat', code: `PC${suffix}` })
     .expect(201);
-  const unit = await request(server)
-    .post(`${base}/units`)
-    .set(headers)
-    .send({ name: 'шт', symbol: `q${suffix.slice(-2)}`, quantityScale: 0 })
-    .expect(201);
   const policy = await request(server)
     .post(`${base}/policies`)
     .set(headers)
@@ -58,7 +53,6 @@ test('e2e payment methods ensure + order prepayment draft/complete/summary', {
     .set(headers)
     .send({
       categoryId: cat.body.id,
-      unitId: unit.body.id,
       inventoryPolicyId: policy.body.id,
       name: 'Ribbon',
       code: `RB${suffix}`,

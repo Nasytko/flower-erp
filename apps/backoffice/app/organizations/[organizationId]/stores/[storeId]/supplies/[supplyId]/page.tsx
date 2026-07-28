@@ -33,8 +33,6 @@ type CatalogItem = {
   isPurchasable?: boolean;
 };
 
-type Ref = { id: string; name: string; status?: string };
-
 type SupplyLine = {
   id: string;
   itemId: string;
@@ -99,14 +97,12 @@ export default function SupplyDetailPage() {
     items: SupplyLine[];
   } | null>(null);
   const [catalog, setCatalog] = useState<CatalogItem[]>([]);
-  const [units, setUnits] = useState<Ref[]>([]);
   const [itemId, setItemId] = useState('');
   const [qty, setQty] = useState('1');
   const [unitCost, setUnitCost] = useState('');
   const [showQuickCreate, setShowQuickCreate] = useState(false);
   const [quickName, setQuickName] = useState('');
   const [quickType, setQuickType] = useState<'FLOWER' | 'MATERIAL'>('FLOWER');
-  const [quickUnitId, setQuickUnitId] = useState('');
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [editQty, setEditQty] = useState('');
   const [editCost, setEditCost] = useState('');
@@ -126,10 +122,9 @@ export default function SupplyDetailPage() {
     setError(null);
     try {
       const client = getApiClient();
-      const [s, items, unts, history] = await Promise.all([
+      const [s, items, history] = await Promise.all([
         client.getSupply(organizationId, storeId, supplyId),
         client.listItems(organizationId, { pageSize: 100, status: 'ACTIVE' }),
-        client.listUnits(organizationId, 1, 100),
         client.listSupplyAuditTrail(organizationId, storeId, supplyId).catch(() => []),
       ]);
       setSupply(s);
@@ -149,9 +144,6 @@ export default function SupplyDetailPage() {
         }
         return purchasable[0]?.id ?? '';
       });
-      const activeUnits = unts.items.filter((u) => u.status === 'ACTIVE');
-      setUnits(activeUnits);
-      setQuickUnitId((current) => current || activeUnits[0]?.id || '');
     } catch (err) {
       setError(formatApiErrorMessage(err, 'Не удалось загрузить'));
     } finally {
@@ -183,7 +175,7 @@ export default function SupplyDetailPage() {
       return;
     }
     if (!editCost.trim() || Number(editCost) < 0) {
-      setError('Укажите себестоимость за единицу (BYN)');
+      setError('Укажите себестоимость за штуку (BYN)');
       return;
     }
     const posted =
@@ -228,7 +220,7 @@ export default function SupplyDetailPage() {
         return;
       }
       if (!cost || Number(cost) < 0) {
-        setError('Укажите себестоимость за единицу (BYN)');
+        setError('Укажите себестоимость за штуку (BYN)');
         setBusy(false);
         return;
       }
@@ -280,15 +272,9 @@ export default function SupplyDetailPage() {
     setBusy(true);
     setError(null);
     try {
-      if (!quickUnitId) {
-        setError('Нет единиц измерения. Создайте штуку в Справочники → Единицы.');
-        setBusy(false);
-        return;
-      }
       const created = await getApiClient().createItem(organizationId, {
         name: quickName,
         itemType: quickType,
-        unitId: quickUnitId,
         isPurchasable: true,
         isSellable: false,
       });
@@ -626,7 +612,7 @@ export default function SupplyDetailPage() {
                           )}
                         </div>
                         <div className="supply-lines__cell">
-                          <span className="supply-lines__label">Себес / ед.</span>
+                          <span className="supply-lines__label">Себес / шт.</span>
                           {isEditing ? (
                             <Input
                               className="supply-lines__input"
@@ -726,7 +712,7 @@ export default function SupplyDetailPage() {
                       </div>
                       <div className="supply-lines__cell">
                         <label className="supply-lines__label" htmlFor={draftCostId}>
-                          Себес / ед. *
+                          Себес / шт. *
                         </label>
                         <Input
                           id={draftCostId}
@@ -736,7 +722,7 @@ export default function SupplyDetailPage() {
                           inputMode="decimal"
                           placeholder="0.00"
                           required
-                          aria-label="Себестоимость за единицу"
+                          aria-label="Себестоимость за штуку"
                         />
                       </div>
                       <div className="supply-lines__cell">
@@ -812,16 +798,7 @@ export default function SupplyDetailPage() {
                         aria-label="Тип нового товара"
                       />
                     </Field>
-                    <Field label="Единица" required>
-                      <FancySelect
-                        value={quickUnitId}
-                        onChange={setQuickUnitId}
-                        options={units.map((u) => ({ value: u.id, label: u.name }))}
-                        required
-                        aria-label="Единица нового товара"
-                      />
-                    </Field>
-                    <Button type="submit" disabled={busy || !quickName.trim() || !quickUnitId}>
+                    <Button type="submit" disabled={busy || !quickName.trim()}>
                       Создать и выбрать
                     </Button>
                   </form>

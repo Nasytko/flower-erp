@@ -7,7 +7,6 @@ import { MasterDataModule } from '../../src/modules/master-data/master-data.modu
 import { OrganizationUseCases } from '../../src/modules/organization/application/organization.use-cases.js';
 import { SupplierUseCases } from '../../src/modules/master-data/application/supplier.use-cases.js';
 import { CategoryUseCases } from '../../src/modules/master-data/application/category.use-cases.js';
-import { UnitUseCases } from '../../src/modules/master-data/application/unit.use-cases.js';
 import { PolicyUseCases } from '../../src/modules/master-data/application/policy.use-cases.js';
 import { ItemUseCases } from '../../src/modules/master-data/application/item.use-cases.js';
 import {
@@ -31,7 +30,6 @@ test('create supplier / category / item happy path', { skip: !runIntegration }, 
   const orgs = moduleRef.get(OrganizationUseCases);
   const suppliers = moduleRef.get(SupplierUseCases);
   const categories = moduleRef.get(CategoryUseCases);
-  const units = moduleRef.get(UnitUseCases);
   const policies = moduleRef.get(PolicyUseCases);
   const items = moduleRef.get(ItemUseCases);
 
@@ -51,12 +49,6 @@ test('create supplier / category / item happy path', { skip: !runIntegration }, 
     code: `ROSE-${suffix}`,
   });
 
-  const unit = await units.createUnit({
-    organizationId: org.id,
-    name: 'Ветка',
-    symbol: `в${suffix.slice(-3)}`,
-  });
-
   const policy = await policies.createInventoryPolicy({
     organizationId: org.id,
     name: 'Flower LOT',
@@ -69,7 +61,6 @@ test('create supplier / category / item happy path', { skip: !runIntegration }, 
   const item = await items.createItem({
     organizationId: org.id,
     categoryId: category.id,
-    unitId: unit.id,
     inventoryPolicyId: policy.id,
     name: 'Роза Red Naomi',
     code: `ITEM-${suffix}`,
@@ -78,6 +69,7 @@ test('create supplier / category / item happy path', { skip: !runIntegration }, 
 
   assert.equal(item.itemType, 'FLOWER');
   assert.equal(item.inventoryPolicyId, policy.id);
+  assert.ok(item.unitId);
 
   await moduleRef.close();
 });
@@ -86,7 +78,6 @@ test('tree cycle and item/policy type mismatch / archive deps', { skip: !runInte
   const moduleRef = await boot();
   const orgs = moduleRef.get(OrganizationUseCases);
   const categories = moduleRef.get(CategoryUseCases);
-  const units = moduleRef.get(UnitUseCases);
   const policies = moduleRef.get(PolicyUseCases);
   const items = moduleRef.get(ItemUseCases);
 
@@ -109,12 +100,6 @@ test('tree cycle and item/policy type mismatch / archive deps', { skip: !runInte
   // but self-parent with matching random id is covered in unit tests.
   assert.ok(child.parentId === root.id);
 
-  const unit = await units.createUnit({
-    organizationId: org.id,
-    name: 'шт',
-    symbol: `s${suffix.slice(-3)}`,
-  });
-
   const materialPolicy = await policies.createInventoryPolicy({
     organizationId: org.id,
     name: 'Material',
@@ -128,7 +113,6 @@ test('tree cycle and item/policy type mismatch / archive deps', { skip: !runInte
       items.createItem({
         organizationId: org.id,
         categoryId: root.id,
-        unitId: unit.id,
         inventoryPolicyId: materialPolicy.id,
         name: 'Bad flower',
         code: `BAD-${suffix}`,
@@ -148,7 +132,6 @@ test('tree cycle and item/policy type mismatch / archive deps', { skip: !runInte
   const item = await items.createItem({
     organizationId: org.id,
     categoryId: root.id,
-    unitId: unit.id,
     inventoryPolicyId: flowerPolicy.id,
     name: 'Good flower',
     code: `GOOD-${suffix}`,
@@ -160,15 +143,6 @@ test('tree cycle and item/policy type mismatch / archive deps', { skip: !runInte
       categories.archiveCategory({
         organizationId: org.id,
         categoryId: root.id,
-      }),
-    (err: unknown) => err instanceof ConflictException,
-  );
-
-  await assert.rejects(
-    () =>
-      units.archiveUnit({
-        organizationId: org.id,
-        unitId: unit.id,
       }),
     (err: unknown) => err instanceof ConflictException,
   );
@@ -187,7 +161,6 @@ test('tree cycle and item/policy type mismatch / archive deps', { skip: !runInte
     organizationId: org.id,
     policyId: flowerPolicy.id,
   });
-  await units.archiveUnit({ organizationId: org.id, unitId: unit.id });
   // root still has child — cannot archive
   await assert.rejects(
     () =>

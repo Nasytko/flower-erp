@@ -29,12 +29,6 @@ test('e2e master-data create/filter/paginate/search', { skip: !runE2E }, async (
     .send({ name: 'Категория', code: `CAT-${suffix}` })
     .expect(201);
 
-  const unit = await request(server)
-    .post(`${base}/units`)
-    .set(headers)
-    .send({ name: 'Штука', symbol: `шт${suffix.slice(-2)}`, quantityScale: 0 })
-    .expect(201);
-
   const policy = await request(server)
     .post(`${base}/policies`)
     .set(headers)
@@ -52,7 +46,6 @@ test('e2e master-data create/filter/paginate/search', { skip: !runE2E }, async (
     .set(headers)
     .send({
       categoryId: cat.body.id,
-      unitId: unit.body.id,
       inventoryPolicyId: policy.body.id,
       name: 'Rosa Red',
       code: `ROSE-${suffix}`,
@@ -65,7 +58,6 @@ test('e2e master-data create/filter/paginate/search', { skip: !runE2E }, async (
     .set(headers)
     .send({
       categoryId: cat.body.id,
-      unitId: unit.body.id,
       inventoryPolicyId: policy.body.id,
       name: 'Rosa White',
       code: `ROSW-${suffix}`,

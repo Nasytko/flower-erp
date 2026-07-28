@@ -42,6 +42,11 @@ enum ItemType {
   MATERIAL
 }
 
+enum RetailPricingMode {
+  UNIT
+  SERVICE
+}
+
 enum TrackingMethod {
   LOT
   NONE
@@ -117,6 +122,7 @@ model Organization {
   memberships        OrganizationMembership[]
   roles              Role[]
   integrationSettings OrganizationIntegrationSettings?
+  itemRetailPrices    ItemRetailPrice[]
 
   @@index([status])
   @@map("organizations")
@@ -374,6 +380,7 @@ model Item {
   transferItems   TransferItem[]
   transferAllocationsFrom TransferAllocation[] @relation("TransferAllocationFromItem")
   transferAllocationsTo   TransferAllocation[] @relation("TransferAllocationToItem")
+  retailPrices              ItemRetailPrice[]
 
   @@unique([organizationId, code])
   @@index([organizationId])
@@ -384,6 +391,27 @@ model Item {
   @@index([unitId])
   @@index([inventoryPolicyId])
   @@map("items")
+}
+
+model ItemRetailPrice {
+  id                    String            @id @default(uuid()) @db.Uuid
+  organizationId        String            @map("organization_id") @db.Uuid
+  itemId                String            @map("item_id") @db.Uuid
+  /// Week start or any date from which this price applies until superseded.
+  effectiveFrom         DateTime          @map("effective_from") @db.Date
+  amount                Decimal           @db.Decimal(18, 2)
+  pricingMode           RetailPricingMode @map("pricing_mode")
+  createdByMembershipId String?           @map("created_by_membership_id") @db.Uuid
+  createdAt             DateTime          @default(now()) @map("created_at")
+  updatedAt             DateTime          @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  item         Item         @relation(fields: [itemId], references: [id], onDelete: Restrict)
+
+  @@unique([organizationId, itemId, effectiveFrom])
+  @@index([organizationId, effectiveFrom])
+  @@index([organizationId, itemId])
+  @@map("item_retail_prices")
 }
 
 // ─── Supply bounded context (owned by supply module) ─────────────────────────

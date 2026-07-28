@@ -7,6 +7,7 @@ import {
   Param,
   Patch,
   Post,
+  Put,
   Query,
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
@@ -14,9 +15,9 @@ import type { PaginatedResponse } from '@flower/contracts';
 import { RequirePermissions } from '../../auth/presentation/auth.decorators';
 import { SupplierUseCases } from '../application/supplier.use-cases';
 import { CategoryUseCases } from '../application/category.use-cases';
-import { UnitUseCases } from '../application/unit.use-cases';
 import { PolicyUseCases } from '../application/policy.use-cases';
 import { ItemUseCases } from '../application/item.use-cases';
+import { RetailPriceUseCases } from '../application/retail-price.use-cases';
 import { SeedDefaultMasterDataUseCases } from '../application/seed-default-master-data.use-cases';
 import {
   ArchiveDto,
@@ -26,15 +27,16 @@ import {
   UpdateItemDto,
   CreatePolicyDto,
   CreateSupplierDto,
-  CreateUnitDto,
   ItemIdParamDto,
   ListItemsQueryDto,
+  ListRetailPricesQueryDto,
   ListSuppliersQueryDto,
   OrganizationIdParamDto,
   PaginationQueryDto,
   PolicyIdParamDto,
+  ResolveRetailCompositionDto,
+  UpsertRetailPricesDto,
   SupplierIdParamDto,
-  UnitIdParamDto,
 } from './master-data.dto';
 
 function toPage<T>(result: {
@@ -59,9 +61,9 @@ export class MasterDataController {
   constructor(
     private readonly suppliers: SupplierUseCases,
     private readonly categories: CategoryUseCases,
-    private readonly units: UnitUseCases,
     private readonly policies: PolicyUseCases,
     private readonly items: ItemUseCases,
+    private readonly retailPrices: RetailPriceUseCases,
     private readonly defaults: SeedDefaultMasterDataUseCases,
   ) {}
 
@@ -162,38 +164,6 @@ export class MasterDataController {
     });
   }
 
-  // ─── Units ────────────────────────────────────────────────────────────────
-
-  @Post('units')
-  @RequirePermissions('master-data:manage')
-  @ApiOperation({ summary: 'Create unit of measure' })
-  createUnit(@Param() params: OrganizationIdParamDto, @Body() body: CreateUnitDto) {
-    return this.units.createUnit({ organizationId: params.organizationId, ...body });
-  }
-
-  @Get('units')
-  @ApiOperation({ summary: 'List units of measure' })
-  async listUnits(@Param() params: OrganizationIdParamDto, @Query() query: PaginationQueryDto) {
-    const result = await this.units.listUnits(
-      params.organizationId,
-      query.page ?? 1,
-      query.pageSize ?? 20,
-    );
-    return toPage(result);
-  }
-
-  @Post('units/:unitId/archive')
-  @RequirePermissions('master-data:manage')
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Archive unit of measure' })
-  archiveUnit(@Param() params: UnitIdParamDto, @Body() body: ArchiveDto) {
-    return this.units.archiveUnit({
-      organizationId: params.organizationId,
-      unitId: params.unitId,
-      reason: body.reason,
-    });
-  }
-
   // ─── Policies ─────────────────────────────────────────────────────────────
 
   @Post('policies')
@@ -287,6 +257,42 @@ export class MasterDataController {
       organizationId: params.organizationId,
       itemId: params.itemId,
       reason: body.reason,
+    });
+  }
+
+  @Get('master-data/retail-prices')
+  @ApiOperation({ summary: 'List retail prices for a week (flowers + material services)' })
+  listRetailPrices(
+    @Param() params: OrganizationIdParamDto,
+    @Query() query: ListRetailPricesQueryDto,
+  ) {
+    return this.retailPrices.listRetailPrices(params.organizationId, query.effectiveFrom);
+  }
+
+  @Put('master-data/retail-prices')
+  @RequirePermissions('master-data:manage')
+  @ApiOperation({ summary: 'Upsert retail prices for a week' })
+  upsertRetailPrices(
+    @Param() params: OrganizationIdParamDto,
+    @Body() body: UpsertRetailPricesDto,
+  ) {
+    return this.retailPrices.upsertRetailPrices({
+      organizationId: params.organizationId,
+      effectiveFrom: body.effectiveFrom,
+      prices: body.prices,
+    });
+  }
+
+  @Post('master-data/retail-prices/resolve')
+  @ApiOperation({ summary: 'Calculate retail total for composition lines' })
+  resolveRetailComposition(
+    @Param() params: OrganizationIdParamDto,
+    @Body() body: ResolveRetailCompositionDto,
+  ) {
+    return this.retailPrices.resolveCompositionRetail({
+      organizationId: params.organizationId,
+      date: body.date,
+      lines: body.lines,
     });
   }
 }

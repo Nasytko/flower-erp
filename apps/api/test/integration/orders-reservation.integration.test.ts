@@ -14,7 +14,6 @@ import { CustomerUseCases } from '../../src/modules/orders/application/customer.
 import { GoodsReceiptUseCases, SupplyUseCases } from '../../src/modules/supply/application/supply.use-cases.js';
 import { ItemUseCases } from '../../src/modules/master-data/application/item.use-cases.js';
 import { CategoryUseCases } from '../../src/modules/master-data/application/category.use-cases.js';
-import { UnitUseCases } from '../../src/modules/master-data/application/unit.use-cases.js';
 import { PolicyUseCases } from '../../src/modules/master-data/application/policy.use-cases.js';
 import { SupplierUseCases } from '../../src/modules/master-data/application/supplier.use-cases.js';
 import { InventoryQueryUseCases } from '../../src/modules/inventory/application/inventory-query.use-cases.js';
@@ -50,7 +49,6 @@ test('composition confirm: full reserve, partial, assignment, ready without stoc
   const receipts = moduleRef.get(GoodsReceiptUseCases);
   const inventory = moduleRef.get(InventoryQueryUseCases);
   const categories = moduleRef.get(CategoryUseCases);
-  const units = moduleRef.get(UnitUseCases);
   const policies = moduleRef.get(PolicyUseCases);
   const items = moduleRef.get(ItemUseCases);
   const suppliers = moduleRef.get(SupplierUseCases);
@@ -67,12 +65,6 @@ test('composition confirm: full reserve, partial, assignment, ready without stoc
     name: 'Ord',
     code: `OC-${suffix}`,
   });
-  const unit = await units.createUnit({
-    organizationId: auth.organizationId,
-    name: 'шт',
-    symbol: `ou${suffix}`,
-    quantityScale: 0,
-  });
   const policy = await policies.createInventoryPolicy({
     organizationId: auth.organizationId,
     name: 'Flower',
@@ -84,7 +76,6 @@ test('composition confirm: full reserve, partial, assignment, ready without stoc
   const item = await items.createItem({
     organizationId: auth.organizationId,
     categoryId: category.id,
-    unitId: unit.id,
     inventoryPolicyId: policy.id,
     name: 'Tulip',
     code: `T-${suffix}`,

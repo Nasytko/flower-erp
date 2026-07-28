@@ -224,9 +224,10 @@ export class CreateItemDto {
   @IsUUID()
   categoryId?: string;
 
-  @ApiProperty({ format: 'uuid' })
+  @ApiPropertyOptional({ format: 'uuid', description: 'Optional; defaults to шт' })
+  @IsOptional()
   @IsUUID()
-  unitId!: string;
+  unitId?: string;
 
   @ApiPropertyOptional({
     format: 'uuid',
@@ -343,4 +344,49 @@ export class ListItemsQueryDto extends PaginationQueryDto {
   @IsOptional()
   @IsIn(['asc', 'desc'])
   sortDir?: 'asc' | 'desc';
+}
+
+export class ListRetailPricesQueryDto {
+  @ApiProperty({ description: 'Week start or effective date (YYYY-MM-DD)' })
+  @IsString()
+  effectiveFrom!: string;
+}
+
+export class RetailPriceEntryDto {
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID()
+  itemId!: string;
+
+  @ApiProperty({ example: '12.50' })
+  @IsString()
+  amount!: string;
+}
+
+export class UpsertRetailPricesDto {
+  @ApiProperty({ description: 'Week start or effective date (YYYY-MM-DD)' })
+  @IsString()
+  effectiveFrom!: string;
+
+  @ApiProperty({ type: [RetailPriceEntryDto] })
+  prices!: RetailPriceEntryDto[];
+}
+
+export class ResolveRetailCompositionLineDto {
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID()
+  itemId!: string;
+
+  @ApiProperty({ example: '3' })
+  @IsString()
+  quantity!: string;
+}
+
+export class ResolveRetailCompositionDto {
+  @ApiPropertyOptional({ description: 'Pricing date (YYYY-MM-DD), default today' })
+  @IsOptional()
+  @IsString()
+  date?: string;
+
+  @ApiProperty({ type: [ResolveRetailCompositionLineDto] })
+  lines!: ResolveRetailCompositionLineDto[];
 }

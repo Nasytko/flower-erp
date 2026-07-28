@@ -109,7 +109,7 @@ export default function GoodsReceiptPage() {
     setError(null);
     try {
       if (!price.trim() || Number(price) < 0) {
-        setError('Укажите фактическую себестоимость за единицу (BYN)');
+        setError('Укажите фактическую себестоимость за штуку (BYN)');
         setBusy(false);
         return;
       }
@@ -233,7 +233,7 @@ export default function GoodsReceiptPage() {
                       />
                     </Field>
                     <Field
-                      label="Себестоимость за ед., BYN"
+                      label="Себестоимость за шт., BYN"
                       required
                       hint="Подставляется из поставки, можно поправить"
                     >
@@ -241,7 +241,7 @@ export default function GoodsReceiptPage() {
                         value={price}
                         onChange={(e) => setPrice(e.target.value)}
                         inputMode="decimal"
-                        aria-label="Фактическая себестоимость за единицу"
+                        aria-label="Фактическая себестоимость за штуку"
                         required
                       />
                     </Field>

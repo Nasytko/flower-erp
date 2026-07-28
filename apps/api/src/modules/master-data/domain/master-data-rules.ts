@@ -9,6 +9,10 @@ export enum ItemType {
   MATERIAL = 'MATERIAL',
 }
 
+/** Implicit unit for all items — no separate catalog in UI. */
+export const DEFAULT_UNIT_SYMBOL = 'шт';
+export const DEFAULT_QUANTITY_SCALE = 0;
+
 export enum TrackingMethod {
   LOT = 'LOT',
   NONE = 'NONE',
@@ -385,4 +389,37 @@ export function assertCanArchivePolicy(input: {
       'Cannot archive inventory policy that is still used by items',
     );
   }
+}
+
+export enum RetailPricingMode {
+  UNIT = 'UNIT',
+  SERVICE = 'SERVICE',
+}
+
+export function defaultRetailPricingMode(itemType: ItemType): RetailPricingMode {
+  return itemType === ItemType.FLOWER ? RetailPricingMode.UNIT : RetailPricingMode.SERVICE;
+}
+
+export function assertRetailAmount(amount: string): void {
+  const value = Number(amount);
+  if (!Number.isFinite(value) || value < 0) {
+    throw new DomainError('INVALID_RETAIL_PRICE', 'Retail price must be a non-negative decimal');
+  }
+}
+
+/** Flowers: price × qty. Services: price × count of +1 applications (not per meter). */
+export function calculateRetailLineTotal(
+  amount: string,
+  _pricingMode: RetailPricingMode,
+  quantity: string,
+): string {
+  const price = Number(amount);
+  if (!Number.isFinite(price) || price < 0) {
+    throw new DomainError('INVALID_RETAIL_PRICE', 'Retail price must be a non-negative decimal');
+  }
+  const qty = Number(quantity);
+  if (!Number.isFinite(qty) || qty < 0) {
+    throw new DomainError('INVALID_QUANTITY', 'Quantity must be a non-negative decimal');
+  }
+  return (price * qty).toFixed(2);
 }

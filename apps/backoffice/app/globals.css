@@ -3644,6 +3644,12 @@ a.attention-item:hover {
   color: var(--color-muted);
 }
 
+.audit-history__context {
+  margin: 8px 0 0;
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
 .audit-history__diff {
   display: grid;
   gap: 10px;

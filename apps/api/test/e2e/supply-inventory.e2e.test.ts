@@ -25,11 +25,6 @@ test('e2e master-data → supply → post → inventory', { skip: !runE2E }, asy
     .set(headers)
     .send({ name: 'Cat', code: `C${suffix}` })
     .expect(201);
-  const unit = await request(server)
-    .post(`${base}/units`)
-    .set(headers)
-    .send({ name: 'шт', symbol: `s${suffix.slice(-2)}`, quantityScale: 0 })
-    .expect(201);
   const policy = await request(server)
     .post(`${base}/policies`)
     .set(headers)
@@ -46,7 +41,6 @@ test('e2e master-data → supply → post → inventory', { skip: !runE2E }, asy
     .set(headers)
     .send({
       categoryId: cat.body.id,
-      unitId: unit.body.id,
       inventoryPolicyId: policy.body.id,
       name: 'Rose',
       code: `I${suffix}`,

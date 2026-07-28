@@ -36,6 +36,23 @@ const ACTION_LABELS: Record<string, string> = {
   PAYMENT_ANNULLED: 'Платёж аннулирован',
 };
 
+/** Shown above diff when the row refers to a line/item but that label did not change. */
+const CONTEXT_FIELD_KEYS = ['itemName', 'itemCode', 'number'] as const;
+
+/** Keys omitted from audit diffs (noise / internal ids). */
+const HIDDEN_DIFF_KEYS = new Set([
+  'id',
+  'organizationId',
+  'storeId',
+  'warehouseId',
+  'createdAt',
+  'updatedAt',
+  'requestId',
+  'actorId',
+  'entityId',
+  'entityType',
+]);
+
 export function auditActionLabel(action: string): string {
   return ACTION_LABELS[action] ?? action;
 }
@@ -66,7 +83,18 @@ const FIELD_LABELS: Record<string, string> = {
   comment: 'Комментарий',
   status: 'Статус',
   recipientName: 'Получатель',
+  recipientPhone: 'Телефон',
   plannedPrice: 'Цена',
+  readyAt: 'Готовность',
+  type: 'Тип',
+  occasion: 'Повод',
+  deliveryAddressLine: 'Адрес',
+  deliveryCity: 'Город',
+  itemCount: 'Позиций',
+  receiptNumber: 'Приход',
+  receiptId: 'Приход (id)',
+  number: 'Номер',
+  supplierId: 'Поставщик',
 };
 
 function fieldLabel(key: string): string {
@@ -85,21 +113,99 @@ function formatValue(value: unknown): string {
   }
 }
 
-/** Human-readable diff lines for structured audit snapshots. */
+function valuesEqual(a: unknown, b: unknown): boolean {
+  return JSON.stringify(a) === JSON.stringify(b);
+}
+
+function diffKeys(
+  before: Record<string, unknown> | null,
+  after: Record<string, unknown> | null,
+): string[] {
+  const allKeys = [...new Set([...Object.keys(before ?? {}), ...Object.keys(after ?? {})])].filter(
+    (key) => !HIDDEN_DIFF_KEYS.has(key),
+  );
+
+  if (!before || !after) {
+    const source = after ?? before;
+    return allKeys.filter((key) => source?.[key] !== undefined);
+  }
+
+  return allKeys.filter(
+    (key) => !CONTEXT_FIELD_KEYS.includes(key as (typeof CONTEXT_FIELD_KEYS)[number]),
+  );
+}
+
+/** Returns only fields whose values differ between snapshots. */
+export function pickChangedAuditFields(
+  before: Record<string, unknown> | null,
+  after: Record<string, unknown> | null,
+): { before: Record<string, unknown> | null; after: Record<string, unknown> | null } {
+  if (!before && !after) return { before: null, after: null };
+  if (!before) {
+    const afterOnly: Record<string, unknown> = {};
+    for (const key of diffKeys(null, after)) {
+      if (after![key] !== undefined) afterOnly[key] = after![key];
+    }
+    return { before: null, after: Object.keys(afterOnly).length ? afterOnly : after };
+  }
+  if (!after) {
+    const beforeOnly: Record<string, unknown> = {};
+    for (const key of diffKeys(before, null)) {
+      if (before[key] !== undefined) beforeOnly[key] = before[key];
+    }
+    return { before: Object.keys(beforeOnly).length ? beforeOnly : before, after: null };
+  }
+
+  const changedBefore: Record<string, unknown> = {};
+  const changedAfter: Record<string, unknown> = {};
+  for (const key of diffKeys(before, after)) {
+    const prev = before[key];
+    const next = after[key];
+    if (valuesEqual(prev, next)) continue;
+    if (prev !== undefined) changedBefore[key] = prev;
+    if (next !== undefined) changedAfter[key] = next;
+  }
+
+  return {
+    before: Object.keys(changedBefore).length ? changedBefore : null,
+    after: Object.keys(changedAfter).length ? changedAfter : null,
+  };
+}
+
+/** Short label for line/document context when the name itself did not change. */
+export function getAuditContextLabel(
+  before: Record<string, unknown> | null,
+  after: Record<string, unknown> | null,
+): string | null {
+  for (const key of CONTEXT_FIELD_KEYS) {
+    const value = after?.[key] ?? before?.[key];
+    if (typeof value === 'string' && value.trim()) {
+      const { before: changedBefore, after: changedAfter } = pickChangedAuditFields(before, after);
+      const changedKeys = new Set([
+        ...Object.keys(changedBefore ?? {}),
+        ...Object.keys(changedAfter ?? {}),
+      ]);
+      if (!changedKeys.has(key)) return value;
+    }
+  }
+  return null;
+}
+
+/** Human-readable lines listing only changed fields. */
 export function formatAuditDiffLines(
   before: Record<string, unknown> | null,
   after: Record<string, unknown> | null,
 ): string[] {
+  const { before: changedBefore, after: changedAfter } = pickChangedAuditFields(before, after);
   const lines: string[] = [];
   const keys = new Set([
-    ...Object.keys(before ?? {}),
-    ...Object.keys(after ?? {}),
+    ...Object.keys(changedBefore ?? {}),
+    ...Object.keys(changedAfter ?? {}),
   ]);
 
   for (const key of keys) {
-    const prev = before?.[key];
-    const next = after?.[key];
-    if (JSON.stringify(prev) === JSON.stringify(next)) continue;
+    const prev = changedBefore?.[key];
+    const next = changedAfter?.[key];
 
     if (prev !== undefined && next !== undefined) {
       lines.push(`${fieldLabel(key)}: ${formatValue(prev)} → ${formatValue(next)}`);
@@ -113,20 +219,7 @@ export function formatAuditDiffLines(
   if (lines.length === 0 && (before || after)) {
     if (before && !after) lines.push('Удалено');
     else if (!before && after) lines.push('Добавлено');
-    else lines.push('Изменено');
   }
 
   return lines;
-}
-
-export function formatAuditSide(state: Record<string, unknown> | null): string {
-  if (!state) return '—';
-  if (state.itemName && (state.quantity || state.unitCost)) {
-    const qty = state.quantity ?? '—';
-    const cost = state.unitCost != null ? `${state.unitCost} BYN` : '—';
-    const total = state.total != null ? ` = ${state.total} BYN` : '';
-    return `${state.itemName}: ${qty} × ${cost}${total}`;
-  }
-  const lines = formatAuditDiffLines(null, state);
-  return lines.length > 0 ? lines.join('; ') : formatValue(state);
 }

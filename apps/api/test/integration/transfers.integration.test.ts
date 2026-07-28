@@ -10,7 +10,6 @@ import { CategoryUseCases } from '../../src/modules/master-data/application/cate
 import { ItemUseCases } from '../../src/modules/master-data/application/item.use-cases.js';
 import { PolicyUseCases } from '../../src/modules/master-data/application/policy.use-cases.js';
 import { SupplierUseCases } from '../../src/modules/master-data/application/supplier.use-cases.js';
-import { UnitUseCases } from '../../src/modules/master-data/application/unit.use-cases.js';
 import { ItemType, TrackingMethod } from '../../src/modules/master-data/domain/master-data-rules.js';
 import { MasterDataModule } from '../../src/modules/master-data/master-data.module.js';
 import { OrganizationUseCases } from '../../src/modules/organization/application/organization.use-cases.js';
@@ -44,7 +43,6 @@ test('transfer dispatch/receive supports partial and damaged quantities', { skip
   const moduleRef = await boot();
   const orgs = moduleRef.get(OrganizationUseCases);
   const categories = moduleRef.get(CategoryUseCases);
-  const units = moduleRef.get(UnitUseCases);
   const policies = moduleRef.get(PolicyUseCases);
   const items = moduleRef.get(ItemUseCases);
   const suppliers = moduleRef.get(SupplierUseCases);
@@ -60,7 +58,6 @@ test('transfer dispatch/receive supports partial and damaged quantities', { skip
     code: `DST${suffix}`,
   });
   const category = await categories.createCategory({ organizationId: auth.organizationId, name: 'Tr', code: `TR-${suffix}` });
-  const unit = await units.createUnit({ organizationId: auth.organizationId, name: 'шт', symbol: `tr${suffix}`, quantityScale: 0 });
   const policy = await policies.createInventoryPolicy({
     organizationId: auth.organizationId,
     name: 'Flower',
@@ -72,7 +69,6 @@ test('transfer dispatch/receive supports partial and damaged quantities', { skip
   const item = await items.createItem({
     organizationId: auth.organizationId,
     categoryId: category.id,
-    unitId: unit.id,
     inventoryPolicyId: policy.id,
     name: 'Iris',
     code: `IR-${suffix}`,

@@ -27,6 +27,7 @@ import {
   ItemType,
   InventoryPolicyPresetCode,
   MasterDataStatus,
+  DEFAULT_UNIT_SYMBOL,
   assertAvailableForNewDocuments,
   assertEntityName,
   assertItemPolicyTypeMatch,
@@ -128,10 +129,22 @@ export class ItemUseCases {
     return match.id;
   }
 
+  private async resolveDefaultUnitId(organizationId: string): Promise<string> {
+    const unit = await this.units.findBySymbol(organizationId, DEFAULT_UNIT_SYMBOL);
+    if (!unit) {
+      throw new BadRequestException({
+        code: 'DEFAULT_UNIT_MISSING',
+        message: 'Default unit (шт) is missing. Seed master data for the organization.',
+      });
+    }
+    assertAvailableForNewDocuments(unit.status, 'UNIT');
+    return unit.id;
+  }
+
   async createItem(input: {
     organizationId: string;
     categoryId?: string | null;
-    unitId: string;
+    unitId?: string | null;
     inventoryPolicyId?: string | null;
     name: string;
     code?: string | null;
@@ -171,10 +184,13 @@ export class ItemUseCases {
           input.itemType,
           input.inventoryPolicyId,
         );
+        const unitId = input.unitId?.trim()
+          ? input.unitId
+          : await this.resolveDefaultUnitId(input.organizationId);
 
         const [category, unit, policy] = await Promise.all([
           this.categories.findById(input.organizationId, categoryId),
-          this.units.findById(input.organizationId, input.unitId),
+          this.units.findById(input.organizationId, unitId),
           this.policies.findById(input.organizationId, inventoryPolicyId),
         ]);
 

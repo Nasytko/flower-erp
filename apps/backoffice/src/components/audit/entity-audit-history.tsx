@@ -5,8 +5,8 @@ import { EmptyState } from '@/components/layout/states';
 import {
   auditActionLabel,
   formatAuditDiffLines,
-  formatAuditSide,
   formatAuditWhen,
+  getAuditContextLabel,
   type AuditEntry,
 } from '@/lib/audit-ui';
 
@@ -31,7 +31,7 @@ export function EntityAuditHistory({
         <ul className="list-stack audit-history">
           {entries.map((entry) => {
             const diffLines = formatAuditDiffLines(entry.beforeState, entry.afterState);
-            const showColumns = Boolean(entry.beforeState && entry.afterState);
+            const contextLabel = getAuditContextLabel(entry.beforeState, entry.afterState);
 
             return (
               <li key={entry.id} className="audit-history__row">
@@ -49,18 +49,10 @@ export function EntityAuditHistory({
                     <span style={{ color: 'var(--color-muted)' }}> · {entry.reason}</span>
                   ) : null}
                 </div>
-                {showColumns ? (
-                  <div className="audit-history__diff">
-                    <div>
-                      <span className="audit-history__diff-label">Было</span>
-                      <p>{formatAuditSide(entry.beforeState)}</p>
-                    </div>
-                    <div>
-                      <span className="audit-history__diff-label">Стало</span>
-                      <p>{formatAuditSide(entry.afterState)}</p>
-                    </div>
-                  </div>
-                ) : diffLines.length > 0 ? (
+                {contextLabel ? (
+                  <p className="audit-history__context">{contextLabel}</p>
+                ) : null}
+                {diffLines.length > 0 ? (
                   <ul className="audit-history__changes">
                     {diffLines.map((line) => (
                       <li key={line}>{line}</li>

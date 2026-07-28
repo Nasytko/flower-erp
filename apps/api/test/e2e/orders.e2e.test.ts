@@ -29,11 +29,6 @@ test('e2e customer order draft → composition → confirm → dashboard', { ski
     .set(headers)
     .send({ name: 'Cat', code: `OC${suffix}` })
     .expect(201);
-  const unit = await request(server)
-    .post(`${base}/units`)
-    .set(headers)
-    .send({ name: 'шт', symbol: `z${suffix.slice(-2)}`, quantityScale: 0 })
-    .expect(201);
   const policy = await request(server)
     .post(`${base}/policies`)
     .set(headers)
@@ -49,7 +44,6 @@ test('e2e customer order draft → composition → confirm → dashboard', { ski
     .set(headers)
     .send({
       categoryId: cat.body.id,
-      unitId: unit.body.id,
       inventoryPolicyId: policy.body.id,
       name: 'Paper',
       code: `P${suffix}`,

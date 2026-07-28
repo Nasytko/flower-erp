@@ -10,7 +10,6 @@ import { SupplyModule } from '../../src/modules/supply/supply.module.js';
 import { GoodsReceiptUseCases, SupplyUseCases } from '../../src/modules/supply/application/supply.use-cases.js';
 import { ItemUseCases } from '../../src/modules/master-data/application/item.use-cases.js';
 import { CategoryUseCases } from '../../src/modules/master-data/application/category.use-cases.js';
-import { UnitUseCases } from '../../src/modules/master-data/application/unit.use-cases.js';
 import { PolicyUseCases } from '../../src/modules/master-data/application/policy.use-cases.js';
 import { SupplierUseCases } from '../../src/modules/master-data/application/supplier.use-cases.js';
 import { InventoryQueryUseCases } from '../../src/modules/inventory/application/inventory-query.use-cases.js';
@@ -36,7 +35,6 @@ test('parallel goods receipt posting preserves inventory balance', { skip: !runI
   const receipts = moduleRef.get(GoodsReceiptUseCases);
   const inventory = moduleRef.get(InventoryQueryUseCases);
   const categories = moduleRef.get(CategoryUseCases);
-  const units = moduleRef.get(UnitUseCases);
   const policies = moduleRef.get(PolicyUseCases);
   const items = moduleRef.get(ItemUseCases);
   const suppliers = moduleRef.get(SupplierUseCases);
@@ -46,12 +44,6 @@ test('parallel goods receipt posting preserves inventory balance', { skip: !runI
     organizationId: auth.organizationId,
     name: 'Concurrent',
     code: `CC-${suffix}`,
-  });
-  const unit = await units.createUnit({
-    organizationId: auth.organizationId,
-    name: 'шт',
-    symbol: `u${suffix}`,
-    quantityScale: 0,
   });
   const policy = await policies.createInventoryPolicy({
     organizationId: auth.organizationId,
@@ -63,7 +55,6 @@ test('parallel goods receipt posting preserves inventory balance', { skip: !runI
   const item = await items.createItem({
     organizationId: auth.organizationId,
     categoryId: category.id,
-    unitId: unit.id,
     inventoryPolicyId: policy.id,
     name: 'Ribbon',
     code: `R-${suffix}`,

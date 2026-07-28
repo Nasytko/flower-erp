@@ -22,11 +22,6 @@ test('e2e direct sale create + list', { skip: !runE2E }, async () => {
     .set(headers)
     .send({ name: 'Cat', code: `SC${suffix}` })
     .expect(201);
-  const unit = await request(server)
-    .post(`/api/v1/organizations/${auth.organizationId}/units`)
-    .set(headers)
-    .send({ name: 'шт', symbol: `s${suffix.slice(-2)}`, quantityScale: 0 })
-    .expect(201);
   const policy = await request(server)
     .post(`/api/v1/organizations/${auth.organizationId}/policies`)
     .set(headers)
@@ -42,7 +37,6 @@ test('e2e direct sale create + list', { skip: !runE2E }, async () => {
     .set(headers)
     .send({
       categoryId: cat.body.id,
-      unitId: unit.body.id,
       inventoryPolicyId: policy.body.id,
       name: 'Ribbon',
       code: `RB${suffix}`,

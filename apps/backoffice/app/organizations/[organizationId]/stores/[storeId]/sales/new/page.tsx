@@ -22,6 +22,7 @@ import { Section } from '@/components/layout/section';
 import { ErrorState, LoadingState } from '@/components/layout/states';
 import { InlineAlert } from '@/components/workspace/workspace-ui';
 import { formatApiError, type FormattedError } from '@/lib/format-api-error';
+import { formatRetailLineHint } from '@/lib/retail-price';
 import { storeStockHint } from '@/lib/store-context';
 
 type CatalogItem = {
@@ -88,11 +89,14 @@ function QtyStepper({
   onDecrease,
   onIncrease,
   disabled,
+  stepLabel,
 }: {
   value: number;
   onDecrease: () => void;
   onIncrease: () => void;
   disabled?: boolean;
+  /** e.g. "+1" for service applications */
+  stepLabel?: string;
 }) {
   return (
     <div className="sale-qty">
@@ -101,21 +105,21 @@ function QtyStepper({
         className="sale-qty__btn"
         onClick={onDecrease}
         disabled={disabled || value <= 0}
-        aria-label="Уменьшить"
+        aria-label={stepLabel ? `Убрать ${stepLabel}` : 'Уменьшить'}
       >
-        −
+        {stepLabel ? `−${stepLabel}` : '−'}
       </button>
       <span className="sale-qty__value" aria-live="polite">
-        {value}
+        {stepLabel && value > 0 ? `${value} (${stepLabel})` : value}
       </span>
       <button
         type="button"
         className="sale-qty__btn"
         onClick={onIncrease}
         disabled={disabled}
-        aria-label="Увеличить"
+        aria-label={stepLabel ? `Добавить ${stepLabel}` : 'Увеличить'}
       >
-        +
+        {stepLabel ? `+${stepLabel}` : '+'}
       </button>
     </div>
   );
@@ -161,6 +165,12 @@ function NewSalePageInner() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<FormattedError | null>(null);
+  const [retailQuote, setRetailQuote] = useState<{
+    total: string;
+    flowersTotal: string;
+    materialsTotal: string;
+  } | null>(null);
+  const [retailLineHints, setRetailLineHints] = useState<Map<string, string>>(new Map());
 
   const canPay =
     auth.hasPermission('payments:create') && auth.hasPermission('payments:complete');
@@ -197,6 +207,21 @@ function NewSalePageInner() {
       })
       .slice(0, 160);
   }, [catalogPool, catalogQuery]);
+
+  const filteredFlowers = useMemo(
+    () =>
+      builderMode === 'CUSTOM'
+        ? filteredCatalog.filter((item) => item.itemType === 'FLOWER')
+        : [],
+    [builderMode, filteredCatalog],
+  );
+  const filteredMaterials = useMemo(
+    () =>
+      builderMode === 'CUSTOM'
+        ? filteredCatalog.filter((item) => item.itemType === 'MATERIAL')
+        : [],
+    [builderMode, filteredCatalog],
+  );
 
   const activeCustom = useMemo(
     () => positions.find((p): p is Extract<SalePosition, { kind: 'CUSTOM' }> => p.kind === 'CUSTOM'),
@@ -255,6 +280,9 @@ function NewSalePageInner() {
           .filter((line) => line.itemId && line.quantity.trim())
           .map((line) => {
             const item = items.find((row) => row.id === line.itemId);
+            if (item?.itemType === 'MATERIAL') {
+              return `${line.quantity}× (+1) ${item.name}`;
+            }
             return `${line.quantity}× ${item?.name ?? '…'}`;
           });
         return {
@@ -366,6 +394,57 @@ function NewSalePageInner() {
     };
   }, [organizationId, storeId, auth, fromOrderId, canListPay]);
 
+  useEffect(() => {
+    if (builderMode !== 'CUSTOM' || !activeCustom) {
+      setRetailQuote(null);
+      setRetailLineHints(new Map());
+      return;
+    }
+    const lines = activeCustom.composition
+      .filter((line) => line.itemId && Number(line.quantity) > 0)
+      .map((line) => ({
+        itemId: line.itemId,
+        quantity: line.quantity,
+      }));
+    if (!lines.length) {
+      setRetailQuote(null);
+      setRetailLineHints(new Map());
+      return;
+    }
+    let cancelled = false;
+    void getApiClient()
+      .resolveRetailComposition(organizationId, { lines })
+      .then((quote) => {
+        if (cancelled) return;
+        setRetailQuote({
+          total: quote.total,
+          flowersTotal: quote.flowersTotal,
+          materialsTotal: quote.materialsTotal,
+        });
+        const hints = new Map<string, string>();
+        for (const row of quote.lines) {
+          const hint = formatRetailLineHint({
+            itemType: row.itemType,
+            unitAmount: row.unitAmount,
+            pricingMode: row.pricingMode,
+            quantity: row.quantity,
+            lineTotal: row.lineTotal,
+          });
+          if (hint) hints.set(row.itemId, hint);
+        }
+        setRetailLineHints(hints);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setRetailQuote(null);
+          setRetailLineHints(new Map());
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [builderMode, activeCustom, organizationId, items]);
+
   function discountPayload() {
     if (discountType === 'NONE' || !auth.hasPermission('sales:discount')) return undefined;
     if (discountType === 'PERCENT') {
@@ -438,10 +517,7 @@ function NewSalePageInner() {
                 line.key === existing.key ? { ...line, quantity: String(nextQty) } : line,
               );
       } else if (delta > 0) {
-        composition = [
-          ...custom.composition,
-          { key: newKey(), itemId, quantity: '1' },
-        ];
+        composition = [...custom.composition, { key: newKey(), itemId, quantity: '1' }];
       } else {
         return prev;
       }
@@ -806,6 +882,21 @@ function NewSalePageInner() {
                                 required
                               />
                             </Field>
+                            {retailQuote && retailQuote.total !== '0.00' ? (
+                              <p className="field__hint" style={{ margin: 0 }}>
+                                По рознице: <strong>{retailQuote.total} BYN</strong> (цветы{' '}
+                                {retailQuote.flowersTotal}, доп. услуги {retailQuote.materialsTotal})
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  disabled={busy}
+                                  style={{ marginLeft: 8 }}
+                                  onClick={() => updateCustomMeta({ price: retailQuote.total })}
+                                >
+                                  Подставить
+                                </Button>
+                              </p>
+                            ) : null}
                           </div>
                         ) : null}
 
@@ -827,7 +918,76 @@ function NewSalePageInner() {
                           </InlineAlert>
                         ) : null}
 
-                        {filteredCatalog.length === 0 ? (
+                        {builderMode === 'CUSTOM' ? (
+                          <>
+                            <h4 style={{ margin: '0 0 8px' }}>Цветы</h4>
+                            {filteredFlowers.length === 0 ? (
+                              <p className="sale-cells__empty">Нет цветов в справочнике</p>
+                            ) : (
+                              <div className="sale-cells" role="list">
+                                {filteredFlowers.map((item) => {
+                                  const qty = customQtyByItem.get(item.id) ?? 0;
+                                  return (
+                                    <div
+                                      key={item.id}
+                                      role="listitem"
+                                      className={`sale-cell${qty > 0 ? ' sale-cell--active' : ''}`}
+                                    >
+                                      <div className="sale-cell__top">
+                                        <strong className="sale-cell__name">{item.name}</strong>
+                                        <span className="sale-cell__meta">{item.code}</span>
+                                        {retailLineHints.get(item.id) ? (
+                                          <span className="sale-cell__meta">{retailLineHints.get(item.id)}</span>
+                                        ) : null}
+                                      </div>
+                                      <QtyStepper
+                                        value={qty}
+                                        disabled={busy}
+                                        onDecrease={() => bumpCustomQty(item.id, -1)}
+                                        onIncrease={() => bumpCustomQty(item.id, 1)}
+                                      />
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                            <h4 style={{ margin: '16px 0 8px' }}>Доп. услуги (+1)</h4>
+                            <p className="field__hint" style={{ margin: '0 0 8px' }}>
+                              Каждый +1 — одно применение услуги (упаковка ×2 для большого букета).
+                            </p>
+                            {filteredMaterials.length === 0 ? (
+                              <p className="sale-cells__empty">Нет материалов в справочнике</p>
+                            ) : (
+                              <div className="sale-cells" role="list">
+                                {filteredMaterials.map((item) => {
+                                  const qty = customQtyByItem.get(item.id) ?? 0;
+                                  return (
+                                    <div
+                                      key={item.id}
+                                      role="listitem"
+                                      className={`sale-cell${qty > 0 ? ' sale-cell--active' : ''}`}
+                                    >
+                                      <div className="sale-cell__top">
+                                        <strong className="sale-cell__name">{item.name}</strong>
+                                        <span className="sale-cell__meta">+1 · {item.code}</span>
+                                        {retailLineHints.get(item.id) ? (
+                                          <span className="sale-cell__meta">{retailLineHints.get(item.id)}</span>
+                                        ) : null}
+                                      </div>
+                                      <QtyStepper
+                                        value={qty}
+                                        disabled={busy}
+                                        stepLabel="+1"
+                                        onDecrease={() => bumpCustomQty(item.id, -1)}
+                                        onIncrease={() => bumpCustomQty(item.id, 1)}
+                                      />
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </>
+                        ) : filteredCatalog.length === 0 ? (
                           <p className="sale-cells__empty">
                             {catalogQuery.trim()
                               ? 'Ничего не найдено по запросу'
@@ -836,14 +996,8 @@ function NewSalePageInner() {
                         ) : (
                           <div className="sale-cells" role="list">
                             {filteredCatalog.map((item) => {
-                              const qty =
-                                builderMode === 'READY'
-                                  ? readyQtyByItem.get(item.id) ?? 0
-                                  : customQtyByItem.get(item.id) ?? 0;
-                              const readyPos =
-                                builderMode === 'READY'
-                                  ? selectedReady.find((p) => p.itemId === item.id)
-                                  : undefined;
+                              const qty = readyQtyByItem.get(item.id) ?? 0;
+                              const readyPos = selectedReady.find((p) => p.itemId === item.id);
                               return (
                                 <div
                                   key={item.id}
@@ -859,18 +1013,10 @@ function NewSalePageInner() {
                                   <QtyStepper
                                     value={qty}
                                     disabled={busy}
-                                    onDecrease={() =>
-                                      builderMode === 'READY'
-                                        ? bumpReadyQty(item.id, -1)
-                                        : bumpCustomQty(item.id, -1)
-                                    }
-                                    onIncrease={() =>
-                                      builderMode === 'READY'
-                                        ? bumpReadyQty(item.id, 1)
-                                        : bumpCustomQty(item.id, 1)
-                                    }
+                                    onDecrease={() => bumpReadyQty(item.id, -1)}
+                                    onIncrease={() => bumpReadyQty(item.id, 1)}
                                   />
-                                  {builderMode === 'READY' && qty > 0 ? (
+                                  {qty > 0 ? (
                                     <div className="sale-cell__price">
                                       <label className="sale-cell__price-label" htmlFor={`price-${item.id}`}>
                                         Цена / шт

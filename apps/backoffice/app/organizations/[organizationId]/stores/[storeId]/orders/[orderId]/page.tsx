@@ -7,6 +7,7 @@ import { Button, Card, Input } from '@flower/ui';
 import { ApiClientError, type AuditLogEntry, type DeliveryJobDto } from '@flower/api-client';
 import { getApiClient } from '@/lib/api-client';
 import { EntityAuditHistory } from '@/components/audit/entity-audit-history';
+import { formatRetailLineHint, formatServiceQuantityLabel } from '@/lib/retail-price';
 import { useAuth } from '@/components/auth-provider';
 import { Field } from '@/components/layout/field';
 import { AddressAutocomplete } from '@/components/layout/address-autocomplete';
@@ -79,9 +80,11 @@ export default function OrderDetailPage() {
 
   const [order, setOrder] = useState<OrderDetail | null>(null);
   const [delivery, setDelivery] = useState<DeliveryJobDto | null>(null);
-  const [items, setItems] = useState<Array<{ id: string; name: string; code: string }>>([]);
-  const [itemId, setItemId] = useState('');
-  const [plannedQuantity, setPlannedQuantity] = useState('1');
+  const [items, setItems] = useState<Array<{ id: string; name: string; code: string; itemType: string }>>([]);
+  const [flowerItemId, setFlowerItemId] = useState('');
+  const [flowerQty, setFlowerQty] = useState('1');
+  const [materialItemId, setMaterialItemId] = useState('');
+  const [materialQty, setMaterialQty] = useState('1');
   const [commentMessage, setCommentMessage] = useState('');
   const [paymentSummary, setPaymentSummary] = useState<PaymentSummary | null>(null);
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
@@ -98,6 +101,31 @@ export default function OrderDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [auditTrail, setAuditTrail] = useState<AuditLogEntry[]>([]);
+  const [retailQuote, setRetailQuote] = useState<{
+    total: string;
+    flowersTotal: string;
+    materialsTotal: string;
+    lines: Array<{
+      itemId: string;
+      itemName: string | null;
+      itemType: string | null;
+      quantity: string;
+      unitAmount: string | null;
+      pricingMode: string | null;
+      lineTotal: string | null;
+      missingPrice?: boolean;
+    }>;
+  } | null>(null);
+
+  const flowerCatalog = useMemo(
+    () => items.filter((item) => item.itemType === 'FLOWER'),
+    [items],
+  );
+  const materialCatalog = useMemo(
+    () => items.filter((item) => item.itemType === 'MATERIAL'),
+    [items],
+  );
+  const itemTypeById = useMemo(() => new Map(items.map((item) => [item.id, item.itemType])), [items]);
 
   const canReadPayments = auth.hasPermission('payments:read');
   const canReadDelivery = auth.hasPermission('delivery:read');
@@ -144,9 +172,10 @@ export default function OrderDetailPage() {
             : prev,
         );
       }
-      if (catalog.items[0]) {
-        setItemId((prev) => prev || catalog.items[0]!.id);
-      }
+      const firstFlower = catalog.items.find((item) => item.itemType === 'FLOWER');
+      const firstMaterial = catalog.items.find((item) => item.itemType === 'MATERIAL');
+      if (firstFlower) setFlowerItemId((prev) => prev || firstFlower.id);
+      if (firstMaterial) setMaterialItemId((prev) => prev || firstMaterial.id);
 
       const linked = deliveries.find(
         (d) => d.orderId === orderId && d.status !== 'CANCELLED',
@@ -191,12 +220,46 @@ export default function OrderDetailPage() {
     }
   }
 
-  async function onAddCompositionItem(event: FormEvent) {
+  useEffect(() => {
+    const lines = (order?.composition?.items ?? []).map((line) => ({
+      itemId: line.itemId,
+      quantity: line.plannedQuantity,
+    }));
+    if (!lines.length) {
+      setRetailQuote(null);
+      return;
+    }
+    let cancelled = false;
+    void getApiClient()
+      .resolveRetailComposition(organizationId, { lines })
+      .then((quote) => {
+        if (!cancelled) setRetailQuote(quote);
+      })
+      .catch(() => {
+        if (!cancelled) setRetailQuote(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [organizationId, order?.composition?.items]);
+
+  async function onAddCompositionItem(event: FormEvent, kind: 'FLOWER' | 'MATERIAL') {
     event.preventDefault();
+    const selectedId = kind === 'FLOWER' ? flowerItemId : materialItemId;
+    const qty = kind === 'FLOWER' ? flowerQty : materialQty;
     await run(() =>
       getApiClient().addCompositionItem(organizationId, storeId, orderId, {
-        itemId,
-        plannedQuantity,
+        itemId: selectedId,
+        plannedQuantity: qty,
+      }),
+    );
+  }
+
+  async function applySuggestedPrice() {
+    if (!retailQuote?.total || retailQuote.total === '0.00') return;
+    await run(() =>
+      getApiClient().updateOrder(organizationId, storeId, orderId, {
+        plannedPrice: retailQuote.total,
       }),
     );
   }
@@ -750,50 +813,154 @@ export default function OrderDetailPage() {
             ) : null}
 
             <Section>
-              <Card title="Состав">
-                <ul className="list-stack">
-                  {(order.composition?.items ?? []).map((line) => (
-                    <li key={line.id}>
-                      <div className="meta-row">
-                        <strong>
-                          {line.item?.name ?? line.itemId} × {line.plannedQuantity}
-                        </strong>
-                        {line.deficitQuantity && line.deficitQuantity !== '0' ? (
-                          <StatusBadge status="DEFICIT" />
-                        ) : null}
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-                {(order.composition?.items ?? []).length === 0 ? (
-                  <p className="field__hint">Добавьте позиции перед сборкой.</p>
-                ) : null}
-                {canUpdate ? (
-                  <form
-                    onSubmit={onAddCompositionItem}
-                    className="stack-form"
-                    style={{ marginTop: 16 }}
+              <Card title="Состав и цена">
+                {retailQuote ? (
+                  <div
+                    style={{
+                      marginBottom: 16,
+                      padding: '12px 14px',
+                      borderRadius: 10,
+                      border: '1px solid var(--color-border)',
+                      background: 'var(--color-surface)',
+                    }}
                   >
-                    <FancySelect
-                      value={itemId}
-                      onChange={setItemId}
-                      options={items.map((item) => ({
-                        value: item.id,
-                        label: item.name,
-                        hint: item.code,
-                      }))}
-                      aria-label="Товар"
-                    />
-                    <Input
-                      value={plannedQuantity}
-                      onChange={(e) => setPlannedQuantity(e.target.value)}
-                      placeholder="Количество"
-                      inputMode="decimal"
-                    />
-                    <Button type="submit" disabled={busy || !itemId}>
-                      Добавить
-                    </Button>
-                  </form>
+                    <div className="meta-row" style={{ marginBottom: 8 }}>
+                      <strong>Расчёт по рознице</strong>
+                      <span>{retailQuote.total} BYN</span>
+                    </div>
+                    <p className="field__hint" style={{ margin: '0 0 8px' }}>
+                      Цветы: {retailQuote.flowersTotal} BYN · Доп. услуги: {retailQuote.materialsTotal} BYN
+                    </p>
+                    {canUpdate && retailQuote.total !== '0.00' ? (
+                      <Button type="button" variant="secondary" disabled={busy} onClick={() => void applySuggestedPrice()}>
+                        Подставить в плановую цену
+                      </Button>
+                    ) : null}
+                  </div>
+                ) : null}
+
+                <h4 style={{ margin: '0 0 8px' }}>Цветы</h4>
+                <ul className="list-stack">
+                  {(order.composition?.items ?? [])
+                    .filter((line) => itemTypeById.get(line.itemId) === 'FLOWER')
+                    .map((line) => {
+                      const quote = retailQuote?.lines.find((row) => row.itemId === line.itemId);
+                      return (
+                        <li key={line.id}>
+                          <div className="meta-row">
+                            <strong>
+                              {line.item?.name ?? line.itemId} × {line.plannedQuantity}
+                            </strong>
+                            {quote?.lineTotal ? (
+                              <span className="field__hint">{quote.lineTotal} BYN</span>
+                            ) : null}
+                          </div>
+                          {quote ? (
+                            <span className="field__hint">
+                              {formatRetailLineHint({
+                                itemType: quote.itemType,
+                                unitAmount: quote.unitAmount,
+                                pricingMode: quote.pricingMode,
+                                quantity: line.plannedQuantity,
+                                lineTotal: quote.lineTotal,
+                              }) ?? (quote.missingPrice ? 'Цена не задана' : null)}
+                            </span>
+                          ) : null}
+                        </li>
+                      );
+                    })}
+                </ul>
+
+                <h4 style={{ margin: '16px 0 8px' }}>Материалы и доп. услуги</h4>
+                <ul className="list-stack">
+                  {(order.composition?.items ?? [])
+                    .filter((line) => itemTypeById.get(line.itemId) === 'MATERIAL')
+                    .map((line) => {
+                      const quote = retailQuote?.lines.find((row) => row.itemId === line.itemId);
+                      return (
+                        <li key={line.id}>
+                          <div className="meta-row">
+                            <strong>
+                              {line.item?.name ?? line.itemId}
+                              {formatServiceQuantityLabel(line.plannedQuantity)
+                                ? ` ${formatServiceQuantityLabel(line.plannedQuantity)}`
+                                : ''}
+                            </strong>
+                            {quote?.lineTotal ? (
+                              <span className="field__hint">{quote.lineTotal} BYN</span>
+                            ) : null}
+                          </div>
+                          {quote ? (
+                            <span className="field__hint">
+                              {formatRetailLineHint({
+                                itemType: quote.itemType,
+                                unitAmount: quote.unitAmount,
+                                pricingMode: quote.pricingMode,
+                                quantity: line.plannedQuantity,
+                                lineTotal: quote.lineTotal,
+                              }) ?? (quote.missingPrice ? 'Цена не задана' : null)}
+                            </span>
+                          ) : null}
+                        </li>
+                      );
+                    })}
+                </ul>
+
+                {(order.composition?.items ?? []).length === 0 ? (
+                  <p className="field__hint">Добавьте цветы и доп. услуги перед сборкой.</p>
+                ) : null}
+
+                {canUpdate ? (
+                  <div className="stack-form" style={{ marginTop: 16, display: 'grid', gap: 16 }}>
+                    <form onSubmit={(e) => void onAddCompositionItem(e, 'FLOWER')}>
+                      <Field label="Добавить цветок">
+                        <FancySelect
+                          value={flowerItemId}
+                          onChange={setFlowerItemId}
+                          options={flowerCatalog.map((item) => ({
+                            value: item.id,
+                            label: item.name,
+                            hint: item.code,
+                          }))}
+                          aria-label="Цветок"
+                        />
+                      </Field>
+                      <Input
+                        value={flowerQty}
+                        onChange={(e) => setFlowerQty(e.target.value)}
+                        placeholder="Количество"
+                        inputMode="decimal"
+                        style={{ marginTop: 8 }}
+                      />
+                      <Button type="submit" disabled={busy || !flowerItemId} style={{ marginTop: 8 }}>
+                        Добавить цветок
+                      </Button>
+                    </form>
+                    <form onSubmit={(e) => void onAddCompositionItem(e, 'MATERIAL')}>
+                      <Field label="Добавить доп. услугу" hint="Кол-во (+1) — сколько раз применить (упаковка ×2 для большого букета)">
+                        <FancySelect
+                          value={materialItemId}
+                          onChange={setMaterialItemId}
+                          options={materialCatalog.map((item) => ({
+                            value: item.id,
+                            label: item.name,
+                            hint: item.code,
+                          }))}
+                          aria-label="Материал"
+                        />
+                      </Field>
+                      <Input
+                        value={materialQty}
+                        onChange={(e) => setMaterialQty(e.target.value)}
+                        placeholder="Кол-во (+1)"
+                        inputMode="numeric"
+                        style={{ marginTop: 8 }}
+                      />
+                      <Button type="submit" disabled={busy || !materialItemId} style={{ marginTop: 8 }}>
+                        Добавить услугу
+                      </Button>
+                    </form>
+                  </div>
                 ) : null}
               </Card>
             </Section>

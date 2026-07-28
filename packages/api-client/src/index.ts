@@ -532,35 +532,6 @@ export function createApiClient(options: ApiClientOptions) {
           body: JSON.stringify({ reason }),
         },
       ),
-    listUnits: (organizationId: string, page = 1, pageSize = 20) =>
-      request<{
-        items: Array<{ id: string; name: string; symbol: string; status: string }>;
-        page: number;
-        pageSize: number;
-        totalItems: number;
-        totalPages: number;
-      }>(`/organizations/${organizationId}/units?page=${page}&pageSize=${pageSize}`),
-    createUnit: (
-      organizationId: string,
-      body: { name: string; symbol: string; quantityScale?: number },
-    ) =>
-      request<{ id: string; name: string; symbol: string; status: string }>(
-        `/organizations/${organizationId}/units`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body),
-        },
-      ),
-    archiveUnit: (organizationId: string, unitId: string, reason?: string) =>
-      request<{ id: string; status: string }>(
-        `/organizations/${organizationId}/units/${unitId}/archive`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ reason }),
-        },
-      ),
     listPolicies: (organizationId: string, page = 1, pageSize = 20) =>
       request<{
         items: Array<{
@@ -658,7 +629,7 @@ export function createApiClient(options: ApiClientOptions) {
       organizationId: string,
       body: {
         categoryId?: string;
-        unitId: string;
+        unitId?: string;
         inventoryPolicyId?: string;
         name: string;
         code?: string;
@@ -733,6 +704,74 @@ export function createApiClient(options: ApiClientOptions) {
           body: JSON.stringify({ reason }),
         },
       ),
+    listRetailPrices: (organizationId: string, effectiveFrom: string) =>
+      request<{
+        effectiveFrom: string;
+        flowers: Array<{
+          itemId: string;
+          name: string;
+          code: string;
+          itemType: string;
+          pricingMode: 'UNIT' | 'SERVICE';
+          amount: string | null;
+          effectiveFrom: string;
+          isSet: boolean;
+        }>;
+        materials: Array<{
+          itemId: string;
+          name: string;
+          code: string;
+          itemType: string;
+          pricingMode: 'UNIT' | 'SERVICE';
+          amount: string | null;
+          effectiveFrom: string;
+          isSet: boolean;
+        }>;
+      }>(
+        `/organizations/${organizationId}/master-data/retail-prices?effectiveFrom=${encodeURIComponent(effectiveFrom)}`,
+      ),
+    upsertRetailPrices: (
+      organizationId: string,
+      body: {
+        effectiveFrom: string;
+        prices: Array<{ itemId: string; amount: string }>;
+      },
+    ) =>
+      request<{ effectiveFrom: string; updated: number }>(
+        `/organizations/${organizationId}/master-data/retail-prices`,
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        },
+      ),
+    resolveRetailComposition: (
+      organizationId: string,
+      body: {
+        date?: string;
+        lines: Array<{ itemId: string; quantity: string }>;
+      },
+    ) =>
+      request<{
+        total: string;
+        flowersTotal: string;
+        materialsTotal: string;
+        lines: Array<{
+          itemId: string;
+          quantity: string;
+          itemType: string | null;
+          itemName: string | null;
+          itemCode?: string | null;
+          unitAmount: string | null;
+          pricingMode: 'UNIT' | 'SERVICE' | null;
+          lineTotal: string | null;
+          missingPrice?: boolean;
+        }>;
+      }>(`/organizations/${organizationId}/master-data/retail-prices/resolve`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      }),
     listSupplies: (organizationId: string, storeId: string, status?: string) =>
       request<Array<{
         id: string;

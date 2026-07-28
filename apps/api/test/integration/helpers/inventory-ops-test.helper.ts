@@ -41,14 +41,12 @@ export async function seedFlowerItem(
   const suffix = Date.now().toString().slice(-6);
   const prefix = options?.codePrefix ?? 'OPS';
   const { CategoryUseCases } = await import('../../../src/modules/master-data/application/category.use-cases.js');
-  const { UnitUseCases } = await import('../../../src/modules/master-data/application/unit.use-cases.js');
   const { PolicyUseCases } = await import('../../../src/modules/master-data/application/policy.use-cases.js');
   const { ItemUseCases } = await import('../../../src/modules/master-data/application/item.use-cases.js');
   const { SupplierUseCases } = await import('../../../src/modules/master-data/application/supplier.use-cases.js');
   const { ItemType, TrackingMethod } = await import('../../../src/modules/master-data/domain/master-data-rules.js');
 
   const categories = moduleRef.get(CategoryUseCases);
-  const units = moduleRef.get(UnitUseCases);
   const policies = moduleRef.get(PolicyUseCases);
   const items = moduleRef.get(ItemUseCases);
   const suppliers = moduleRef.get(SupplierUseCases);
@@ -57,12 +55,6 @@ export async function seedFlowerItem(
     organizationId: auth.organizationId,
     name: 'Ops',
     code: `${prefix}-CAT-${suffix}`,
-  });
-  const unit = await units.createUnit({
-    organizationId: auth.organizationId,
-    name: 'шт',
-    symbol: `${prefix.toLowerCase()}${suffix}`,
-    quantityScale: 0,
   });
   const policy = await policies.createInventoryPolicy({
     organizationId: auth.organizationId,
@@ -75,7 +67,6 @@ export async function seedFlowerItem(
   const item = await items.createItem({
     organizationId: auth.organizationId,
     categoryId: category.id,
-    unitId: unit.id,
     inventoryPolicyId: policy.id,
     name: 'Flower',
     code: `${prefix}-ITEM-${suffix}`,

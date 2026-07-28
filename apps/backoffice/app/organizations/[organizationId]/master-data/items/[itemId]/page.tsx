@@ -47,7 +47,6 @@ export default function ItemDetailPage() {
     createdByDisplayName?: string | null;
   } | null>(null);
   const [categoryName, setCategoryName] = useState<string | null>(null);
-  const [unitName, setUnitName] = useState<string | null>(null);
   const [policyName, setPolicyName] = useState<string | null>(null);
   const [minimumStock, setMinimumStock] = useState('');
   const [loading, setLoading] = useState(true);
@@ -62,15 +61,13 @@ export default function ItemDetailPage() {
     Promise.all([
       client.getItem(organizationId, itemId),
       client.listCategories(organizationId, 1, 100),
-      client.listUnits(organizationId, 1, 100),
       client.listPolicies(organizationId, 1, 100),
     ])
-      .then(([data, cats, units, policies]) => {
+      .then(([data, cats, policies]) => {
         if (cancelled) return;
         setItem(data);
         setMinimumStock(data.minimumStockQuantity ?? '');
         setCategoryName(cats.items.find((c) => c.id === data.categoryId)?.name ?? null);
-        setUnitName(units.items.find((u) => u.id === data.unitId)?.name ?? null);
         setPolicyName(policies.items.find((p) => p.id === data.inventoryPolicyId)?.name ?? null);
       })
       .catch((err: unknown) => {
@@ -169,10 +166,6 @@ export default function ItemDetailPage() {
                   <div>
                     <dt style={{ color: 'var(--color-muted)' }}>Категория</dt>
                     <dd style={{ margin: 0 }}>{categoryName ?? item.categoryId}</dd>
-                  </div>
-                  <div>
-                    <dt style={{ color: 'var(--color-muted)' }}>Единица измерения</dt>
-                    <dd style={{ margin: 0 }}>{unitName ?? item.unitId}</dd>
                   </div>
                   <div>
                     <dt style={{ color: 'var(--color-muted)' }}>Политика учёта</dt>

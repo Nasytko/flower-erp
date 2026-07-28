@@ -13,7 +13,6 @@ import { CategoryUseCases } from '../../src/modules/master-data/application/cate
 import { ItemUseCases } from '../../src/modules/master-data/application/item.use-cases.js';
 import { PolicyUseCases } from '../../src/modules/master-data/application/policy.use-cases.js';
 import { SupplierUseCases } from '../../src/modules/master-data/application/supplier.use-cases.js';
-import { UnitUseCases } from '../../src/modules/master-data/application/unit.use-cases.js';
 import { ItemType, TrackingMethod } from '../../src/modules/master-data/domain/master-data-rules.js';
 import { MasterDataModule } from '../../src/modules/master-data/master-data.module.js';
 import { OrderUseCases } from '../../src/modules/orders/application/order.use-cases.js';
@@ -43,7 +42,6 @@ test('write-off uses FEFO, rejects reserved stock, and reverses', { skip: !runIn
   const auth = await bootstrapDirector();
   const moduleRef = await boot();
   const categories = moduleRef.get(CategoryUseCases);
-  const units = moduleRef.get(UnitUseCases);
   const policies = moduleRef.get(PolicyUseCases);
   const items = moduleRef.get(ItemUseCases);
   const suppliers = moduleRef.get(SupplierUseCases);
@@ -55,7 +53,6 @@ test('write-off uses FEFO, rejects reserved stock, and reverses', { skip: !runIn
   const suffix = Date.now().toString().slice(-6);
 
   const category = await categories.createCategory({ organizationId: auth.organizationId, name: 'Ops', code: `OPS-${suffix}` });
-  const unit = await units.createUnit({ organizationId: auth.organizationId, name: 'шт', symbol: `wo${suffix}`, quantityScale: 0 });
   const policy = await policies.createInventoryPolicy({
     organizationId: auth.organizationId,
     name: 'Flower',
@@ -67,7 +64,6 @@ test('write-off uses FEFO, rejects reserved stock, and reverses', { skip: !runIn
   const item = await items.createItem({
     organizationId: auth.organizationId,
     categoryId: category.id,
-    unitId: unit.id,
     inventoryPolicyId: policy.id,
     name: 'Rose',
     code: `WO-${suffix}`,
@@ -207,7 +203,6 @@ test('inventory count reconcile posts adjustments and detects version conflict',
   const auth = await bootstrapDirector();
   const moduleRef = await boot();
   const categories = moduleRef.get(CategoryUseCases);
-  const units = moduleRef.get(UnitUseCases);
   const policies = moduleRef.get(PolicyUseCases);
   const items = moduleRef.get(ItemUseCases);
   const suppliers = moduleRef.get(SupplierUseCases);
@@ -218,7 +213,6 @@ test('inventory count reconcile posts adjustments and detects version conflict',
   const suffix = Date.now().toString().slice(-6);
 
   const category = await categories.createCategory({ organizationId: auth.organizationId, name: 'Count', code: `CNT-${suffix}` });
-  const unit = await units.createUnit({ organizationId: auth.organizationId, name: 'шт', symbol: `ct${suffix}`, quantityScale: 0 });
   const policy = await policies.createInventoryPolicy({
     organizationId: auth.organizationId,
     name: 'Flower',
@@ -230,7 +224,6 @@ test('inventory count reconcile posts adjustments and detects version conflict',
   const item = await items.createItem({
     organizationId: auth.organizationId,
     categoryId: category.id,
-    unitId: unit.id,
     inventoryPolicyId: policy.id,
     name: 'Peony',
     code: `PC-${suffix}`,

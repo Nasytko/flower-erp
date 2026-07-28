@@ -17,9 +17,9 @@ import {
 import { ItemUseCases } from '../../master-data/application/item.use-cases';
 import { PolicyUseCases } from '../../master-data/application/policy.use-cases';
 import { SupplierUseCases } from '../../master-data/application/supplier.use-cases';
-import { UnitUseCases } from '../../master-data/application/unit.use-cases';
 import {
   DomainError,
+  DEFAULT_QUANTITY_SCALE,
   assertActiveReference,
   assertItemPurchasable,
   assertQuantityMatchesScale,
@@ -132,7 +132,6 @@ export class SupplyUseCases {
     private readonly organizations: OrganizationUseCases,
     private readonly suppliers: SupplierUseCases,
     private readonly items: ItemUseCases,
-    private readonly units: UnitUseCases,
     @Inject(INVENTORY_POSTING_PORT) private readonly inventoryPosting: InventoryPostingPort,
     @Inject(UNIT_OF_WORK) private readonly uow: UnitOfWork,
     @Inject(AUDIT_PORT) private readonly audit: AuditPort,
@@ -265,8 +264,7 @@ export class SupplyUseCases {
         canEditSupplyItems(supply.status as SupplyStatus);
         const item = await this.items.getItem(input.organizationId, input.itemId);
         assertItemPurchasable(item);
-        const unit = await this.units.getUnit(input.organizationId, item.unitId);
-        assertQuantityMatchesScale(input.orderedQuantity, unit.quantityScale);
+        assertQuantityMatchesScale(input.orderedQuantity, DEFAULT_QUANTITY_SCALE);
         const added = await this.supplies.addSupplyItem({
           id: randomUUID(),
           organizationId: input.organizationId,
@@ -346,8 +344,7 @@ export class SupplyUseCases {
         const supply = await this.requireSupply(input.organizationId, input.storeId, input.supplyId);
         const item = await this.items.getItem(input.organizationId, input.itemId);
         assertItemPurchasable(item);
-        const unit = await this.units.getUnit(input.organizationId, item.unitId);
-        assertQuantityMatchesScale(input.orderedQuantity, unit.quantityScale);
+        assertQuantityMatchesScale(input.orderedQuantity, DEFAULT_QUANTITY_SCALE);
         const price = Number(input.plannedUnitPrice);
         if (!Number.isFinite(price) || price < 0) {
           throw new BadRequestException({
@@ -633,7 +630,6 @@ export class GoodsReceiptUseCases {
     @Inject(SUPPLY_REPOSITORY) private readonly supplies: SupplyRepository,
     private readonly suppliers: SupplierUseCases,
     private readonly items: ItemUseCases,
-    private readonly units: UnitUseCases,
     private readonly policies: PolicyUseCases,
     @Inject(INVENTORY_POSTING_PORT) private readonly inventoryPosting: InventoryPostingPort,
     @Inject(UNIT_OF_WORK) private readonly uow: UnitOfWork,
@@ -815,8 +811,7 @@ export class GoodsReceiptUseCases {
             message: 'Supply item not found',
           });
         }
-        const unit = await this.units.getUnit(input.organizationId, line.item.unitId);
-        assertQuantityMatchesScale(input.receivedQuantity, unit.quantityScale);
+        assertQuantityMatchesScale(input.receivedQuantity, DEFAULT_QUANTITY_SCALE);
         const [posted, drafts] = await Promise.all([
           this.supplies.sumPostedBySupplyItem(input.organizationId, line.id),
           this.supplies.sumDraftOtherBySupplyItem(input.organizationId, line.id, receipt.id),
@@ -896,12 +891,9 @@ export class GoodsReceiptUseCases {
     assertActiveReference(supplier.status, 'SUPPLIER');
 
     for (const line of receipt.items) {
-      const [item, unit] = await Promise.all([
-        this.items.getItem(receipt.organizationId, line.itemId),
-        this.units.getUnit(receipt.organizationId, line.item.unitId),
-      ]);
+      const item = await this.items.getItem(receipt.organizationId, line.itemId);
       assertItemPurchasable(item);
-      assertQuantityMatchesScale(line.receivedQuantity, unit.quantityScale);
+      assertQuantityMatchesScale(line.receivedQuantity, DEFAULT_QUANTITY_SCALE);
       const posted = await this.supplies.sumPostedBySupplyItem(
         receipt.organizationId,
         line.supplyItemId,
