@@ -49,11 +49,22 @@ export interface StoreRepository {
   listByOrganization(
     organizationId: string,
     pagination: PaginationInput,
+    storeIds?: string[],
   ): Promise<PaginatedResult<StoreProps>>;
   updateStatus(
     organizationId: string,
     storeId: string,
     status: StoreStatus,
+  ): Promise<StoreProps>;
+  update(
+    organizationId: string,
+    storeId: string,
+    data: {
+      name?: string;
+      address?: string | null;
+      city?: string | null;
+      timezone?: string;
+    },
   ): Promise<StoreProps>;
   existsCode(organizationId: string, code: string): Promise<boolean>;
 }

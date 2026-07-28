@@ -187,7 +187,7 @@ export default function StoreHomePage() {
         return true;
       })
       .slice(0, tab === 'queue' ? 12 : 6);
-  }, [workspace]);
+  }, [workspace, tab]);
 
   const attentionItems = useMemo(() => {
     const seen = new Set<string>();

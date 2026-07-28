@@ -66,6 +66,8 @@ export const apiEnvSchema = z.object({
   GEOCODING_COUNTRY_CODE: z.string().length(2).default('by'),
   /** User-Agent for Nominatim (required by OSM policy). */
   NOMINATIM_USER_AGENT: z.string().min(8).default('CRM-Flowers/1.0'),
+  /** When true, Express trusts X-Forwarded-* from reverse proxy (required behind nginx/Caddy). */
+  TRUST_PROXY: booleanFromString.default(false),
   /** Optional deployment-wide Yandex Maps API key (overridden by org settings). */
   YANDEX_MAPS_API_KEY: z.string().min(8).optional(),
 });

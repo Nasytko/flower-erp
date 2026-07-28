@@ -218,6 +218,30 @@ export class PrismaIdentityRepository implements IdentityRepository {
     });
   }
 
+  async replaceMembershipRoles(membershipId: string, roleIds: string[]): Promise<void> {
+    const apply = async (tx: PrismaTransactionClient | ReturnType<PrismaIdentityRepository['client']>) => {
+      await tx.membershipRole.deleteMany({ where: { membershipId } });
+      for (const roleId of roleIds) {
+        await tx.membershipRole.create({ data: { membershipId, roleId } });
+      }
+    };
+
+    const active = getActivePrismaTx();
+    if (active) {
+      await apply(active);
+      return;
+    }
+    await this.prisma.$transaction(async (tx) => apply(tx));
+  }
+
+  async listMembershipStoreIds(membershipId: string): Promise<string[]> {
+    const rows = await this.client().userStoreAccess.findMany({
+      where: { membershipId },
+      select: { storeId: true },
+    });
+    return rows.map((row) => row.storeId);
+  }
+
   async setStoreAccess(
     membershipId: string,
     mode: 'ALL_STORES' | 'SELECTED_STORES',
@@ -250,12 +274,37 @@ export class PrismaIdentityRepository implements IdentityRepository {
   async listUsers(organizationId: string) {
     const rows = await this.client().organizationMembership.findMany({
       where: { organizationId },
-      include: { user: true },
+      include: {
+        user: true,
+        roles: {
+          include: {
+            role: { select: { code: true, name: true, status: true } },
+          },
+        },
+        storeAccess: {
+          include: {
+            store: { select: { id: true, name: true, code: true } },
+          },
+        },
+      },
+      orderBy: { user: { displayName: 'asc' } },
     });
     return rows.map((row) => ({
       ...mapUser(row.user),
       membershipId: row.id,
       membershipStatus: row.status,
+      storeAccessMode: row.storeAccessMode,
+      roles: row.roles
+        .filter((membershipRole) => membershipRole.role.status === 'ACTIVE')
+        .map((membershipRole) => ({
+          code: membershipRole.role.code,
+          name: membershipRole.role.name,
+        })),
+      stores: row.storeAccess.map((access) => ({
+        id: access.store.id,
+        name: access.store.name,
+        code: access.store.code,
+      })),
     }));
   }
 
@@ -278,6 +327,15 @@ export class PrismaIdentityRepository implements IdentityRepository {
       },
     });
     return count > 0;
+  }
+
+  async countActiveDirectors(organizationId: string): Promise<number> {
+    return this.client().membershipRole.count({
+      where: {
+        membership: { organizationId, status: 'ACTIVE' },
+        role: { organizationId, code: 'DIRECTOR', status: 'ACTIVE', isSystem: true },
+      },
+    });
   }
 
   async findRoleIdByCode(organizationId: string, code: string): Promise<string | null> {

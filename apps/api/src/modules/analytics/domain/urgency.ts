@@ -88,15 +88,16 @@ export function resolvePrimaryAction(input: {
   hasActiveAssignment: boolean;
   assignedToCurrentUser: boolean;
   hasActiveSale: boolean;
+  hasDeficit?: boolean;
 }): WorkspacePrimaryAction {
-  const { status, hasActiveAssignment, assignedToCurrentUser, hasActiveSale } = input;
+  const { status, hasActiveAssignment, assignedToCurrentUser, hasActiveSale, hasDeficit } = input;
   if (status === 'CANCELLED' || status === 'COMPLETED' || status === 'DRAFT') {
     return 'VIEW';
   }
   if (status === 'READY') {
     return hasActiveSale ? 'VIEW' : 'CREATE_SALE';
   }
-  if (status === 'CONFIRMED') {
+  if (status === 'CONFIRMED' || (status === 'PARTIALLY_RESERVED' && hasDeficit)) {
     return 'RESERVE';
   }
   if (!hasActiveAssignment) {
@@ -132,6 +133,7 @@ export function enrichWorkspaceCard(
     assignedToCurrentUser:
       Boolean(currentMembershipId) && row.assignedFloristId === currentMembershipId,
     hasActiveSale,
+    hasDeficit: row.hasDeficit,
   });
   const displayPhase = resolveOrderDisplayPhase({
     status: row.status,

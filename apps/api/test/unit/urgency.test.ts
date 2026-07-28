@@ -130,4 +130,24 @@ test('resolvePrimaryAction for florist work states', () => {
     }),
     'RESERVE',
   );
+  assert.equal(
+    resolvePrimaryAction({
+      status: 'PARTIALLY_RESERVED',
+      hasActiveAssignment: false,
+      assignedToCurrentUser: false,
+      hasActiveSale: false,
+      hasDeficit: true,
+    }),
+    'RESERVE',
+  );
+  assert.equal(
+    resolvePrimaryAction({
+      status: 'PARTIALLY_RESERVED',
+      hasActiveAssignment: true,
+      assignedToCurrentUser: true,
+      hasActiveSale: false,
+      hasDeficit: false,
+    }),
+    'START_PREPARATION',
+  );
 });

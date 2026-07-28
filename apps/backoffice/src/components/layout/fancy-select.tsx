@@ -139,7 +139,7 @@ export function FancySelect({
         aria-expanded={open}
         aria-controls={listId}
         aria-label={ariaLabel}
-        aria-required={required || undefined}
+        data-required={required ? '' : undefined}
         onClick={() => {
           if (!disabled) setOpen((v) => !v);
         }}

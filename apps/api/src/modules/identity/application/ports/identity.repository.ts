@@ -74,18 +74,31 @@ export interface IdentityRepository {
     storeAccessMode?: 'ALL_STORES' | 'SELECTED_STORES';
   }): Promise<MembershipRecord>;
   assignRole(membershipId: string, roleId: string): Promise<void>;
+  replaceMembershipRoles(membershipId: string, roleIds: string[]): Promise<void>;
+  listMembershipStoreIds(membershipId: string): Promise<string[]>;
   setStoreAccess(
     membershipId: string,
     mode: 'ALL_STORES' | 'SELECTED_STORES',
     storeIds: string[],
   ): Promise<void>;
-  listUsers(organizationId: string): Promise<Array<UserRecord & { membershipId: string; membershipStatus: MembershipRecord['status'] }>>;
+  listUsers(organizationId: string): Promise<
+    Array<
+      UserRecord & {
+        membershipId: string;
+        membershipStatus: MembershipRecord['status'];
+        storeAccessMode: MembershipRecord['storeAccessMode'];
+        roles: Array<{ code: string; name: string }>;
+        stores: Array<{ id: string; name: string; code: string }>;
+      }
+    >
+  >;
   ensureSystemRoles(organizationId: string): Promise<{
     directorRoleId: string;
     floristRoleId: string;
     courierRoleId: string;
   }>;
   organizationHasOwner(organizationId: string): Promise<boolean>;
+  countActiveDirectors(organizationId: string): Promise<number>;
   findRoleIdByCode(organizationId: string, code: string): Promise<string | null>;
   listRoles(organizationId: string): Promise<
     Array<{
@@ -126,4 +139,16 @@ export interface SessionRepository {
   revokeFamily(familyId: string, reason: string, revokedAt: Date): Promise<void>;
   revokeAllUserSessions(userId: string, reason: string, revokedAt: Date, exceptSessionId?: string): Promise<void>;
   listUserSessions(userId: string): Promise<SessionRecord[]>;
+  findLatestSessionsByUserIds(
+    userIds: string[],
+  ): Promise<
+    Record<
+      string,
+      {
+        ipAddress: string | null;
+        lastUsedAt: Date;
+        userAgent: string | null;
+      }
+    >
+  >;
 }

@@ -27,6 +27,7 @@ Validated via Zod in `@flower/config`. Invalid env fails fast at process start.
 | `AUTH_COOKIE_SAME_SITE` | no | `lax` | Refresh cookie SameSite |
 | `AUTH_COOKIE_SECURE` | no | prod=true | Force Secure cookie flag |
 | `ALLOW_OWNER_BOOTSTRAP` | no | `false` | Enable `pnpm bootstrap:owner` |
+| `TRUST_PROXY` | no | `false` | Trust `X-Forwarded-*` when behind nginx/Caddy |
 | `SALES_DISCOUNT_OVERRIDE_PERCENT` | no | `20` | Discount % requiring sales:discount-override |
 | `WORKSPACE_READY_SOON_MINUTES` | no | `30` | Minutes before readyAt for SOON/URGENT urgency |
 | `WORKSPACE_SECTION_LIMIT` | no | `20` | Max cards per Today section bucket |

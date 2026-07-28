@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+  assertFloristStoreBinding,
   assertLogin,
   assertStoreInScope,
   computeLockUntil,
@@ -12,6 +13,18 @@ import { Argon2PasswordService, hashRefreshToken } from '../../src/infrastructur
 test('login normalization', () => {
   assert.equal(normalizeLogin('  AbC.User '), 'abc.user');
   assert.throws(() => assertLogin('ab'));
+});
+
+test('florist store binding', () => {
+  assert.doesNotThrow(() =>
+    assertFloristStoreBinding(['FLORIST'], { mode: 'SELECTED_STORES', storeIds: ['s1'] }),
+  );
+  assert.throws(() =>
+    assertFloristStoreBinding(['FLORIST'], { mode: 'ALL_STORES', storeIds: [] }),
+  );
+  assert.doesNotThrow(() =>
+    assertFloristStoreBinding(['DIRECTOR'], { mode: 'ALL_STORES', storeIds: [] }),
+  );
 });
 
 test('store scope', () => {

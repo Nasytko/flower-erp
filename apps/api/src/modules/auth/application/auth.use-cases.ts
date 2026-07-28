@@ -351,6 +351,12 @@ export class AuthUseCases {
     }
     const passwordHash = await this.passwords.hash(input.newPassword);
     await this.identity.updateUserPassword(user.id, passwordHash, false);
+    await this.sessions.revokeAllUserSessions(
+      user.id,
+      'PASSWORD_CHANGED',
+      new Date(),
+      auth.sessionId,
+    );
     await this.securityAudit(
       auth.organizationId,
       SECURITY_AUDIT_ACTIONS.PASSWORD_CHANGED,

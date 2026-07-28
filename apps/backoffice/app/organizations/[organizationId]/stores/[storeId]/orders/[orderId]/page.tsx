@@ -321,7 +321,9 @@ export default function OrderDetailPage() {
     draft &&
     compositionCount > 0 &&
     auth.hasPermission('orders:confirm');
-  const needsReserve = order?.status === 'CONFIRMED';
+  const needsReserve =
+    order?.status === 'CONFIRMED' ||
+    (order?.status === 'PARTIALLY_RESERVED' && Boolean(order.hasDeficit));
   const canReserve = needsReserve && auth.hasPermission('orders:reserve');
   const deliveryInTransit =
     delivery?.status === 'IN_TRANSIT' || Boolean(delivery?.handedOverAt);
@@ -376,7 +378,8 @@ export default function OrderDetailPage() {
                     обзоре.
                   </InlineAlert>
                 ) : null}
-                {order.status === 'CONFIRMED' && order.hasDeficit ? (
+                {(order.status === 'CONFIRMED' || order.status === 'PARTIALLY_RESERVED') &&
+                order.hasDeficit ? (
                   <InlineAlert tone="warning" title="Не хватает на складе">
                     Резерв неполный. Повторите резерв после поступления или замените позиции в рабочем
                     заказе.

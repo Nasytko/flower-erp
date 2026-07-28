@@ -55,6 +55,33 @@ export class CreateStoreDto {
   timezone?: string;
 }
 
+export class UpdateStoreDto {
+  @ApiPropertyOptional({ example: 'Central Salon' })
+  @IsOptional()
+  @IsString()
+  @MinLength(2)
+  @MaxLength(200)
+  name?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  address?: string | null;
+
+  @ApiPropertyOptional({ example: 'Минск' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  city?: string | null;
+
+  @ApiPropertyOptional({ example: 'Europe/Moscow' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  timezone?: string;
+}
+
 export class ArchiveDto {
   @ApiPropertyOptional()
   @IsOptional()

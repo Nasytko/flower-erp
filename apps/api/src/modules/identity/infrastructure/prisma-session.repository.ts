@@ -126,4 +126,33 @@ export class PrismaSessionRepository implements SessionRepository {
     });
     return rows.map(mapSession);
   }
+
+  async findLatestSessionsByUserIds(userIds: string[]) {
+    if (userIds.length === 0) return {};
+
+    const rows = await this.client().session.findMany({
+      where: { userId: { in: userIds } },
+      orderBy: [{ userId: 'asc' }, { lastUsedAt: 'desc' }],
+      select: {
+        userId: true,
+        ipAddress: true,
+        lastUsedAt: true,
+        userAgent: true,
+      },
+    });
+
+    const result: Record<
+      string,
+      { ipAddress: string | null; lastUsedAt: Date; userAgent: string | null }
+    > = {};
+    for (const row of rows) {
+      if (result[row.userId]) continue;
+      result[row.userId] = {
+        ipAddress: row.ipAddress,
+        lastUsedAt: row.lastUsedAt,
+        userAgent: row.userAgent,
+      };
+    }
+    return result;
+  }
 }

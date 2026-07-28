@@ -364,7 +364,6 @@ function NewSalePageInner() {
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [organizationId, storeId, auth, fromOrderId, canListPay]);
 
   function discountPayload() {
@@ -611,16 +610,7 @@ function NewSalePageInner() {
     return issues;
   }
 
-  const blockers = useMemo(() => collectBlockers(), [
-    fromOrderId,
-    positions,
-    orderTitle,
-    orderPrice,
-    paymentRequired,
-    paymentMethods,
-    paymentLines,
-    items,
-  ]);
+  const blockers = collectBlockers();
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault();

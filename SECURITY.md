@@ -33,6 +33,14 @@ Include:
 
 See [docs/architecture/security.md](./docs/architecture/security.md), [docs/security/threat-model.md](./docs/security/threat-model.md).
 
+Additional controls:
+
+- Integration API keys redacted on read; Yandex key for maps only via delivery endpoints
+- Store list filtered by JWT store scope
+- Password change revokes other sessions
+- `TRUST_PROXY` for correct IP behind reverse proxy
+- Last-director guard on role assignment
+
 ## Dependency vulnerability scanning
 
 ### Problem
@@ -46,13 +54,14 @@ It is therefore **removed from the required CI quality job**.
 2. **Scheduled:** `.github/workflows/dependency-security.yml` re-runs Trivy weekly.
 3. **Manual:** `docs/development/dependency-updates.md` — weekly `pnpm outdated` review.
 
-## Explicit non-goals (current phase)
+## Explicit non-goals (future phases)
 
 - SSO / OAuth / social login / MFA
-- Redis / queues / object storage
-- Partner public API
-- Telegram / AI / storefront
-- Orders / Sales / Delivery / Finance modules
+- Redis / shared rate limit at scale (in-memory limiter today — see threat model)
+- Partner public API / public storefront
+- Telegram bots / AI assistants
+
+**Implemented modules** (no longer out of scope): Orders, Sales, Delivery, Payments, Inventory operations, Workspace.
 
 ## Dependency update policy
 

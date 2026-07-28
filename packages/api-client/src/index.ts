@@ -208,10 +208,54 @@ export function createApiClient(options: ApiClientOptions) {
           id: string;
           login: string;
           displayName: string;
+          email: string | null;
           status: string;
           membershipId: string;
+          membershipStatus: string;
+          failedLoginAttempts: number;
+          lockedUntil: string | null;
+          lastLoginAt: string | null;
+          roles: Array<{ code: string; name: string }>;
+          storeAccess: {
+            mode: 'ALL_STORES' | 'SELECTED_STORES';
+            storeIds: string[];
+            stores: Array<{ id: string; name: string; code: string }>;
+          };
+          lastSession: {
+            ipAddress: string | null;
+            lastUsedAt: string;
+            userAgent: string | null;
+          } | null;
         }>
       >(`/organizations/${organizationId}/users`),
+    assignUserRoles: (organizationId: string, userId: string, roleCodes: string[]) =>
+      request<void>(`/organizations/${organizationId}/users/${userId}/roles`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ roleCodes }),
+      }),
+    setUserStoreAccess: (
+      organizationId: string,
+      userId: string,
+      body: { mode: 'ALL_STORES' | 'SELECTED_STORES'; storeIds?: string[] },
+    ) =>
+      request<void>(`/organizations/${organizationId}/users/${userId}/store-access`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      }),
+    blockUser: (organizationId: string, userId: string) =>
+      request<void>(`/organizations/${organizationId}/users/${userId}/block`, { method: 'POST' }),
+    unblockUser: (organizationId: string, userId: string) =>
+      request<void>(`/organizations/${organizationId}/users/${userId}/unblock`, { method: 'POST' }),
+    archiveUser: (organizationId: string, userId: string) =>
+      request<void>(`/organizations/${organizationId}/users/${userId}/archive`, { method: 'POST' }),
+    resetUserPassword: (organizationId: string, userId: string, password: string) =>
+      request<void>(`/organizations/${organizationId}/users/${userId}/reset-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password }),
+      }),
     createUser: (
       organizationId: string,
       body: { login: string; password: string; displayName: string; email?: string },
@@ -295,6 +339,29 @@ export function createApiClient(options: ApiClientOptions) {
         city: string | null;
         timezone: string;
       }>(`/organizations/${organizationId}/stores/${storeId}`),
+    updateStore: (
+      organizationId: string,
+      storeId: string,
+      body: {
+        name?: string;
+        address?: string | null;
+        city?: string | null;
+        timezone?: string;
+      },
+    ) =>
+      request<{
+        id: string;
+        name: string;
+        code: string;
+        status: string;
+        address: string | null;
+        city: string | null;
+        timezone: string;
+      }>(`/organizations/${organizationId}/stores/${storeId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      }),
     listWarehouses: (organizationId: string, storeId: string) =>
       request<
         Array<{

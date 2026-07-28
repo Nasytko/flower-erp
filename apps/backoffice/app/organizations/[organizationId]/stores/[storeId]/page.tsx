@@ -20,6 +20,7 @@ type Store = {
   code: string;
   status: string;
   address: string | null;
+  city: string | null;
   timezone: string;
 };
 
@@ -148,9 +149,13 @@ export default function StoreDetailPage() {
                     Перемещения
                   </Button>
                 ) : null}
-                {auth.hasPermission('inventory-counts:read') ? (
-                  <Button type="button" variant="secondary" onClick={() => router.push(`${base}/inventory-counts`)}>
-                    Инвентаризации
+                {auth.hasPermission('stores:create') ? (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={() => router.push(`${base}/settings`)}
+                  >
+                    Настройки
                   </Button>
                 ) : null}
               </div>
@@ -169,11 +174,18 @@ export default function StoreDetailPage() {
                   <StatusBadge status={store.status} />
                   <span>{store.timezone}</span>
                 </div>
-                {store.address ? (
-                  <p style={{ margin: '12px 0 0' }}>{store.address}</p>
+                {store.address || store.city ? (
+                  <p style={{ margin: '12px 0 0' }}>
+                    {[store.city, store.address].filter(Boolean).join(', ')}
+                  </p>
                 ) : (
                   <p style={{ margin: '12px 0 0', color: 'var(--color-muted)' }}>Адрес не указан.</p>
                 )}
+                {auth.hasPermission('stores:create') ? (
+                  <p style={{ margin: '12px 0 0' }}>
+                    <Link href={`${base}/settings`}>Редактировать название и адрес</Link>
+                  </p>
+                ) : null}
               </Card>
             </Section>
 

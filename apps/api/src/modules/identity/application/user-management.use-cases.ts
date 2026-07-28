@@ -12,29 +12,47 @@ import {
   IDENTITY_REPOSITORY,
   SESSION_REPOSITORY,
   type IdentityRepository,
+  type MembershipRecord,
   type SessionRepository,
 } from './ports/identity.repository';
 import {
+  assertFloristStoreBinding,
   assertLogin,
   assertPasswordPolicy,
+  DomainError,
   normalizeLogin,
 } from '../domain/identity-rules';
 import { Argon2PasswordService } from '../../../infrastructure/security/password.service';
+import {
+  STORE_REPOSITORY,
+  type StoreRepository,
+} from '../../organization/application/ports/repositories';
 
 @Injectable()
 export class UserManagementUseCases {
   constructor(
     @Inject(IDENTITY_REPOSITORY) private readonly identity: IdentityRepository,
     @Inject(SESSION_REPOSITORY) private readonly sessions: SessionRepository,
+    @Inject(STORE_REPOSITORY) private readonly stores: StoreRepository,
     @Inject(UNIT_OF_WORK) private readonly uow: UnitOfWork,
     @Inject(AUDIT_PORT) private readonly audit: AuditPort,
     private readonly passwords: Argon2PasswordService,
   ) {}
 
-  listUsers(organizationId: string) {
-    return this.identity.listUsers(organizationId).then((rows) =>
-      rows.map(({ passwordHash: _ph, ...user }) => user),
-    );
+  async listUsers(organizationId: string) {
+    const rows = await this.identity.listUsers(organizationId);
+    const lastSessions = await this.sessions.findLatestSessionsByUserIds(rows.map((user) => user.id));
+
+    return rows.map(({ passwordHash: _ph, storeAccessMode, stores, roles, ...user }) => ({
+      ...user,
+      roles,
+      storeAccess: {
+        mode: storeAccessMode,
+        storeIds: stores.map((store) => store.id),
+        stores,
+      },
+      lastSession: lastSessions[user.id] ?? null,
+    }));
   }
 
   async getUser(organizationId: string, userId: string) {
@@ -129,13 +147,30 @@ export class UserManagementUseCases {
 
   async assignRoles(organizationId: string, userId: string, roleCodes: string[]) {
     const membership = await this.ensureMembership(organizationId, userId);
+    const storeAccess = await this.loadStoreAccess(membership);
+    this.assertFloristBinding(roleCodes, storeAccess);
+
+    const currentRoles = await this.identity.listMembershipRoleCodes(membership.id);
+    const removingDirector = currentRoles.includes('DIRECTOR') && !roleCodes.includes('DIRECTOR');
+    if (removingDirector) {
+      const directorCount = await this.identity.countActiveDirectors(organizationId);
+      if (directorCount <= 1) {
+        throw new BadRequestException({
+          code: 'LAST_DIRECTOR',
+          message: 'Organization must have at least one active director',
+        });
+      }
+    }
+
     await this.uow.runInTransaction(async () => {
       await this.identity.ensureSystemRoles(organizationId);
+      const roleIds: string[] = [];
       for (const code of roleCodes) {
         const roleId = await this.identity.findRoleIdByCode(organizationId, code);
         if (!roleId) throw new BadRequestException({ code: 'INVALID_ROLE', message: `Unknown role ${code}` });
-        await this.identity.assignRole(membership.id, roleId);
+        roleIds.push(roleId);
       }
+      await this.identity.replaceMembershipRoles(membership.id, roleIds);
       await this.auditUser(organizationId, userId, 'ROLES_ASSIGNED', { roleCodes });
     });
   }
@@ -146,8 +181,18 @@ export class UserManagementUseCases {
     input: { mode: 'ALL_STORES' | 'SELECTED_STORES'; storeIds?: string[] },
   ) {
     const membership = await this.ensureMembership(organizationId, userId);
+    const storeIds = input.storeIds ?? [];
+    await this.ensureStoresInOrganization(organizationId, storeIds);
+
+    const roleCodes = await this.identity.listMembershipRoleCodes(membership.id);
+    const storeAccess = {
+      mode: input.mode,
+      storeIds: input.mode === 'SELECTED_STORES' ? storeIds : [],
+    };
+    this.assertFloristBinding(roleCodes, storeAccess);
+
     await this.uow.runInTransaction(async () => {
-      await this.identity.setStoreAccess(membership.id, input.mode, input.storeIds ?? []);
+      await this.identity.setStoreAccess(membership.id, input.mode, storeIds);
       await this.auditUser(organizationId, userId, 'STORE_ACCESS_CHANGED', input);
     });
   }
@@ -160,6 +205,40 @@ export class UserManagementUseCases {
     const membership = await this.identity.findMembership(userId, organizationId);
     if (!membership) throw new NotFoundException({ code: 'USER_NOT_FOUND', message: 'User not found' });
     return membership;
+  }
+
+  private async loadStoreAccess(membership: MembershipRecord) {
+    const storeIds =
+      membership.storeAccessMode === 'SELECTED_STORES'
+        ? await this.identity.listMembershipStoreIds(membership.id)
+        : [];
+    return { mode: membership.storeAccessMode, storeIds };
+  }
+
+  private assertFloristBinding(
+    roleCodes: string[],
+    storeAccess: { mode: 'ALL_STORES' | 'SELECTED_STORES'; storeIds: string[] },
+  ) {
+    try {
+      assertFloristStoreBinding(roleCodes, storeAccess);
+    } catch (error) {
+      if (error instanceof DomainError) {
+        throw new BadRequestException({ code: error.code, message: error.message });
+      }
+      throw error;
+    }
+  }
+
+  private async ensureStoresInOrganization(organizationId: string, storeIds: string[]) {
+    for (const storeId of storeIds) {
+      const store = await this.stores.findById(organizationId, storeId);
+      if (!store) {
+        throw new BadRequestException({
+          code: 'INVALID_STORE',
+          message: `Store ${storeId} not found in organization`,
+        });
+      }
+    }
   }
 
   private async auditUser(

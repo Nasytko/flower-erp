@@ -32,7 +32,7 @@ export default function IntegrationsSettingsPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const canRead = auth.hasPermission('organization:read');
+  const canRead = auth.hasPermission('organization:manage');
   const canManage = auth.hasPermission('organization:manage');
 
   useEffect(() => {
@@ -45,7 +45,7 @@ export default function IntegrationsSettingsPage() {
         setSettings(data);
         setGeocodingProvider(data.geocodingProvider);
         setNavigationProvider(data.navigationProvider);
-        setApiKey(data.yandexMapsApiKey ?? '');
+        setApiKey('');
         setMapLat(data.mapDefaultLatitude ?? '53.900601');
         setMapLon(data.mapDefaultLongitude ?? '27.558972');
       } catch (err) {
@@ -62,13 +62,24 @@ export default function IntegrationsSettingsPage() {
     setSaving(true);
     setError(null);
     try {
-      const saved = await getApiClient().updateIntegrationSettings(organizationId, {
+      const body: {
+        geocodingProvider: string;
+        navigationProvider: string;
+        mapDefaultLatitude?: string | null;
+        mapDefaultLongitude?: string | null;
+        yandexMapsApiKey?: string | null;
+      } = {
         geocodingProvider,
-        yandexMapsApiKey: apiKey.trim() || null,
         navigationProvider,
         mapDefaultLatitude: mapLat.trim() || null,
         mapDefaultLongitude: mapLon.trim() || null,
-      });
+      };
+      if (apiKey.trim()) {
+        body.yandexMapsApiKey = apiKey.trim();
+      } else if (!settings?.yandexMapsApiKeyConfigured) {
+        body.yandexMapsApiKey = null;
+      }
+      const saved = await getApiClient().updateIntegrationSettings(organizationId, body);
       setSettings(saved);
       toast.success('Настройки карт сохранены');
     } catch (err) {
@@ -122,7 +133,11 @@ export default function IntegrationsSettingsPage() {
 
                 <Field
                   label="API-ключ Яндекс.Карт"
-                  tooltip="Получите в кабинете developer.tech.yandex.ru. Один ключ для подсказок, карты и геокодинга."
+                  hint={
+                    settings?.yandexMapsApiKeyConfigured
+                      ? 'Ключ сохранён. Оставьте поле пустым, чтобы не менять, или введите новый.'
+                      : 'Получите в кабинете developer.tech.yandex.ru.'
+                  }
                 >
                   <Input
                     value={apiKey}

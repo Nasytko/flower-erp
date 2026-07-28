@@ -5,6 +5,7 @@ import {
   HttpCode,
   HttpStatus,
   Param,
+  Patch,
   Post,
   Query,
 } from '@nestjs/common';
@@ -22,6 +23,7 @@ import {
   PaginationQueryDto,
   StoreIdParamDto,
   UpdateIntegrationSettingsDto,
+  UpdateStoreDto,
   WarehouseIdParamDto,
 } from './organization.dto';
 
@@ -66,7 +68,7 @@ export class OrganizationController {
   }
 
   @Get(':organizationId/integration-settings')
-  @RequirePermissions('organization:read')
+  @RequirePermissions('organization:manage')
   @ApiOperation({ summary: 'Map and geocoding integration settings' })
   getIntegrationSettings(@Param() params: OrganizationIdParamDto) {
     return this.useCases.getIntegrationSettings(params.organizationId);
@@ -137,6 +139,17 @@ export class OrganizationController {
   @ApiOperation({ summary: 'Get store (tenant-scoped)' })
   getStore(@Param() params: StoreIdParamDto) {
     return this.useCases.getStore(params.organizationId, params.storeId);
+  }
+
+  @Patch(':organizationId/stores/:storeId')
+  @RequirePermissions('stores:create')
+  @ApiOperation({ summary: 'Update store profile (name, address, timezone)' })
+  updateStore(@Param() params: StoreIdParamDto, @Body() body: UpdateStoreDto) {
+    return this.useCases.updateStore({
+      organizationId: params.organizationId,
+      storeId: params.storeId,
+      ...body,
+    });
   }
 
   @Post(':organizationId/stores/:storeId/archive')

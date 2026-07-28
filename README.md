@@ -92,6 +92,8 @@ See [SECURITY.md](./SECURITY.md). Do not publish secrets to this public reposito
 
 ## Development docs
 
+- **[Wiki](./docs/wiki/README.md)** — пользователи, магазины, заказы
+- **[API Reference](./docs/api/README.md)** — REST endpoints
 - [Local setup](./docs/development/local-setup.md)
 - [Environment variables](./docs/development/environment-variables.md)
 - [Migrations](./docs/development/database-migrations.md)

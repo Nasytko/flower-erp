@@ -67,9 +67,13 @@ export class PrismaStoreRepository implements StoreRepository {
   async listByOrganization(
     organizationId: string,
     pagination: PaginationInput,
+    storeIds?: string[],
   ): Promise<PaginatedResult<StoreProps>> {
     const skip = (pagination.page - 1) * pagination.pageSize;
-    const where = { organizationId };
+    const where = {
+      organizationId,
+      ...(storeIds && storeIds.length > 0 ? { id: { in: storeIds } } : {}),
+    };
     const [totalItems, rows] = await Promise.all([
       this.client().store.count({ where }),
       this.client().store.findMany({
@@ -99,6 +103,32 @@ export class PrismaStoreRepository implements StoreRepository {
     const row = await this.client().store.update({
       where: { id: storeId },
       data: { status },
+    });
+    return mapStore(row);
+  }
+
+  async update(
+    organizationId: string,
+    storeId: string,
+    data: {
+      name?: string;
+      address?: string | null;
+      city?: string | null;
+      timezone?: string;
+    },
+  ): Promise<StoreProps> {
+    const existing = await this.findById(organizationId, storeId);
+    if (!existing) {
+      throw new Error('STORE_NOT_FOUND');
+    }
+    const row = await this.client().store.update({
+      where: { id: storeId },
+      data: {
+        ...(data.name !== undefined ? { name: data.name } : {}),
+        ...(data.address !== undefined ? { address: data.address } : {}),
+        ...(data.city !== undefined ? { city: data.city } : {}),
+        ...(data.timezone !== undefined ? { timezone: data.timezone } : {}),
+      },
     });
     return mapStore(row);
   }

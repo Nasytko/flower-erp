@@ -4,6 +4,8 @@ type StatusTone = 'success' | 'warning' | 'danger' | 'neutral' | 'info' | 'accen
 
 const toneByStatus: Record<string, StatusTone> = {
   ACTIVE: 'success',
+  BLOCKED: 'danger',
+  SUSPENDED: 'warning',
   active: 'success',
   DEFAULT: 'success',
   ok: 'success',

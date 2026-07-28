@@ -56,6 +56,19 @@ export function assertStoreInScope(
   }
 }
 
+export function assertFloristStoreBinding(
+  roleCodes: readonly string[],
+  storeAccess: { mode: StoreAccessMode; storeIds: readonly string[] },
+): void {
+  if (!roleCodes.includes('FLORIST')) return;
+  if (storeAccess.mode !== 'SELECTED_STORES' || storeAccess.storeIds.length === 0) {
+    throw new DomainError(
+      'FLORIST_REQUIRES_STORE',
+      'Florist must be assigned to at least one store',
+    );
+  }
+}
+
 export function computeLockUntil(
   failedAttempts: number,
   maxAttempts: number,

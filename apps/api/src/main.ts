@@ -98,6 +98,10 @@ async function bootstrap(): Promise<void> {
     logger: nestLogger,
   });
 
+  if (env.TRUST_PROXY) {
+    app.getHttpAdapter().getInstance().set('trust proxy', 1);
+  }
+
   app.use(helmet());
   app.use(cookieParser());
   app.use(json({ limit: env.BODY_LIMIT }));

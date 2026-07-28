@@ -75,6 +75,15 @@ export type ArchiveStoreInput = {
   reason?: string;
 };
 
+export type UpdateStoreInput = {
+  organizationId: string;
+  storeId: string;
+  name?: string;
+  address?: string | null;
+  city?: string | null;
+  timezone?: string;
+};
+
 @Injectable()
 export class OrganizationUseCases {
   constructor(
@@ -276,8 +285,80 @@ export class OrganizationUseCases {
     return store;
   }
 
+  async updateStore(input: UpdateStoreInput): Promise<StoreProps> {
+    try {
+      const ctx = getRequestContext();
+      return await this.uow.runInTransaction(async () => {
+        const store = await this.getStore(input.organizationId, input.storeId);
+        const patch: {
+          name?: string;
+          address?: string | null;
+          city?: string | null;
+          timezone?: string;
+        } = {};
+
+        if (input.name !== undefined) {
+          patch.name = assertStoreName(input.name);
+        }
+        if (input.address !== undefined) {
+          patch.address = input.address?.trim() ? input.address.trim() : null;
+        }
+        if (input.city !== undefined) {
+          patch.city = input.city?.trim() ? input.city.trim() : null;
+        }
+        if (input.timezone !== undefined) {
+          const timezone = input.timezone.trim();
+          if (!timezone || timezone.length > 64) {
+            throw new DomainError('INVALID_TIMEZONE', 'Timezone must be 1–64 characters');
+          }
+          patch.timezone = timezone;
+        }
+
+        if (Object.keys(patch).length === 0) {
+          return store;
+        }
+
+        const updated = await this.stores.update(input.organizationId, input.storeId, patch);
+        await this.audit.append({
+          organizationId: input.organizationId,
+          storeId: store.id,
+          actorId: ctx?.actorId ?? null,
+          action: 'store.updated',
+          entityType: 'Store',
+          entityId: store.id,
+          beforeState: {
+            name: store.name,
+            address: store.address,
+            city: store.city,
+            timezone: store.timezone,
+          },
+          afterState: {
+            name: updated.name,
+            address: updated.address,
+            city: updated.city,
+            timezone: updated.timezone,
+          },
+          reason: null,
+          requestId: ctx?.requestId ?? 'unknown',
+          occurredAt: this.clock.now(),
+        });
+        return updated;
+      });
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      mapDomainError(error);
+    }
+  }
+
   async listStores(organizationId: string, page: number, pageSize: number) {
     await this.getOrganization(organizationId);
+    const auth = getRequestContext()?.auth;
+    const scope = auth?.storeScope;
+    if (scope && scope.mode === 'SELECTED_STORES' && scope.storeIds.length > 0) {
+      return this.stores.listByOrganization(organizationId, { page, pageSize }, [...scope.storeIds]);
+    }
     return this.stores.listByOrganization(organizationId, { page, pageSize });
   }
 
@@ -503,20 +584,21 @@ export class OrganizationUseCases {
 function presentIntegrationSettings(
   organizationId: string,
   row: Awaited<ReturnType<IntegrationSettingsRepository['findByOrganizationId']>>,
+  options?: { revealApiKey?: boolean },
 ) {
   const defaults = DEFAULT_INTEGRATION_SETTINGS;
   const geocodingProvider = row?.geocodingProvider ?? defaults.geocodingProvider;
-  const yandexMapsApiKey = row?.yandexMapsApiKey ?? null;
+  const storedKey = row?.yandexMapsApiKey ?? null;
   const navigationProvider = row?.navigationProvider ?? defaults.navigationProvider;
   const mapDefaultLatitude = row?.mapDefaultLatitude ?? defaults.mapDefaultLatitude;
   const mapDefaultLongitude = row?.mapDefaultLongitude ?? defaults.mapDefaultLongitude;
-  const mapsEnabled = geocodingProvider === 'yandex' && Boolean(yandexMapsApiKey);
+  const mapsEnabled = geocodingProvider === 'yandex' && Boolean(storedKey);
 
   return {
     organizationId,
     geocodingProvider,
-    yandexMapsApiKey,
-    yandexMapsApiKeyConfigured: Boolean(yandexMapsApiKey),
+    yandexMapsApiKey: options?.revealApiKey ? storedKey : null,
+    yandexMapsApiKeyConfigured: Boolean(storedKey),
     navigationProvider,
     mapDefaultLatitude,
     mapDefaultLongitude,

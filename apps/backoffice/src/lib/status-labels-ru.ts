@@ -88,6 +88,19 @@ export const STATUS_LABELS_RU: Record<string, string> = {
   SALE_DISCOUNT_APPLIED: 'Применена скидка',
 };
 
+export const ROLE_LABELS_RU: Record<string, string> = {
+  DIRECTOR: 'Директор',
+  FLORIST: 'Флорист',
+  COURIER: 'Курьер',
+};
+
+export const USER_STATUS_LABELS_RU: Record<string, string> = {
+  ACTIVE: 'Активен',
+  BLOCKED: 'Заблокирован',
+  ARCHIVED: 'В архиве',
+  SUSPENDED: 'Приостановлен',
+};
+
 const DELIVERY_STATUS_CODES = new Set(Object.keys(DELIVERY_STATUS_LABELS));
 
 const TIMELINE_MESSAGE_RU: Record<string, string> = {
@@ -101,7 +114,7 @@ export function statusLabelRu(status: string): string {
   if (DELIVERY_STATUS_CODES.has(status)) {
     return DELIVERY_STATUS_LABELS[status] ?? status;
   }
-  return STATUS_LABELS_RU[status] ?? status;
+  return USER_STATUS_LABELS_RU[status] ?? STATUS_LABELS_RU[status] ?? status;
 }
 
 export function timelineMessageRu(message: string | null | undefined): string | null {
