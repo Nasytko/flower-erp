@@ -1320,27 +1320,6 @@ export function createApiClient(options: ApiClientOptions) {
           body: JSON.stringify(body),
         },
       ),
-    replaceCompositionItem: (
-      organizationId: string,
-      storeId: string,
-      orderId: string,
-      body: {
-        expectedVersion: number;
-        fromItemId: string;
-        toItemId: string;
-        quantity: string;
-        reason: CompositionReplaceReason;
-        comment?: string | null;
-      },
-    ) =>
-      request<unknown>(
-        `/organizations/${organizationId}/stores/${storeId}/orders/${orderId}/composition/replacements`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body),
-        },
-      ),
     confirmOrder: (organizationId: string, storeId: string, orderId: string) =>
       request<{ id: string; status: string }>(
         `/organizations/${organizationId}/stores/${storeId}/orders/${orderId}/confirm`,
@@ -1531,10 +1510,6 @@ export function createApiClient(options: ApiClientOptions) {
     getTransfer: (organizationId: string, storeId: string, transferId: string) =>
       request<TransferDto>(
         `/organizations/${organizationId}/stores/${storeId}/transfers/${transferId}`,
-      ),
-    getTransferTimeline: (organizationId: string, storeId: string, transferId: string) =>
-      request<TransferTimelineDto[]>(
-        `/organizations/${organizationId}/stores/${storeId}/transfers/${transferId}/timeline`,
       ),
     createTransfer: (
       organizationId: string,
@@ -1804,18 +1779,6 @@ export function createApiClient(options: ApiClientOptions) {
           body: JSON.stringify(body),
         },
       ),
-    getSaleTimeline: (organizationId: string, storeId: string, saleId: string) =>
-      request<
-        Array<{
-          id: string;
-          type: string;
-          message: string | null;
-          actorMembershipId: string | null;
-          payload: unknown;
-          occurredAt: string;
-          createdAt: string;
-        }>
-      >(`/organizations/${organizationId}/stores/${storeId}/sales/${saleId}/timeline`),
     getSaleConsumption: (organizationId: string, storeId: string, saleId: string) =>
       request<{
         id: string;
@@ -1938,10 +1901,6 @@ export function createApiClient(options: ApiClientOptions) {
           body: JSON.stringify(body),
         },
       ),
-    getPaymentTimeline: (organizationId: string, storeId: string, paymentId: string) =>
-      request<PaymentTimelineDto[]>(
-        `/organizations/${organizationId}/stores/${storeId}/payments/${paymentId}/timeline`,
-      ),
     listPaymentRefunds: (organizationId: string, storeId: string, paymentId: string) =>
       request<PaymentRefundDto[]>(
         `/organizations/${organizationId}/stores/${storeId}/payments/${paymentId}/refunds`,
@@ -2011,24 +1970,6 @@ export function createApiClient(options: ApiClientOptions) {
     getOrderPaymentSummary: (organizationId: string, storeId: string, orderId: string) =>
       request<PaymentSummaryDto>(
         `/organizations/${organizationId}/stores/${storeId}/orders/${orderId}/payment-summary`,
-      ),
-    allocateOrderPrepaymentsToSale: (
-      organizationId: string,
-      storeId: string,
-      orderId: string,
-      body: { saleId: string },
-      idempotencyKey: string,
-    ) =>
-      request<PaymentDto[]>(
-        `/organizations/${organizationId}/stores/${storeId}/orders/${orderId}/allocate-prepayments-to-sale`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Idempotency-Key': idempotencyKey,
-          },
-          body: JSON.stringify(body),
-        },
       ),
     createSalePayment: (
       organizationId: string,
@@ -2285,10 +2226,6 @@ export function createApiClient(options: ApiClientOptions) {
         { method: 'POST', headers, body: JSON.stringify(body) },
       );
     },
-    getDeliveryTimeline: (organizationId: string, storeId: string, deliveryId: string) =>
-      request<DeliveryTimelineEventDto[]>(
-        `/organizations/${organizationId}/stores/${storeId}/deliveries/${deliveryId}/timeline`,
-      ),
     getDeliverySummary: (organizationId: string, storeId: string, deliveryId: string) =>
       request<DeliverySummaryDto>(
         `/organizations/${organizationId}/stores/${storeId}/deliveries/${deliveryId}/summary`,
@@ -2361,106 +2298,6 @@ export function createApiClient(options: ApiClientOptions) {
       request<CourierProfileDto>(
         `/organizations/${organizationId}/stores/${storeId}/couriers/${courierId}/archive`,
         { method: 'POST' },
-      ),
-    listDeliveryRoutes: (
-      organizationId: string,
-      storeId: string,
-      query?: { serviceDate?: string; status?: string },
-    ) => {
-      const q = new URLSearchParams();
-      if (query?.serviceDate) q.set('serviceDate', query.serviceDate);
-      if (query?.status) q.set('status', query.status);
-      const qs = q.toString();
-      return request<DeliveryRoutePlanDto[]>(
-        `/organizations/${organizationId}/stores/${storeId}/delivery-routes${qs ? `?${qs}` : ''}`,
-      );
-    },
-    getDeliveryRoute: (organizationId: string, storeId: string, routeId: string) =>
-      request<DeliveryRoutePlanDto>(
-        `/organizations/${organizationId}/stores/${storeId}/delivery-routes/${routeId}`,
-      ),
-    createDeliveryRoute: (
-      organizationId: string,
-      storeId: string,
-      body: { serviceDate: string; name: string; courierProfileId?: string | null },
-    ) =>
-      request<DeliveryRoutePlanDto>(
-        `/organizations/${organizationId}/stores/${storeId}/delivery-routes`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body),
-        },
-      ),
-    addDeliveryRouteStops: (
-      organizationId: string,
-      storeId: string,
-      routeId: string,
-      body: { expectedVersion: number; deliveryJobIds: string[] },
-    ) =>
-      request<DeliveryRoutePlanDto>(
-        `/organizations/${organizationId}/stores/${storeId}/delivery-routes/${routeId}/stops`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body),
-        },
-      ),
-    reorderDeliveryRouteStops: (
-      organizationId: string,
-      storeId: string,
-      routeId: string,
-      body: { expectedVersion: number; orderedDeliveryJobIds: string[] },
-    ) =>
-      request<DeliveryRoutePlanDto>(
-        `/organizations/${organizationId}/stores/${storeId}/delivery-routes/${routeId}/reorder`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body),
-        },
-      ),
-    activateDeliveryRoute: (
-      organizationId: string,
-      storeId: string,
-      routeId: string,
-      body: { expectedVersion: number },
-    ) =>
-      request<DeliveryRoutePlanDto>(
-        `/organizations/${organizationId}/stores/${storeId}/delivery-routes/${routeId}/activate`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body),
-        },
-      ),
-    completeDeliveryRoute: (
-      organizationId: string,
-      storeId: string,
-      routeId: string,
-      body: { expectedVersion: number },
-    ) =>
-      request<DeliveryRoutePlanDto>(
-        `/organizations/${organizationId}/stores/${storeId}/delivery-routes/${routeId}/complete`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body),
-        },
-      ),
-    cancelDeliveryRoute: (
-      organizationId: string,
-      storeId: string,
-      routeId: string,
-      body: { expectedVersion: number },
-    ) =>
-      request<DeliveryRoutePlanDto>(
-        `/organizations/${organizationId}/stores/${storeId}/delivery-routes/${routeId}/cancel`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body),
-        },
       ),
     getDeliveryBoard: (organizationId: string, storeId: string, date?: string) => {
       const q = date ? `?date=${encodeURIComponent(date)}` : '';
@@ -2609,16 +2446,6 @@ type PaymentRefundDto = {
   updatedAt: string;
 };
 
-type PaymentTimelineDto = {
-  id: string;
-  type: string;
-  message: string | null;
-  actorMembershipId: string | null;
-  payload: unknown;
-  occurredAt: string;
-  createdAt: string;
-};
-
 type PaymentSummaryDto = {
   targetType?: string;
   targetId?: string;
@@ -2652,13 +2479,6 @@ type CashOperationDto = {
   comment: string | null;
   createdAt: string;
 };
-
-export type CompositionReplaceReason =
-  | 'OUT_OF_STOCK'
-  | 'QUALITY'
-  | 'CUSTOMER_REQUEST'
-  | 'FLORIST_DECISION'
-  | 'OTHER';
 
 export type WorkspaceFilter =
   | 'overdue'
@@ -2995,17 +2815,6 @@ export type TransferDto = {
   allocations: TransferAllocationDto[];
 };
 
-export type TransferTimelineDto = {
-  id: string;
-  transferDocumentId: string;
-  type: string;
-  message: string | null;
-  actorMembershipId: string | null;
-  payload: unknown;
-  occurredAt: string;
-  createdAt: string;
-};
-
 export type InventoryOpsAttentionDto = {
   code: string;
   title: string;
@@ -3185,18 +2994,6 @@ export type DeliveryCalendarDto = {
   hours: Array<{ hour: string; deliveries: DeliveryBoardCardDto[] }>;
 };
 
-export type DeliveryTimelineEventDto = {
-  id: string;
-  organizationId: string;
-  deliveryJobId: string;
-  type: string;
-  message: string | null;
-  actorMembershipId: string | null;
-  payload: unknown;
-  occurredAt: string;
-  createdAt: string;
-};
-
 export type DeliveryProblemDto = {
   id: string;
   organizationId: string;
@@ -3232,6 +3029,7 @@ export type DeliverySummaryDto = {
   navigationUrl: string | null;
   mapsUrl?: string | null;
   navigatorUrl?: string | null;
+  openProblems: DeliveryProblemDto[];
 };
 
 export type IntegrationSettingsDto = {
@@ -3257,33 +3055,6 @@ export type CourierProfileDto = {
   vehicleDescription: string | null;
   createdAt: string;
   updatedAt: string;
-};
-
-export type DeliveryRouteStopDto = {
-  id: string;
-  organizationId: string;
-  routePlanId: string;
-  deliveryJobId: string;
-  sequence: number;
-  plannedArrivalAt: string | null;
-  note: string | null;
-  createdAt?: string;
-  updatedAt?: string;
-};
-
-export type DeliveryRoutePlanDto = {
-  id: string;
-  organizationId: string;
-  storeId: string;
-  serviceDate: string;
-  courierProfileId: string | null;
-  name: string;
-  status: string;
-  version: number;
-  createdByMembershipId: string | null;
-  createdAt: string;
-  updatedAt: string;
-  stops: DeliveryRouteStopDto[];
 };
 
 export type CreateDeliveryInput = {

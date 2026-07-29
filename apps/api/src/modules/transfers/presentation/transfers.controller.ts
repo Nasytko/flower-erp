@@ -113,11 +113,6 @@ export class TransfersController {
     return this.transfers.get(params.organizationId, params.storeId, params.transferId);
   }
 
-  @Get(':transferId/timeline')
-  timeline(@Param() params: TransferParamsDto) {
-    return this.transfers.timeline(params.organizationId, params.storeId, params.transferId);
-  }
-
   @Post()
   @RequirePermissions('transfers:create')
   create(@Param() params: StoreParamsDto, @Body() body: CreateTransferDto) {

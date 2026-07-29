@@ -69,7 +69,6 @@ export type PermissionCode =
   | 'delivery:report-problem'
   | 'delivery:resolve-problem'
   | 'delivery:manage-couriers'
-  | 'delivery:manage-routes'
   | 'delivery:view-payment-summary'
   | 'audit:read'
   | 'users:read'
@@ -149,7 +148,6 @@ export const PERMISSION_REGISTRY: readonly PermissionDefinition[] = [
   { code: 'delivery:report-problem', description: 'Report delivery problems' },
   { code: 'delivery:resolve-problem', description: 'Resolve delivery problems' },
   { code: 'delivery:manage-couriers', description: 'Create and archive courier profiles' },
-  { code: 'delivery:manage-routes', description: 'Create and manage delivery route plans' },
   { code: 'delivery:view-payment-summary', description: 'View payment balance on delivery summary' },
   { code: 'audit:read', description: 'View audit log entries' },
   { code: 'users:read', description: 'View organization users' },

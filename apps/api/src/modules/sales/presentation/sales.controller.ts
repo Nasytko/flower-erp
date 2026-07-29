@@ -149,11 +149,6 @@ export class SalesController {
     return presentSale(sale, this.viewOpts(auth));
   }
 
-  @Get('sales/:saleId/timeline')
-  timeline(@Param() params: SaleParamsDto) {
-    return this.sales.getTimeline(params.organizationId, params.storeId, params.saleId);
-  }
-
   @Get('sales/:saleId/consumption')
   async consumption(
     @Param() params: SaleParamsDto,

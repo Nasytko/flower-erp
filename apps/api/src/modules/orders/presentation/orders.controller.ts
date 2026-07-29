@@ -23,7 +23,6 @@ import {
   OrderParamsDto,
   ReassignFloristDto,
   ReleaseAssignmentDto,
-  ReplaceCompositionItemDto,
   SetActualCompositionDto,
   SetCompositionDto,
   StoreParamsDto,
@@ -130,23 +129,6 @@ export class OrdersController {
     });
   }
 
-  @Post('orders/:orderId/composition/replacements')
-  @RequirePermissions('orders:prepare')
-  replaceCompositionItem(
-    @Param() params: OrderParamsDto,
-    @Body() body: ReplaceCompositionItemDto,
-  ) {
-    return this.orders.replaceCompositionItem({
-      ...params,
-      expectedVersion: body.expectedVersion,
-      fromItemId: body.fromItemId,
-      toItemId: body.toItemId,
-      quantity: body.quantity,
-      reason: body.reason,
-      comment: body.comment,
-    });
-  }
-
   @Post('orders/:orderId/confirm')
   @RequirePermissions('orders:confirm')
   confirm(@Param() params: OrderParamsDto) {
@@ -237,12 +219,5 @@ export class OrdersController {
   @RequirePermissions('orders:update')
   addComment(@Param() params: OrderParamsDto, @Body() body: AddCommentDto) {
     return this.orders.addComment({ ...params, message: body.message });
-  }
-
-  @Get('orders/:orderId/timeline')
-  timeline(@Param() params: OrderParamsDto) {
-    return this.orders.getOrder(params.organizationId, params.storeId, params.orderId).then(
-      (o) => o.timeline ?? [],
-    );
   }
 }

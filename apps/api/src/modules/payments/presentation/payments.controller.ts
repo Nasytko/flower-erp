@@ -11,7 +11,6 @@ import { ApiTags } from '@nestjs/swagger';
 import { RequirePermissions } from '../../auth/presentation/auth.decorators';
 import { PaymentUseCases } from '../application/payment.use-cases';
 import {
-  AllocatePrepaymentsDto,
   AnnulReasonDto,
   CreatePaymentDto,
   CreatePaymentMethodDto,
@@ -34,7 +33,6 @@ import {
   presentPayment,
   presentRefund,
   presentSummary,
-  presentTimeline,
 } from './payment.presenter';
 
 @ApiTags('payments')
@@ -160,17 +158,6 @@ export class PaymentsController {
     );
   }
 
-  @Get('payments/:paymentId/timeline')
-  async timeline(@Param() params: PaymentParamsDto) {
-    return presentTimeline(
-      await this.payments.getTimeline(
-        params.organizationId,
-        params.storeId,
-        params.paymentId,
-      ),
-    );
-  }
-
   @Get('payments/:paymentId/refunds')
   async listRefunds(@Param() params: PaymentParamsDto) {
     const rows = await this.payments.listRefunds(
@@ -260,23 +247,6 @@ export class PaymentsController {
         params.orderId,
       ),
     );
-  }
-
-  @Post('orders/:orderId/allocate-prepayments-to-sale')
-  @RequirePermissions('payments:complete')
-  async allocatePrepayments(
-    @Param() params: OrderParamsDto,
-    @Body() body: AllocatePrepaymentsDto,
-    @Headers('idempotency-key') idempotencyKey: string | undefined,
-  ) {
-    const rows = await this.payments.allocateOrderPrepaymentsToSale({
-      organizationId: params.organizationId,
-      storeId: params.storeId,
-      orderId: params.orderId,
-      saleId: body.saleId,
-      idempotencyKey: idempotencyKey ?? '',
-    });
-    return rows.map(presentPayment);
   }
 
   @Post('sales/:saleId/payments')
