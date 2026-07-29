@@ -26,6 +26,7 @@ Deploy Flower ERP alongside an existing ORVIX Docker stack **without** sharing p
 | `deploy/scripts/test-env-upsert.sh` | Fixture tests for env upsert helpers |
 | `deploy/scripts/migrate.sh` | Safe migration job before rollout |
 | `deploy/scripts/deploy.sh` | Build → migrate → deploy |
+| `deploy/scripts/recover-stage-c-migration.sh` | Automated recovery for failed Stage C enum migration |
 | `deploy/scripts/backup-db.sh` | `pg_dump` for `flower_erp` only |
 | `deploy/scripts/restore-db.sh` | `pg_restore` for `flower_erp` only |
 | `deploy/nginx/flower-erp.conf.example` | Reverse-proxy upstream snippet |
@@ -272,36 +273,52 @@ If `prisma migrate deploy` fails, Prisma records the migration as **failed** in 
 
 **Do not** delete rows from `_prisma_migrations` or run `migrate reset`.
 
-1. Check status (migrate container ENTRYPOINT is `prisma "$@"` — subcommand must be `migrate status`):
+#### Recovering `20260729150000_remove_unused_enum_values` (automated)
+
+```bash
+cd /opt/flower-erp
+git pull --ff-only
+bash -n deploy/scripts/recover-stage-c-migration.sh
+./deploy/scripts/recover-stage-c-migration.sh
+./deploy/scripts/deploy.sh
+```
+
+The recovery script:
+
+- creates a full backup and schema snapshot under `backups/recovery-stage-c-YYYYMMDDTHHMMSSZ/`;
+- detects partial enum migration state and repairs it in one SQL transaction;
+- aborts if `GIFT_CERTIFICATE` or `TELEGRAM` rows still exist;
+- runs `prisma migrate resolve --applied` and verifies `prisma migrate deploy`;
+- never runs `migrate reset`, `DELETE`/`UPDATE` on `_prisma_migrations`, or `DROP … CASCADE`.
+
+**Verify:**
 
 ```bash
 docker compose -f docker-compose.production.yml --env-file .env.production \
   --profile migrate run --rm migrate migrate status
+curl -sf http://127.0.0.1:4100/api/v1/health/live
 ```
 
-2. If the migration **did not apply** (typical when PostgreSQL rolled back the transaction), mark it rolled back:
+**Rollback:**
+
+```bash
+./deploy/scripts/restore-db.sh /opt/flower-erp/backups/flower_erp_YYYYMMDDTHHMMSSZ.dump
+```
+
+See diagnostics in `backups/recovery-stage-c-*/recovery.log`.
+
+#### Manual resolve (other migrations)
 
 ```bash
 docker compose -f docker-compose.production.yml --env-file .env.production \
+  --profile migrate run --rm migrate migrate status
+
+docker compose -f docker-compose.production.yml --env-file .env.production \
   --profile migrate run --rm migrate \
-  migrate resolve --rolled-back "20260729150000_remove_unused_enum_values"
+  migrate resolve --rolled-back "MIGRATION_NAME"
 ```
 
-3. Redeploy (with Stage C flags if migrations are still pending):
-
-```bash
-RUN_STAGE_C_AUDIT=1 RUN_STAGE_C_BACKUP=1 ALLOW_DESTRUCTIVE_MIGRATIONS=1 \
-  ./deploy/scripts/deploy.sh
-```
-
-Use `--applied` only if you manually completed the migration SQL and the schema already matches `migration.sql`.
-
-Read-only checks before resolve (optional):
-
-```bash
-psql "$DATABASE_MIGRATE_URL" -c "SELECT typname FROM pg_type WHERE typname LIKE '%_new';"
-psql "$DATABASE_MIGRATE_URL" -c "SELECT migration_name, finished_at, rolled_back_at, logs FROM _prisma_migrations WHERE finished_at IS NULL;"
-```
+Use `--applied` only if the SQL was completed manually and schema matches `migration.sql`.
 
 ---
 
