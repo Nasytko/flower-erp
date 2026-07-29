@@ -66,8 +66,12 @@ recover_analyze_migration_history() {
       AND logs IS NOT NULL;
   ")"
 
-  [[ "${finished_count}" -gt 0 ]] && RECOVER_HAS_SUCCESS="true"
-  [[ "${failed_count}" -gt 0 ]] && RECOVER_HAS_FAILED="true"
+  if [[ "${finished_count}" -gt 0 ]]; then
+    RECOVER_HAS_SUCCESS="true"
+  fi
+  if [[ "${failed_count}" -gt 0 ]]; then
+    RECOVER_HAS_FAILED="true"
+  fi
 }
 
 recover_collect_schema_state() {
@@ -77,6 +81,8 @@ recover_collect_schema_state() {
 
   recover_analyze_migration_history
 
+  RECOVER_PM_NEW_EXISTS="false"
+  RECOVER_SC_NEW_EXISTS="false"
   RECOVER_PM_UDT="$(pg_column_udt payment_methods type)"
   RECOVER_SC_UDT="$(pg_column_udt sales sales_channel)"
   pg_type_exists "PaymentMethodType" && RECOVER_PM_LABELS="$(pg_enum_labels_csv PaymentMethodType)" || RECOVER_PM_LABELS=""

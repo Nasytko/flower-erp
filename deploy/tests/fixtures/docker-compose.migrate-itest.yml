@@ -1,0 +1,16 @@
+# Ephemeral migrate-only compose for deploy integration tests (no external DB network).
+name: flower-migrate-itest
+
+services:
+  migrate:
+    image: ${FLOWER_MIGRATE_IMAGE:-flower-erp-migrate:itest}
+    build:
+      context: ../..
+      dockerfile: apps/api/Dockerfile
+      target: migrate
+    profiles: ["migrate"]
+    environment:
+      DATABASE_MIGRATE_URL: ${DATABASE_MIGRATE_URL:?DATABASE_MIGRATE_URL is required}
+      DATABASE_URL: ${DATABASE_MIGRATE_URL}
+    network_mode: host
+    restart: "no"

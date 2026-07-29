@@ -36,11 +36,28 @@ assert_true() {
 MOCK_STATE=""
 
 pg_run_sql() {
+  local sql="$1"
+
+  if [[ "${sql}" == *"finished_at IS NOT NULL"* ]]; then
+    case "${MOCK_STATE}" in
+      applied) printf '1' ;;
+      state_a|state_d|telegram_rows|gift_rows) printf '0' ;;
+      *) printf '0' ;;
+    esac
+    return 0
+  fi
+  if [[ "${sql}" == *"logs IS NOT NULL"* ]]; then
+    case "${MOCK_STATE}" in
+      applied) printf '0' ;;
+      state_a|state_d|telegram_rows|gift_rows) printf '1' ;;
+      *) printf '0' ;;
+    esac
+    return 0
+  fi
+
   case "${MOCK_STATE}" in
     applied)
-      case "$1" in
-        *finished_at*) printf '1' ;;
-        *failed*) printf '0' ;;
+      case "${sql}" in
         *payment_methods*) printf '0' ;;
         *sales*) printf '100' ;;
         *GIFT_CERTIFICATE*) printf '0' ;;
@@ -51,44 +68,38 @@ pg_run_sql() {
       esac
       ;;
     state_a)
-      case "$1" in
-        *finished_at*) printf '0' ;;
-        *failed*) printf '1' ;;
+      case "${sql}" in
         *payment_methods*type*) printf 'PaymentMethodType' ;;
         *sales*sales_channel*) printf 'SalesChannel' ;;
         *PaymentMethodType_new*) printf 'f' ;;
         *SalesChannel_new*) printf 't' ;;
-        *typname = 'PaymentMethodType'*) printf 'CASH,BANK_CARD,ONLINE,QR,BANK_TRANSFER,OTHER' ;;
-        *typname = 'SalesChannel'*) printf 'STORE,PHONE,WEBSITE,TELEGRAM,OTHER' ;;
+        *typname*PaymentMethodType*) printf 'CASH,BANK_CARD,ONLINE,QR,BANK_TRANSFER,OTHER' ;;
+        *typname*SalesChannel*) printf 'STORE,PHONE,WEBSITE,TELEGRAM,OTHER' ;;
         *GIFT_CERTIFICATE*) printf '0' ;;
         *TELEGRAM*) printf '0' ;;
         *) printf '0' ;;
       esac
       ;;
     state_d)
-      case "$1" in
-        *finished_at*) printf '0' ;;
-        *failed*) printf '1' ;;
+      case "${sql}" in
         *payment_methods*type*) printf 'PaymentMethodType' ;;
         *sales*sales_channel*) printf 'SalesChannel' ;;
         *PaymentMethodType_new*) printf 'f' ;;
         *SalesChannel_new*) printf 'f' ;;
-        *typname = 'PaymentMethodType'*) printf 'CASH,BANK_CARD,ONLINE,QR,BANK_TRANSFER,OTHER' ;;
-        *typname = 'SalesChannel'*) printf 'STORE,PHONE,WEBSITE,OTHER' ;;
+        *typname*PaymentMethodType*) printf 'CASH,BANK_CARD,ONLINE,QR,BANK_TRANSFER,OTHER' ;;
+        *typname*SalesChannel*) printf 'STORE,PHONE,WEBSITE,OTHER' ;;
         *column_default*) printf "'STORE'::\"SalesChannel\"" ;;
         *GIFT_CERTIFICATE*) printf '0' ;;
         *TELEGRAM*) printf '0' ;;
         *delivery_route_plans*) printf 'f' ;;
         *reservation_movements*) printf 'f' ;;
-        *enumlabel = 'GIFT_CERTIFICATE'*) printf 'f' ;;
-        *enumlabel = 'TELEGRAM'*) printf 'f' ;;
+        *enumlabel*GIFT_CERTIFICATE*) printf 'f' ;;
+        *enumlabel*TELEGRAM*) printf 'f' ;;
         *) printf '0' ;;
       esac
       ;;
     telegram_rows)
-      case "$1" in
-        *finished_at*) printf '0' ;;
-        *failed*) printf '1' ;;
+      case "${sql}" in
         *payment_methods*type*) printf 'PaymentMethodType' ;;
         *sales*sales_channel*) printf 'SalesChannel' ;;
         *TELEGRAM*) printf '2' ;;
@@ -98,9 +109,7 @@ pg_run_sql() {
       esac
       ;;
     gift_rows)
-      case "$1" in
-        *finished_at*) printf '0' ;;
-        *failed*) printf '1' ;;
+      case "${sql}" in
         *GIFT_CERTIFICATE*) printf '1' ;;
         *string_agg*GIFT_CERTIFICATE*) printf 'pm-1' ;;
         *TELEGRAM*) printf '0' ;;
@@ -108,7 +117,7 @@ pg_run_sql() {
       esac
       ;;
     unexpected)
-      case "$1" in
+      case "${sql}" in
         *payment_methods*type*) printf 'unknown_enum' ;;
         *sales*sales_channel*) printf 'unknown_enum' ;;
         *PaymentMethodType_new*) printf 't' ;;
@@ -176,23 +185,19 @@ recover_collect_schema_state
 assert_true "recover_target_schema_reached" "target schema reached in state D"
 
 MOCK_STATE="telegram_rows"
-if recover_collect_schema_state 2>/dev/null; then
-  if recover_assert_data_safety_gate 2>/dev/null; then
-    echo "FAIL: TELEGRAM rows should abort recovery" >&2
-    fail=1
-  else
-    echo "OK: TELEGRAM rows abort recovery"
-  fi
+if ( recover_collect_schema_state && recover_assert_data_safety_gate ) >/dev/null 2>&1; then
+  echo "FAIL: TELEGRAM rows should abort recovery" >&2
+  fail=1
+else
+  echo "OK: TELEGRAM rows abort recovery"
 fi
 
 MOCK_STATE="gift_rows"
-if recover_collect_schema_state 2>/dev/null; then
-  if recover_assert_data_safety_gate 2>/dev/null; then
-    echo "FAIL: GIFT_CERTIFICATE rows should abort recovery" >&2
-    fail=1
-  else
-    echo "OK: GIFT_CERTIFICATE rows abort recovery"
-  fi
+if ( recover_collect_schema_state && recover_assert_data_safety_gate ) >/dev/null 2>&1; then
+  echo "FAIL: GIFT_CERTIFICATE rows should abort recovery" >&2
+  fail=1
+else
+  echo "OK: GIFT_CERTIFICATE rows abort recovery"
 fi
 
 MOCK_STATE="unexpected"

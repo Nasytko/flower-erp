@@ -68,10 +68,12 @@ assert_eq "${PG_USING_DATABASE_URL_FALLBACK}" "0" "no fallback when migrate url 
 PG_EXEC_TEST_OUTPUT="${WORKDIR}/psql2.log"
 : > "${PG_EXEC_TEST_OUTPUT}"
 cat > "${WORKDIR}/.env.fallback" <<'EOF'
-DATABASE_URL=postgres://ddl_user:secr%25et@db.internal:5432/flower_erp?schema=public&sslmode=require
+DATABASE_URL="postgres://ddl_user:secr%25et@db.internal:5432/flower_erp?schema=public&sslmode=require"
 EOF
 export ENV_FILE="${WORKDIR}/.env.fallback"
+unset DATABASE_MIGRATE_URL DATABASE_URL
 PG_USING_DATABASE_URL_FALLBACK=0
+PG_PSQL_CONNECTION_URL=""
 pg_load_env
 assert_eq "${PG_USING_DATABASE_URL_FALLBACK}" "1" "fallback flag when only DATABASE_URL"
 assert_eq "${DATABASE_MIGRATE_URL}" "postgres://ddl_user:secr%25et@db.internal:5432/flower_erp?schema=public&sslmode=require" "postgres:// accepted"
@@ -98,6 +100,7 @@ assert_not_contains "$(cat "${WORKDIR}/psql.log" 2>/dev/null || true)" "p%40ss" 
 assert_not_contains "$(cat "${WORKDIR}/psql.log" 2>/dev/null || true)" "postgresql://" "url not in test log"
 
 PG_EXEC_TEST_HANDLER=pg_test_fail_handler
+unset PG_EXEC_TEST_OUTPUT
 pg_test_fail_handler() { return 1; }
 if pg_psql -c "SELECT 1;" 2>"${WORKDIR}/err.log"; then
   echo "FAIL: connection failure should abort" >&2

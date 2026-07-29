@@ -27,6 +27,7 @@ Deploy Flower ERP alongside an existing ORVIX Docker stack **without** sharing p
 | `deploy/scripts/migrate.sh` | Safe migration job before rollout |
 | `deploy/scripts/deploy.sh` | Build → migrate → deploy |
 | `deploy/scripts/recover-stage-c-migration.sh` | Automated recovery for failed Stage C enum migration |
+| `deploy/scripts/reset-test-database.sh` | Safe full reset of test-only `flower_erp` database (never run from deploy.sh) |
 | `deploy/scripts/backup-db.sh` | `pg_dump` for `flower_erp` only |
 | `deploy/scripts/restore-db.sh` | `pg_restore` for `flower_erp` only |
 | `deploy/nginx/flower-erp.conf.example` | Reverse-proxy upstream snippet |
@@ -319,6 +320,39 @@ docker compose -f docker-compose.production.yml --env-file .env.production \
 ```
 
 Use `--applied` only if the SQL was completed manually and schema matches `migration.sql`.
+
+---
+
+### Resetting a test-only Flower ERP database
+
+When production PostgreSQL contains **only disposable test data**, you can recreate `flower_erp` from current Prisma migrations instead of repairing a failed migration.
+
+**This permanently deletes all Flower ERP data.** It does **not** delete the shared PostgreSQL Docker volume or any other databases (for example ORVIX / LeadFlow databases on the same instance).
+
+The script is **never** invoked from `deploy.sh`. You must run it explicitly with confirmation flags:
+
+```bash
+cd /opt/flower-erp
+
+CONFIRM_RESET_TEST_DATABASE=YES \
+CONFIRM_ALL_FLOWER_DATA_CAN_BE_DELETED=YES \
+ALLOW_RESET_WITHOUT_BACKUP=YES \
+  ./deploy/scripts/reset-test-database.sh
+```
+
+- `CONFIRM_RESET_TEST_DATABASE=YES` and `CONFIRM_ALL_FLOWER_DATA_CAN_BE_DELETED=YES` are required.
+- On an interactive terminal you must also type exactly: `RESET flower_erp`
+- A pre-reset backup is attempted; if backup fails, set `ALLOW_RESET_WITHOUT_BACKUP=YES`.
+- Demo data is **not** loaded unless `RUN_SEED=1` (no Prisma seed is configured; use `create-initial-director.js` after reset).
+
+What the script does:
+
+1. Stops Flower ERP `api` and `backoffice` only (PostgreSQL keeps running).
+2. Terminates connections to `flower_erp`, drops and recreates that database only.
+3. Runs `prisma migrate deploy` via the migrate container.
+4. Validates schema, migration history, and restarts `api` / `backoffice`.
+
+It refuses to run against any database name other than `flower_erp`.
 
 ---
 
