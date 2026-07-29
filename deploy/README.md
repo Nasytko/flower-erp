@@ -344,6 +344,7 @@ ALLOW_RESET_WITHOUT_BACKUP=YES \
 - On an interactive terminal you must also type exactly: `RESET flower_erp`
 - A pre-reset backup is attempted; if backup fails, set `ALLOW_RESET_WITHOUT_BACKUP=YES`.
 - Demo data is **not** loaded unless `RUN_SEED=1` (no Prisma seed is configured; use `create-initial-director.js` after reset).
+- Admin DDL uses the shared LeadFlow PostgreSQL superuser (defaults: `FLOWER_PG_ADMIN_USER=leadflow`, `FLOWER_PG_ADMIN_DB=leadflow` — not `postgres`).
 
 What the script does:
 

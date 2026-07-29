@@ -93,6 +93,14 @@ reset_app_role() {
   printf '%s' "${FLOWER_APP_ROLE:-flower_user}"
 }
 
+reset_admin_user() {
+  printf '%s' "${FLOWER_PG_ADMIN_USER:-${PG_ADMIN_USER:-leadflow}}"
+}
+
+reset_admin_db() {
+  printf '%s' "${FLOWER_PG_ADMIN_DB:-${PG_ADMIN_DB:-leadflow}}"
+}
+
 reset_admin_psql() {
   if [[ -n "${RESET_ADMIN_PSQL_HANDLER:-}" ]]; then
     "${RESET_ADMIN_PSQL_HANDLER}" "$@"
@@ -100,8 +108,16 @@ reset_admin_psql() {
   fi
 
   deploy_require_cmd docker
-  local container="${FLOWER_POSTGRES_CONTAINER:-leadflow-postgres-1}"
-  docker exec -i "${container}" psql -U postgres -d postgres -v ON_ERROR_STOP=1 "$@"
+  local container admin_user admin_db
+  container="${FLOWER_POSTGRES_CONTAINER:-leadflow-postgres-1}"
+  admin_user="$(reset_admin_user)"
+  admin_db="$(reset_admin_db)"
+  docker exec -i "${container}" psql -U "${admin_user}" -d "${admin_db}" -v ON_ERROR_STOP=1 "$@"
+}
+
+reset_verify_admin_psql() {
+  reset_admin_psql -X -A -t -P pager=off -c "SELECT 1;" >/dev/null \
+    || deploy_die "PostgreSQL admin access failed (container=${FLOWER_POSTGRES_CONTAINER:-leadflow-postgres-1}, user=$(reset_admin_user), db=$(reset_admin_db)). Set FLOWER_PG_ADMIN_USER / FLOWER_PG_ADMIN_DB if different from LeadFlow defaults."
 }
 
 reset_list_databases() {

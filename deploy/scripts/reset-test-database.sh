@@ -82,6 +82,9 @@ reset_prechecks() {
   pg_assert_psql_in_migrate_image
   pg_verify_connection
 
+  deploy_log "PostgreSQL admin: container=${FLOWER_POSTGRES_CONTAINER:-leadflow-postgres-1}, user=$(reset_admin_user), maintenance_db=$(reset_admin_db)"
+  reset_verify_admin_psql
+
   deploy_log "Listing databases (names only)..."
   reset_list_databases | sed 's/^/    /'
 

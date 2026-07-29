@@ -112,4 +112,7 @@ grep -Fq 'CREATE DATABASE "flower_erp"' <<< "${ADMIN_SQL}" || { echo "FAIL: crea
 ! grep -Fq 'DROP DATABASE IF EXISTS "other_db"' <<< "${ADMIN_SQL}" || { echo "FAIL: other db touched" >&2; fail=1; }
 echo "OK: drop/create only flower_erp"
 
+assert_eq "$(reset_admin_user)" "leadflow" "default admin user"
+assert_eq "$(reset_admin_db)" "leadflow" "default admin maintenance db"
+
 exit "${fail}"
