@@ -5,10 +5,12 @@ set -Eeuo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DEPLOY_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 
-# shellcheck source=../scripts/lib/deploy-common.sh
-source "${SCRIPT_DIR}/../scripts/lib/deploy-common.sh"
-# shellcheck source=../scripts/lib/prisma-migrate.sh
-source "${SCRIPT_DIR}/../scripts/lib/prisma-migrate.sh"
+# shellcheck source=../scripts/lib/common.sh
+source "${SCRIPT_DIR}/../scripts/lib/common.sh"
+# shellcheck source=../scripts/lib/compose.sh
+source "${SCRIPT_DIR}/../scripts/lib/compose.sh"
+# shellcheck source=../scripts/lib/database.sh
+source "${SCRIPT_DIR}/../scripts/lib/database.sh"
 
 fail=0
 assert_eq() {

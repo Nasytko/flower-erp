@@ -35,5 +35,5 @@ COPY --from=build --chown=flower:flower /app/apps/backoffice/public ./apps/backo
 USER flower
 EXPOSE 3000
 HEALTHCHECK --interval=15s --timeout=5s --retries=5 --start-period=30s \
-  CMD node -e "fetch('http://127.0.0.1:3000').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+  CMD node -e "fetch('http://127.0.0.1:3000/health').then(r=>process.exit(r.status>=200&&r.status<400?0:1)).catch(()=>process.exit(1))"
 CMD ["node", "apps/backoffice/server.js"]

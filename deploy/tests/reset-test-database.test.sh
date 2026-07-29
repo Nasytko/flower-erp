@@ -7,12 +7,14 @@ DEPLOY_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 
 export DEPLOY_ROOT
 
-# shellcheck source=../scripts/lib/deploy-common.sh
-source "${SCRIPT_DIR}/../scripts/lib/deploy-common.sh"
-# shellcheck source=../scripts/lib/pg-exec.sh
-source "${SCRIPT_DIR}/../scripts/lib/pg-exec.sh"
-# shellcheck source=../scripts/lib/reset-test-database-lib.sh
-source "${SCRIPT_DIR}/../scripts/lib/reset-test-database-lib.sh"
+# shellcheck source=../scripts/lib/common.sh
+source "${SCRIPT_DIR}/../scripts/lib/common.sh"
+# shellcheck source=../scripts/lib/compose.sh
+source "${SCRIPT_DIR}/../scripts/lib/compose.sh"
+# shellcheck source=../scripts/lib/database.sh
+source "${SCRIPT_DIR}/../scripts/lib/database.sh"
+# shellcheck source=../scripts/dev/lib/reset-test-database-lib.sh
+source "${SCRIPT_DIR}/../scripts/dev/lib/reset-test-database-lib.sh"
 
 fail=0
 assert_eq() {

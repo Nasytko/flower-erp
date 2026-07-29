@@ -15,27 +15,27 @@ run_test() {
   fi
 }
 
-if ! command -v bash >/dev/null 2>&1; then
-  echo "bash required" >&2
-  exit 1
-fi
-
-bash -n "${SCRIPT_DIR}/../scripts/recover-stage-c-migration.sh"
-bash -n "${SCRIPT_DIR}/../scripts/reset-test-database.sh"
 bash -n "${SCRIPT_DIR}/../scripts/deploy.sh"
-bash -n "${SCRIPT_DIR}/../scripts/lib/deploy-common.sh"
-bash -n "${SCRIPT_DIR}/../scripts/lib/pg-exec.sh"
-bash -n "${SCRIPT_DIR}/../scripts/lib/prisma-migrate.sh"
-bash -n "${SCRIPT_DIR}/../scripts/lib/recover-stage-c-lib.sh"
-bash -n "${SCRIPT_DIR}/../scripts/lib/reset-test-database-lib.sh"
+bash -n "${SCRIPT_DIR}/../scripts/migrate.sh"
+bash -n "${SCRIPT_DIR}/../scripts/backup-db.sh"
+bash -n "${SCRIPT_DIR}/../scripts/restore-db.sh"
+bash -n "${SCRIPT_DIR}/../scripts/status.sh"
+bash -n "${SCRIPT_DIR}/../scripts/rollback.sh"
+bash -n "${SCRIPT_DIR}/../scripts/bootstrap-first-organization.sh"
+bash -n "${SCRIPT_DIR}/../scripts/create-director-user.sh"
+bash -n "${SCRIPT_DIR}/../scripts/dev/reset-test-database.sh"
+bash -n "${SCRIPT_DIR}/../scripts/lib/common.sh"
+bash -n "${SCRIPT_DIR}/../scripts/lib/compose.sh"
+bash -n "${SCRIPT_DIR}/../scripts/lib/health.sh"
+bash -n "${SCRIPT_DIR}/../scripts/lib/database.sh"
+bash -n "${SCRIPT_DIR}/../scripts/dev/lib/reset-test-database-lib.sh"
 echo "OK: bash -n syntax checks"
 
 run_test "pg-exec.test.sh"
 run_test "deploy-migration-status.test.sh"
-run_test "recover-stage-c-migration.test.sh"
-run_test "recover-stage-c-integration.test.sh"
 run_test "migrate-image-psql.test.sh"
 run_test "reset-test-database.test.sh"
 run_test "reset-test-database-integration.test.sh"
+run_test "backup-db-stream.test.sh"
 
 exit "${fail}"
