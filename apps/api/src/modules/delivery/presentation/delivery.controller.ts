@@ -13,33 +13,28 @@ import { getRequestContext } from '../../../infrastructure/context/request-conte
 import { RequirePermissions } from '../../auth/presentation/auth.decorators';
 import { DeliveryUseCases } from '../application/delivery.use-cases';
 import {
-  AddRouteStopsDto,
   AddressSearchQueryDto,
   AssignCourierDto,
   BoardQueryDto,
   CancelDeliveryDto,
   CreateCourierDto,
   CreateDeliveryDto,
-  CreateRouteDto,
   DeliveryParamsDto,
   ExpectedVersionDto,
   ListCouriersQueryDto,
   ListDeliveriesQueryDto,
-  ListRoutesQueryDto,
   OrderDeliveryParamsDto,
   PlanDeliveryDto,
   ProblemParamsDto,
   ReleaseCourierDto,
-  ReorderRouteDto,
   ReportProblemDto,
   ResolveProblemDto,
-  RouteParamsDto,
   SetCoordinatesDto,
   StoreParamsDto,
   UpdateAddressDto,
   CourierParamsDto,
 } from './delivery.dto';
-import { presentCourier, presentDelivery, presentRoute } from './delivery.presenter';
+import { presentCourier, presentDelivery } from './delivery.presenter';
 
 @ApiTags('delivery')
 @RequirePermissions('delivery:read')
@@ -262,15 +257,6 @@ export class DeliveryController {
     );
   }
 
-  @Get('deliveries/:deliveryId/timeline')
-  async timeline(@Param() params: DeliveryParamsDto) {
-    return this.deliveries.getTimeline(
-      params.organizationId,
-      params.storeId,
-      params.deliveryId,
-    );
-  }
-
   @Get('deliveries/:deliveryId/summary')
   async summary(@Param() params: DeliveryParamsDto) {
     const permissions = getRequestContext()?.auth?.permissions ?? [];
@@ -337,104 +323,6 @@ export class DeliveryController {
   async archiveCourier(@Param() params: CourierParamsDto) {
     return presentCourier(
       await this.deliveries.archiveCourier(params.organizationId, params.courierId),
-    );
-  }
-
-  @Post('delivery-routes')
-  @RequirePermissions('delivery:manage-routes')
-  async createRoute(@Param() params: StoreParamsDto, @Body() body: CreateRouteDto) {
-    return presentRoute(
-      await this.deliveries.createRoutePlan({
-        organizationId: params.organizationId,
-        storeId: params.storeId,
-        ...body,
-      }),
-    );
-  }
-
-  @Get('delivery-routes')
-  async listRoutes(@Param() params: StoreParamsDto, @Query() query: ListRoutesQueryDto) {
-    const rows = await this.deliveries.listRoutePlans(
-      params.organizationId,
-      params.storeId,
-      query,
-    );
-    return rows.map(presentRoute);
-  }
-
-  @Get('delivery-routes/:routeId')
-  async getRoute(@Param() params: RouteParamsDto) {
-    return presentRoute(
-      await this.deliveries.getRoutePlan(
-        params.organizationId,
-        params.storeId,
-        params.routeId,
-      ),
-    );
-  }
-
-  @Post('delivery-routes/:routeId/stops')
-  @RequirePermissions('delivery:manage-routes')
-  async addStops(@Param() params: RouteParamsDto, @Body() body: AddRouteStopsDto) {
-    return presentRoute(
-      await this.deliveries.addRouteStops({
-        organizationId: params.organizationId,
-        storeId: params.storeId,
-        routeId: params.routeId,
-        ...body,
-      }),
-    );
-  }
-
-  @Post('delivery-routes/:routeId/reorder')
-  @RequirePermissions('delivery:manage-routes')
-  async reorder(@Param() params: RouteParamsDto, @Body() body: ReorderRouteDto) {
-    return presentRoute(
-      await this.deliveries.reorderRouteStops({
-        organizationId: params.organizationId,
-        storeId: params.storeId,
-        routeId: params.routeId,
-        ...body,
-      }),
-    );
-  }
-
-  @Post('delivery-routes/:routeId/activate')
-  @RequirePermissions('delivery:manage-routes')
-  async activateRoute(@Param() params: RouteParamsDto, @Body() body: ExpectedVersionDto) {
-    return presentRoute(
-      await this.deliveries.activateRoute({
-        organizationId: params.organizationId,
-        storeId: params.storeId,
-        routeId: params.routeId,
-        expectedVersion: body.expectedVersion,
-      }),
-    );
-  }
-
-  @Post('delivery-routes/:routeId/complete')
-  @RequirePermissions('delivery:manage-routes')
-  async completeRoute(@Param() params: RouteParamsDto, @Body() body: ExpectedVersionDto) {
-    return presentRoute(
-      await this.deliveries.completeRoute({
-        organizationId: params.organizationId,
-        storeId: params.storeId,
-        routeId: params.routeId,
-        expectedVersion: body.expectedVersion,
-      }),
-    );
-  }
-
-  @Post('delivery-routes/:routeId/cancel')
-  @RequirePermissions('delivery:manage-routes')
-  async cancelRoute(@Param() params: RouteParamsDto, @Body() body: ExpectedVersionDto) {
-    return presentRoute(
-      await this.deliveries.cancelRoute({
-        organizationId: params.organizationId,
-        storeId: params.storeId,
-        routeId: params.routeId,
-        expectedVersion: body.expectedVersion,
-      }),
     );
   }
 

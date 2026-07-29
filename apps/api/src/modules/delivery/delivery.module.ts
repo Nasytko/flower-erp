@@ -9,8 +9,6 @@ import { API_ENV } from '../../infrastructure/infrastructure.module';
 import { DeliveryUseCases } from './application/delivery.use-cases';
 import { DELIVERY_REPOSITORY } from './application/ports/delivery.repository';
 import { GEOCODING_PORT } from './application/ports/geocoding.port';
-import { ROUTING_PORT } from './application/ports/routing.port';
-import { ExternalNavigationLinkAdapter } from './infrastructure/external-navigation-link.adapter';
 import {
   ManualGeocodingAdapter,
   MockGeocodingAdapter,
@@ -47,7 +45,6 @@ function geocodingProvider(env: ApiEnv) {
       useFactory: geocodingProvider,
       inject: [API_ENV],
     },
-    { provide: ROUTING_PORT, useClass: ExternalNavigationLinkAdapter },
     { provide: DELIVERY_READINESS_PORT, useExisting: DeliveryUseCases },
     { provide: DELIVERY_FULFILLMENT_PORT, useExisting: DeliveryUseCases },
   ],

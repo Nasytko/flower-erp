@@ -23,7 +23,6 @@ import {
   DeliveryTimelineEventType,
   DomainError,
   GeocodingStatus,
-  RoutePlanStatus,
   assertCanAssign,
   assertCanCancel,
   assertCanDeliver,
@@ -972,191 +971,6 @@ export class DeliveryUseCases implements DeliveryReadinessPort, DeliveryFulfillm
     return updated;
   }
 
-  async createRoutePlan(input: {
-    organizationId: string;
-    storeId: string;
-    serviceDate: string;
-    name: string;
-    courierProfileId?: string | null;
-  }) {
-    await this.organizations.getStore(input.organizationId, input.storeId);
-    return this.deliveries.createRoutePlan({
-      id: randomUUID(),
-      organizationId: input.organizationId,
-      storeId: input.storeId,
-      serviceDate: new Date(input.serviceDate),
-      courierProfileId: input.courierProfileId ?? null,
-      name: input.name,
-      createdByMembershipId: actorMembershipId(),
-    });
-  }
-
-  async listRoutePlans(
-    organizationId: string,
-    storeId: string,
-    filter?: { serviceDate?: string; status?: RoutePlanStatus },
-  ) {
-    await this.organizations.getStore(organizationId, storeId);
-    return this.deliveries.listRoutePlans(organizationId, storeId, {
-      serviceDate: filter?.serviceDate ? new Date(filter.serviceDate) : undefined,
-      status: filter?.status,
-    });
-  }
-
-  async getRoutePlan(organizationId: string, storeId: string, routeId: string) {
-    const plan = await this.deliveries.getRoutePlan(organizationId, storeId, routeId);
-    if (!plan) {
-      throw new NotFoundException({ code: 'ROUTE_NOT_FOUND', message: 'Route plan not found' });
-    }
-    return plan;
-  }
-
-  async addRouteStops(input: {
-    organizationId: string;
-    storeId: string;
-    routeId: string;
-    deliveryJobIds: string[];
-    expectedVersion: number;
-  }) {
-    return this.uow.runInTransaction(async () => {
-      const plan = await this.getRoutePlan(input.organizationId, input.storeId, input.routeId);
-      if (plan.status !== RoutePlanStatus.DRAFT && plan.status !== RoutePlanStatus.ACTIVE) {
-        throw new BadRequestException({
-          code: 'ROUTE_NOT_EDITABLE',
-          message: 'Route plan is not editable',
-        });
-      }
-      let sequence = plan.stops.length;
-      for (const deliveryJobId of input.deliveryJobIds) {
-        const job = await this.requireJob(input.organizationId, input.storeId, deliveryJobId);
-        if (job.deliveryDate.toISOString().slice(0, 10) !== plan.serviceDate.toISOString().slice(0, 10)) {
-          throw new BadRequestException({
-            code: 'ROUTE_DATE_MISMATCH',
-            message: 'Delivery date must match route service date',
-          });
-        }
-        const existingStop = await this.deliveries.findActiveStopForJob(
-          input.organizationId,
-          deliveryJobId,
-        );
-        if (existingStop && existingStop.routePlanId !== plan.id) {
-          throw new ConflictException({
-            code: 'DELIVERY_ALREADY_ON_ROUTE',
-            message: 'Delivery already on another active route',
-          });
-        }
-        if (!existingStop) {
-          sequence += 1;
-          await this.deliveries.addRouteStop({
-            id: randomUUID(),
-            organizationId: input.organizationId,
-            routePlanId: plan.id,
-            deliveryJobId,
-            sequence,
-            plannedArrivalAt: null,
-            note: null,
-          });
-          await this.timeline(
-            job,
-            DeliveryTimelineEventType.ROUTE_ASSIGNED,
-            'Added to route',
-            { routePlanId: plan.id },
-          );
-        }
-      }
-      const bumped = await this.deliveries.updateRoutePlan(
-        input.organizationId,
-        input.storeId,
-        plan.id,
-        {},
-        input.expectedVersion,
-      );
-      if (!bumped) {
-        throw new ConflictException({ code: 'VERSION_CONFLICT', message: 'Route version conflict' });
-      }
-      return bumped;
-    });
-  }
-
-  async reorderRouteStops(input: {
-    organizationId: string;
-    storeId: string;
-    routeId: string;
-    orderedDeliveryJobIds: string[];
-    expectedVersion: number;
-  }) {
-    return this.uow.runInTransaction(async () => {
-      await this.getRoutePlan(input.organizationId, input.storeId, input.routeId);
-      const updated = await this.deliveries.reorderRouteStops(
-        input.organizationId,
-        input.routeId,
-        input.orderedDeliveryJobIds,
-        input.expectedVersion,
-      );
-      if (!updated) {
-        throw new ConflictException({ code: 'VERSION_CONFLICT', message: 'Route version conflict' });
-      }
-      return updated;
-    });
-  }
-
-  async activateRoute(input: {
-    organizationId: string;
-    storeId: string;
-    routeId: string;
-    expectedVersion: number;
-  }) {
-    const updated = await this.deliveries.updateRoutePlan(
-      input.organizationId,
-      input.storeId,
-      input.routeId,
-      { status: RoutePlanStatus.ACTIVE },
-      input.expectedVersion,
-    );
-    if (!updated) {
-      throw new ConflictException({ code: 'VERSION_CONFLICT', message: 'Route version conflict' });
-    }
-    return updated;
-  }
-
-  async completeRoute(input: {
-    organizationId: string;
-    storeId: string;
-    routeId: string;
-    expectedVersion: number;
-  }) {
-    const updated = await this.deliveries.updateRoutePlan(
-      input.organizationId,
-      input.storeId,
-      input.routeId,
-      { status: RoutePlanStatus.COMPLETED },
-      input.expectedVersion,
-    );
-    if (!updated) {
-      throw new ConflictException({ code: 'VERSION_CONFLICT', message: 'Route version conflict' });
-    }
-    return updated;
-  }
-
-  async cancelRoute(input: {
-    organizationId: string;
-    storeId: string;
-    routeId: string;
-    expectedVersion: number;
-  }) {
-    const updated = await this.deliveries.updateRoutePlan(
-      input.organizationId,
-      input.storeId,
-      input.routeId,
-      { status: RoutePlanStatus.CANCELLED },
-      input.expectedVersion,
-    );
-    if (!updated) {
-      throw new ConflictException({ code: 'VERSION_CONFLICT', message: 'Route version conflict' });
-    }
-    return updated;
-  }
-
   async getDelivery(
     organizationId: string,
     storeId: string,
@@ -1180,11 +994,6 @@ export class DeliveryUseCases implements DeliveryReadinessPort, DeliveryFulfillm
       deliveryDate: filter?.deliveryDate ? new Date(filter.deliveryDate) : undefined,
       courierId: filter?.courierId,
     });
-  }
-
-  async getTimeline(organizationId: string, storeId: string, deliveryId: string) {
-    await this.requireJob(organizationId, storeId, deliveryId);
-    return this.deliveries.listTimeline(organizationId, deliveryId);
   }
 
   async getSummary(
@@ -1225,6 +1034,7 @@ export class DeliveryUseCases implements DeliveryReadinessPort, DeliveryFulfillm
       navigationUrl: nav.navigationUrl,
       mapsUrl: nav.mapsUrl,
       navigatorUrl: nav.navigatorUrl,
+      openProblems: await this.deliveries.listOpenProblems(organizationId, deliveryId),
     };
   }
 

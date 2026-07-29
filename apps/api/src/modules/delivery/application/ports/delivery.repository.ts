@@ -7,7 +7,6 @@ import type {
   DeliveryStatus,
   DeliveryTimelineEventType,
   GeocodingStatus,
-  RoutePlanStatus,
 } from '../../domain/delivery-rules';
 
 export const DELIVERY_REPOSITORY = Symbol('DELIVERY_REPOSITORY');
@@ -104,33 +103,6 @@ export type CourierProfileView = {
   status: CourierStatus;
   vehicleType: string | null;
   vehicleDescription: string | null;
-  createdAt: Date;
-  updatedAt: Date;
-};
-
-export type DeliveryRoutePlanView = {
-  id: string;
-  organizationId: string;
-  storeId: string;
-  serviceDate: Date;
-  courierProfileId: string | null;
-  name: string;
-  status: RoutePlanStatus;
-  version: number;
-  createdByMembershipId: string | null;
-  createdAt: Date;
-  updatedAt: Date;
-  stops: DeliveryRouteStopView[];
-};
-
-export type DeliveryRouteStopView = {
-  id: string;
-  organizationId: string;
-  routePlanId: string;
-  deliveryJobId: string;
-  sequence: number;
-  plannedArrivalAt: Date | null;
-  note: string | null;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -280,6 +252,10 @@ export interface DeliveryRepository {
     resolvedByMembershipId: string | null;
     resolvedAt: Date;
   }): Promise<DeliveryProblemView | null>;
+  listOpenProblems(
+    organizationId: string,
+    deliveryJobId: string,
+  ): Promise<DeliveryProblemView[]>;
 
   appendTimeline(input: {
     id: string;
@@ -318,56 +294,6 @@ export interface DeliveryRepository {
     courierId: string,
     status: CourierStatus,
   ): Promise<CourierProfileView | null>;
-
-  createRoutePlan(input: {
-    id: string;
-    organizationId: string;
-    storeId: string;
-    serviceDate: Date;
-    courierProfileId: string | null;
-    name: string;
-    createdByMembershipId: string | null;
-  }): Promise<DeliveryRoutePlanView>;
-  getRoutePlan(
-    organizationId: string,
-    storeId: string,
-    routeId: string,
-  ): Promise<DeliveryRoutePlanView | null>;
-  listRoutePlans(
-    organizationId: string,
-    storeId: string,
-    filter?: { serviceDate?: Date; status?: RoutePlanStatus },
-  ): Promise<DeliveryRoutePlanView[]>;
-  updateRoutePlan(
-    organizationId: string,
-    storeId: string,
-    routeId: string,
-    data: Partial<{
-      status: RoutePlanStatus;
-      courierProfileId: string | null;
-      name: string;
-    }>,
-    expectedVersion?: number,
-  ): Promise<DeliveryRoutePlanView | null>;
-  addRouteStop(input: {
-    id: string;
-    organizationId: string;
-    routePlanId: string;
-    deliveryJobId: string;
-    sequence: number;
-    plannedArrivalAt: Date | null;
-    note: string | null;
-  }): Promise<DeliveryRouteStopView>;
-  findActiveStopForJob(
-    organizationId: string,
-    deliveryJobId: string,
-  ): Promise<DeliveryRouteStopView | null>;
-  reorderRouteStops(
-    organizationId: string,
-    routePlanId: string,
-    orderedDeliveryJobIds: string[],
-    expectedVersion: number,
-  ): Promise<DeliveryRoutePlanView | null>;
 
   findIdempotency(
     organizationId: string,

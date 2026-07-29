@@ -12,7 +12,6 @@ import type {
   DeliveryStatus,
   DeliveryTimelineEventType,
   GeocodingStatus,
-  RoutePlanStatus,
 } from '../domain/delivery-rules';
 import type {
   CourierProfileView,
@@ -21,8 +20,6 @@ import type {
   DeliveryJobView,
   DeliveryProblemView,
   DeliveryRepository,
-  DeliveryRoutePlanView,
-  DeliveryRouteStopView,
   DeliveryTimelineEventView,
   IdempotencyRecord,
 } from '../application/ports/delivery.repository';
@@ -96,20 +93,6 @@ function mapCourier(row: {
   createdAt: Date;
   updatedAt: Date;
 }): CourierProfileView {
-  return { ...row };
-}
-
-function mapStop(row: {
-  id: string;
-  organizationId: string;
-  routePlanId: string;
-  deliveryJobId: string;
-  sequence: number;
-  plannedArrivalAt: Date | null;
-  note: string | null;
-  createdAt: Date;
-  updatedAt: Date;
-}): DeliveryRouteStopView {
   return { ...row };
 }
 
@@ -357,6 +340,17 @@ export class PrismaDeliveryRepository implements DeliveryRepository {
     return row as DeliveryProblemView;
   }
 
+  async listOpenProblems(
+    organizationId: string,
+    deliveryJobId: string,
+  ): Promise<DeliveryProblemView[]> {
+    const rows = await this.client().deliveryProblem.findMany({
+      where: { organizationId, deliveryJobId, status: 'OPEN' },
+      orderBy: { reportedAt: 'asc' },
+    });
+    return rows as DeliveryProblemView[];
+  }
+
   async appendTimeline(input: {
     id: string;
     organizationId: string;
@@ -441,153 +435,6 @@ export class PrismaDeliveryRepository implements DeliveryRepository {
       data: { status },
     });
     return mapCourier(row as Parameters<typeof mapCourier>[0]);
-  }
-
-  async createRoutePlan(input: {
-    id: string;
-    organizationId: string;
-    storeId: string;
-    serviceDate: Date;
-    courierProfileId: string | null;
-    name: string;
-    createdByMembershipId: string | null;
-  }): Promise<DeliveryRoutePlanView> {
-    const row = await this.client().deliveryRoutePlan.create({
-      data: { ...input, status: 'DRAFT' },
-      include: { stops: { orderBy: { sequence: 'asc' } } },
-    });
-    return {
-      ...(row as Omit<DeliveryRoutePlanView, 'stops'>),
-      stops: row.stops.map((s) => mapStop(s)),
-    };
-  }
-
-  async getRoutePlan(
-    organizationId: string,
-    storeId: string,
-    routeId: string,
-  ): Promise<DeliveryRoutePlanView | null> {
-    const row = await this.client().deliveryRoutePlan.findFirst({
-      where: { id: routeId, organizationId, storeId },
-      include: { stops: { orderBy: { sequence: 'asc' } } },
-    });
-    if (!row) return null;
-    return {
-      ...(row as Omit<DeliveryRoutePlanView, 'stops'>),
-      stops: row.stops.map((s) => mapStop(s)),
-    };
-  }
-
-  async listRoutePlans(
-    organizationId: string,
-    storeId: string,
-    filter?: { serviceDate?: Date; status?: RoutePlanStatus },
-  ): Promise<DeliveryRoutePlanView[]> {
-    const rows = await this.client().deliveryRoutePlan.findMany({
-      where: {
-        organizationId,
-        storeId,
-        serviceDate: filter?.serviceDate,
-        status: filter?.status,
-      },
-      include: { stops: { orderBy: { sequence: 'asc' } } },
-      orderBy: { serviceDate: 'desc' },
-    });
-    return rows.map((row) => ({
-      ...(row as Omit<DeliveryRoutePlanView, 'stops'>),
-      stops: row.stops.map((s) => mapStop(s)),
-    }));
-  }
-
-  async updateRoutePlan(
-    organizationId: string,
-    storeId: string,
-    routeId: string,
-    data: Partial<{
-      status: RoutePlanStatus;
-      courierProfileId: string | null;
-      name: string;
-    }>,
-    expectedVersion?: number,
-  ): Promise<DeliveryRoutePlanView | null> {
-    const where: Prisma.DeliveryRoutePlanWhereInput = {
-      id: routeId,
-      organizationId,
-      storeId,
-    };
-    if (expectedVersion !== undefined) where.version = expectedVersion;
-    const existing = await this.client().deliveryRoutePlan.findFirst({ where });
-    if (!existing) return null;
-    await this.client().deliveryRoutePlan.update({
-      where: { id: routeId },
-      data: {
-        ...data,
-        version: expectedVersion !== undefined ? expectedVersion + 1 : undefined,
-      },
-    });
-    return this.getRoutePlan(organizationId, storeId, routeId);
-  }
-
-  async addRouteStop(input: {
-    id: string;
-    organizationId: string;
-    routePlanId: string;
-    deliveryJobId: string;
-    sequence: number;
-    plannedArrivalAt: Date | null;
-    note: string | null;
-  }): Promise<DeliveryRouteStopView> {
-    const row = await this.client().deliveryRouteStop.create({ data: input });
-    return mapStop(row);
-  }
-
-  async findActiveStopForJob(
-    organizationId: string,
-    deliveryJobId: string,
-  ): Promise<DeliveryRouteStopView | null> {
-    const row = await this.client().deliveryRouteStop.findFirst({
-      where: {
-        organizationId,
-        deliveryJobId,
-        routePlan: { status: { in: ['DRAFT', 'ACTIVE'] } },
-      },
-    });
-    return row ? mapStop(row) : null;
-  }
-
-  async reorderRouteStops(
-    organizationId: string,
-    routePlanId: string,
-    orderedDeliveryJobIds: string[],
-    expectedVersion: number,
-  ): Promise<DeliveryRoutePlanView | null> {
-    const plan = await this.client().deliveryRoutePlan.findFirst({
-      where: { id: routePlanId, organizationId, version: expectedVersion },
-      include: { stops: true },
-    });
-    if (!plan) return null;
-
-    // Two-phase update to avoid unique(sequence) conflicts
-    for (const stop of plan.stops) {
-      await this.client().deliveryRouteStop.update({
-        where: { id: stop.id },
-        data: { sequence: stop.sequence + 10000 },
-      });
-    }
-    for (let i = 0; i < orderedDeliveryJobIds.length; i++) {
-      const jobId = orderedDeliveryJobIds[i]!;
-      const stop = plan.stops.find((s) => s.deliveryJobId === jobId);
-      if (!stop) continue;
-      await this.client().deliveryRouteStop.update({
-        where: { id: stop.id },
-        data: { sequence: i + 1 },
-      });
-    }
-    await this.client().deliveryRoutePlan.update({
-      where: { id: routePlanId },
-      data: { version: expectedVersion + 1 },
-    });
-    return this.getRoutePlan(organizationId, plan.storeId, routePlanId);
   }
 
   async findIdempotency(

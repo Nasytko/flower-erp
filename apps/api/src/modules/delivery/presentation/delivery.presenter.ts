@@ -34,35 +34,3 @@ export function presentCourier(row: {
     updatedAt: row.updatedAt.toISOString(),
   };
 }
-
-export function presentRoute(plan: {
-  id: string;
-  organizationId: string;
-  storeId: string;
-  serviceDate: Date;
-  courierProfileId: string | null;
-  name: string;
-  status: string;
-  version: number;
-  createdByMembershipId: string | null;
-  createdAt: Date;
-  updatedAt: Date;
-  stops: Array<{
-    id: string;
-    deliveryJobId: string;
-    sequence: number;
-    plannedArrivalAt: Date | null;
-    note: string | null;
-  }>;
-}) {
-  return {
-    ...plan,
-    serviceDate: plan.serviceDate.toISOString().slice(0, 10),
-    createdAt: plan.createdAt.toISOString(),
-    updatedAt: plan.updatedAt.toISOString(),
-    stops: plan.stops.map((s) => ({
-      ...s,
-      plannedArrivalAt: s.plannedArrivalAt?.toISOString() ?? null,
-    })),
-  };
-}
