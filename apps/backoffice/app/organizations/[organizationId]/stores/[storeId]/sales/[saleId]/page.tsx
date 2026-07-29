@@ -20,11 +20,10 @@ import { ErrorState, LoadingState } from '@/components/layout/states';
 import { StatusBadge } from '@/components/layout/status-badge';
 import { OrderJourneyTree } from '@/components/order/order-journey-tree';
 import { formatApiError } from '@/lib/format-api-error';
-import { statusLabelRu, timelineMessageRu } from '@/lib/status-labels-ru';
+import { statusLabelRu } from '@/lib/status-labels-ru';
 import { newIdempotencyKey } from '@/lib/idempotency';
 
 type SaleDetail = Awaited<ReturnType<ReturnType<typeof getApiClient>['getSale']>>;
-type TimelineEvent = Awaited<ReturnType<ReturnType<typeof getApiClient>['getSaleTimeline']>>[number];
 type Consumption = Awaited<ReturnType<ReturnType<typeof getApiClient>['getSaleConsumption']>>;
 type PaymentSummary = Awaited<ReturnType<ReturnType<typeof getApiClient>['getSalePaymentSummary']>>;
 type PaymentMethod = Awaited<
@@ -53,7 +52,6 @@ function SaleDetailPageInner() {
   const base = `/organizations/${organizationId}/stores/${storeId}`;
 
   const [sale, setSale] = useState<SaleDetail | null>(null);
-  const [timeline, setTimeline] = useState<TimelineEvent[]>([]);
   const [consumption, setConsumption] = useState<Consumption>(null);
   const [paymentSummary, setPaymentSummary] = useState<PaymentSummary | null>(null);
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
@@ -92,9 +90,8 @@ function SaleDetailPageInner() {
     setErrorDetails([]);
     try {
       const client = getApiClient();
-      const [detail, events, cons, summary, methods] = await Promise.all([
+      const [detail, cons, summary, methods] = await Promise.all([
         client.getSale(organizationId, storeId, saleId),
-        client.getSaleTimeline(organizationId, storeId, saleId),
         client.getSaleConsumption(organizationId, storeId, saleId),
         canReadPayments
           ? client.getSalePaymentSummary(organizationId, storeId, saleId)
@@ -116,7 +113,6 @@ function SaleDetailPageInner() {
           : Promise.resolve([] as PaymentMethod[]),
       ]);
       setSale(detail);
-      setTimeline(events);
       setConsumption(cons);
       setPaymentSummary(summary);
       setPaymentMethods(methods);
@@ -232,20 +228,6 @@ function SaleDetailPageInner() {
         }
       }
       setPaymentLines([createEmptyPaymentLine(paymentMethods[0]?.id ?? '')]);
-    });
-  }
-
-  async function onAllocatePrepayments() {
-    if (!sale?.orderId) return;
-    await run(async () => {
-      await getApiClient().allocateOrderPrepaymentsToSale(
-        organizationId,
-        storeId,
-        sale.orderId!,
-        { saleId },
-        newIdempotencyKey(),
-      );
-      setInfoMessage('Предоплата перенесена на продажу.');
     });
   }
 
@@ -384,20 +366,6 @@ function SaleDetailPageInner() {
                   ) : (
                     <p style={{ margin: 0, color: 'var(--color-muted)' }}>Сводка оплаты недоступна.</p>
                   )}
-                  {sale.orderId &&
-                  auth.hasPermission('payments:complete') &&
-                  sale.status === 'COMPLETED' ? (
-                    <div className="page-header__actions" style={{ marginTop: 16 }}>
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        disabled={busy}
-                        onClick={() => void onAllocatePrepayments()}
-                      >
-                        Перенести предоплату
-                      </Button>
-                    </div>
-                  ) : null}
                   {auth.hasPermission('payments:create') &&
                   auth.hasPermission('payments:complete') &&
                   sale.status === 'COMPLETED' ? (
@@ -486,25 +454,6 @@ function SaleDetailPageInner() {
                     </Button>
                   </form>
                 ) : null}
-              </Card>
-            </Section>
-
-            <Section>
-              <Card title="История">
-                <ul className="list-stack">
-                  {timeline.map((event) => {
-                    const message = timelineMessageRu(event.message);
-                    return (
-                      <li key={event.id}>
-                        <div className="meta-row">
-                          <StatusBadge status={event.type} />
-                          <span>{new Date(event.occurredAt).toLocaleString('ru-RU')}</span>
-                        </div>
-                        {message ? <p style={{ margin: '4px 0 0' }}>{message}</p> : null}
-                      </li>
-                    );
-                  })}
-                </ul>
               </Card>
             </Section>
           </>

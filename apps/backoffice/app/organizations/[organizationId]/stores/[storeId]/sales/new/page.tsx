@@ -725,19 +725,6 @@ function NewSalePageInner() {
 
       if (auth.hasPermission('sales:complete')) {
         await client.completeSale(organizationId, storeId, saleId, newKey());
-        if (fromOrderId && auth.hasPermission('payments:complete')) {
-          try {
-            await client.allocateOrderPrepaymentsToSale(
-              organizationId,
-              storeId,
-              fromOrderId,
-              { saleId },
-              newKey(),
-            );
-          } catch {
-            // best-effort
-          }
-        }
         for (const payment of payments) {
           const created = await client.createSalePayment(organizationId, storeId, saleId, payment);
           if (created.status === 'DRAFT') {

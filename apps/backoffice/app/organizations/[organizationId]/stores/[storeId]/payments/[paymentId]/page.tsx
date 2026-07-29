@@ -15,7 +15,6 @@ import { StatusBadge } from '@/components/layout/status-badge';
 import { newIdempotencyKey } from '@/lib/idempotency';
 
 type Payment = Awaited<ReturnType<ReturnType<typeof getApiClient>['getPayment']>>;
-type TimelineEvent = Awaited<ReturnType<ReturnType<typeof getApiClient>['getPaymentTimeline']>>[number];
 type Refund = Awaited<ReturnType<ReturnType<typeof getApiClient>['listPaymentRefunds']>>[number];
 type PaymentMethod = Awaited<ReturnType<ReturnType<typeof getApiClient>['listPaymentMethods']>>[number];
 
@@ -26,7 +25,6 @@ export default function PaymentDetailPage() {
   const base = `/organizations/${organizationId}/stores/${storeId}`;
 
   const [payment, setPayment] = useState<Payment | null>(null);
-  const [timeline, setTimeline] = useState<TimelineEvent[]>([]);
   const [refunds, setRefunds] = useState<Refund[]>([]);
   const [methods, setMethods] = useState<PaymentMethod[]>([]);
   const [loading, setLoading] = useState(true);
@@ -43,16 +41,14 @@ export default function PaymentDetailPage() {
     setError(null);
     try {
       const client = getApiClient();
-      const [detail, events, refundList, methodList] = await Promise.all([
+      const [detail, refundList, methodList] = await Promise.all([
         client.getPayment(organizationId, storeId, paymentId),
-        client.getPaymentTimeline(organizationId, storeId, paymentId),
         client.listPaymentRefunds(organizationId, storeId, paymentId),
         auth.hasPermission('payments:refund')
           ? client.listPaymentMethods(organizationId, storeId, { activeOnly: true })
           : Promise.resolve([] as PaymentMethod[]),
       ]);
       setPayment(detail);
-      setTimeline(events);
       setRefunds(refundList);
       setMethods(methodList);
       if (methodList[0] && !refundMethodId) {
@@ -300,22 +296,6 @@ export default function PaymentDetailPage() {
                     ))}
                   </ul>
                 )}
-              </Card>
-            </Section>
-
-            <Section>
-              <Card title="Таймлайн">
-                <ul className="list-stack">
-                  {timeline.map((event) => (
-                    <li key={event.id}>
-                      <div className="meta-row">
-                        <StatusBadge status={event.type} />
-                        <span>{new Date(event.occurredAt).toLocaleString()}</span>
-                      </div>
-                      {event.message ? <p style={{ margin: '4px 0 0' }}>{event.message}</p> : null}
-                    </li>
-                  ))}
-                </ul>
               </Card>
             </Section>
           </>

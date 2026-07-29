@@ -24,7 +24,6 @@ const METHOD_TYPES = [
   { value: 'ONLINE', label: 'Онлайн' },
   { value: 'QR', label: 'QR' },
   { value: 'BANK_TRANSFER', label: 'Банковский перевод' },
-  { value: 'GIFT_CERTIFICATE', label: 'Подарочный сертификат' },
   { value: 'OTHER', label: 'Другое' },
 ] as const;
 

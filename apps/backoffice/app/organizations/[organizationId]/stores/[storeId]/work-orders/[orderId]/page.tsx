@@ -6,7 +6,6 @@ import { useParams, useRouter } from 'next/navigation';
 import { Button, Card, Input } from '@flower/ui';
 import {
   ApiClientError,
-  type CompositionReplaceReason,
   type WorkOrderDto,
 } from '@flower/api-client';
 import { getApiClient } from '@/lib/api-client';
@@ -28,14 +27,6 @@ import {
   orderPhaseLabel,
   resolveOrderPhase,
 } from '@/lib/order-ui';
-
-const REPLACE_REASONS: CompositionReplaceReason[] = [
-  'OUT_OF_STOCK',
-  'QUALITY',
-  'CUSTOMER_REQUEST',
-  'FLORIST_DECISION',
-  'OTHER',
-];
 
 type ActualDraft = {
   itemId: string;
@@ -62,13 +53,6 @@ export default function WorkOrderPage() {
   const [busy, setBusy] = useState(false);
   const [confirmReady, setConfirmReady] = useState(false);
   const [confirmRelease, setConfirmRelease] = useState(false);
-  const [replaceOpen, setReplaceOpen] = useState(false);
-  const [fromItemId, setFromItemId] = useState('');
-  const [toItemId, setToItemId] = useState('');
-  const [replaceQty, setReplaceQty] = useState('1');
-  const [replaceReason, setReplaceReason] = useState<CompositionReplaceReason>('OUT_OF_STOCK');
-  const [replaceComment, setReplaceComment] = useState('');
-  const [catalog, setCatalog] = useState<Array<{ id: string; name: string; code: string }>>([]);
   const [deliveryHint, setDeliveryHint] = useState<{
     id: string;
     number: string;
@@ -122,9 +106,8 @@ export default function WorkOrderPage() {
     setError(null);
     try {
       const client = getApiClient();
-      const [workOrder, items, deliveries, sales] = await Promise.all([
+      const [workOrder, deliveries, sales] = await Promise.all([
         client.getWorkOrder(organizationId, storeId, orderId),
-        client.listItems(organizationId, { pageSize: 100, status: 'ACTIVE' }),
         canReadDelivery
           ? client.listDeliveries(organizationId, storeId)
           : Promise.resolve([]),
@@ -136,9 +119,6 @@ export default function WorkOrderPage() {
       setLinkedSale(pickLinkedSale(sales));
       setCapturedAt(Date.now());
       syncDrafts(workOrder);
-      setCatalog(items.items);
-      setFromItemId((prev) => prev || workOrder.plannedLines[0]?.itemId || '');
-      setToItemId((prev) => prev || items.items[0]?.id || '');
       const linked = deliveries.find(
         (d) => d.orderId === orderId && d.status !== 'CANCELLED',
       );
@@ -201,23 +181,6 @@ export default function WorkOrderPage() {
         })),
       }),
     );
-  }
-
-  async function submitReplace(event: FormEvent) {
-    event.preventDefault();
-    if (!data) return;
-    await run(async () => {
-      await getApiClient().replaceCompositionItem(organizationId, storeId, orderId, {
-        expectedVersion: data.version,
-        fromItemId,
-        toItemId,
-        quantity: replaceQty,
-        reason: replaceReason,
-        comment: replaceComment || null,
-      });
-      setReplaceOpen(false);
-      setReplaceComment('');
-    });
   }
 
   const primaryActions: Array<{
@@ -489,79 +452,6 @@ export default function WorkOrderPage() {
                       </li>
                     ))}
                   </ul>
-                  {auth.hasPermission('orders:prepare') ? (
-                    <div style={{ marginTop: 12 }}>
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        disabled={busy}
-                        onClick={() => setReplaceOpen((v) => !v)}
-                      >
-                        Заменить позицию
-                      </Button>
-                    </div>
-                  ) : null}
-                  {replaceOpen ? (
-                    <form className="stack-form" style={{ marginTop: 16 }} onSubmit={submitReplace}>
-                      <label>
-                        Из позиции
-                        <select
-                          value={fromItemId}
-                          onChange={(e) => setFromItemId(e.target.value)}
-                          required
-                        >
-                          {data.plannedLines.map((line) => (
-                            <option key={line.itemId} value={line.itemId}>
-                              {line.itemName}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                      <label>
-                        В позицию
-                        <select value={toItemId} onChange={(e) => setToItemId(e.target.value)} required>
-                          {catalog.map((item) => (
-                            <option key={item.id} value={item.id}>
-                              {item.name} ({item.code})
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                      <label>
-                        Количество
-                        <Input
-                          value={replaceQty}
-                          onChange={(e) => setReplaceQty(e.target.value)}
-                          required
-                        />
-                      </label>
-                      <label>
-                        Причина
-                        <select
-                          value={replaceReason}
-                          onChange={(e) =>
-                            setReplaceReason(e.target.value as CompositionReplaceReason)
-                          }
-                        >
-                          {REPLACE_REASONS.map((reason) => (
-                            <option key={reason} value={reason}>
-                              {reason}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                      <label>
-                        Комментарий
-                        <Input
-                          value={replaceComment}
-                          onChange={(e) => setReplaceComment(e.target.value)}
-                        />
-                      </label>
-                      <Button type="submit" disabled={busy}>
-                        Применить замену
-                      </Button>
-                    </form>
-                  ) : null}
                 </Card>
               </Section>
 

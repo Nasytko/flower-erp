@@ -1,14 +1,13 @@
 ﻿'use client';
 
 import Link from 'next/link';
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { useParams } from 'next/navigation';
 import { Button, Card, Input } from '@flower/ui';
 import {
   ApiClientError,
   type DeliveryJobDto,
   type DeliverySummaryDto,
-  type DeliveryTimelineEventDto,
 } from '@flower/api-client';
 import { getApiClient } from '@/lib/api-client';
 import { useAuth } from '@/components/auth-provider';
@@ -62,18 +61,6 @@ function OrderPhaseBadge({
   );
 }
 
-function openProblemIds(timeline: DeliveryTimelineEventDto[]): string[] {
-  const open = new Set<string>();
-  for (const event of timeline) {
-    const payload = event.payload as { problemId?: string } | null;
-    const problemId = payload?.problemId;
-    if (!problemId) continue;
-    if (event.type === 'PROBLEM_REPORTED') open.add(problemId);
-    if (event.type === 'PROBLEM_RESOLVED') open.delete(problemId);
-  }
-  return [...open];
-}
-
 export default function DeliveryDetailPage() {
   const params = useParams<{ organizationId: string; storeId: string; deliveryId: string }>();
   const auth = useAuth();
@@ -81,7 +68,6 @@ export default function DeliveryDetailPage() {
   const base = `/organizations/${organizationId}/stores/${storeId}`;
 
   const [summary, setSummary] = useState<DeliverySummaryDto | null>(null);
-  const [timeline, setTimeline] = useState<DeliveryTimelineEventDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -115,19 +101,15 @@ export default function DeliveryDetailPage() {
   const canAudit = auth.hasPermission('audit:read');
 
   const job = summary?.delivery ?? null;
-  const problems = useMemo(() => openProblemIds(timeline), [timeline]);
+  const openProblems = summary?.openProblems ?? [];
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
       const client = getApiClient();
-      const [sum, tl] = await Promise.all([
-        client.getDeliverySummary(organizationId, storeId, deliveryId),
-        client.getDeliveryTimeline(organizationId, storeId, deliveryId),
-      ]);
+      const sum = await client.getDeliverySummary(organizationId, storeId, deliveryId);
       setSummary(sum);
-      setTimeline(tl);
       setEditAddressLine(sum.delivery.addressLine);
       setEditCity(sum.delivery.city);
       setEditApartment(sum.delivery.apartment ?? '');
@@ -550,13 +532,13 @@ export default function DeliveryDetailPage() {
                     </Button>
                   </form>
                 ) : null}
-                {auth.hasPermission('delivery:resolve-problem') && problems.length > 0 ? (
+                {auth.hasPermission('delivery:resolve-problem') && openProblems.length > 0 ? (
                   <form
                     className="stack-form"
                     style={{ marginTop: 16 }}
                     onSubmit={(e) => {
                       e.preventDefault();
-                      const problemId = problems[0];
+                      const problemId = openProblems[0]?.id;
                       if (!problemId || !resolution.trim()) return;
                       void run(() =>
                         getApiClient().resolveDeliveryProblem(
@@ -574,7 +556,7 @@ export default function DeliveryDetailPage() {
                       ).then(() => setResolution(''));
                     }}
                   >
-                    <p>Открытых проблем: {problems.length}</p>
+                    <p>Открытых проблем: {openProblems.length}</p>
                     <label>
                       Вернуть в статус
                       <select

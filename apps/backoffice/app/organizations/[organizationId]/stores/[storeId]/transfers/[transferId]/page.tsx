@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { Button, Card, Input } from '@flower/ui';
-import { ApiClientError, type TransferDto, type TransferTimelineDto } from '@flower/api-client';
+import { ApiClientError, type TransferDto } from '@flower/api-client';
 import { getApiClient } from '@/lib/api-client';
 import { useAuth } from '@/components/auth-provider';
 import { PageContainer } from '@/components/layout/page-container';
@@ -18,7 +18,6 @@ export default function TransferDetailPage() {
   const { organizationId, storeId, transferId } = params;
   const base = `/organizations/${organizationId}/stores/${storeId}`;
   const [doc, setDoc] = useState<TransferDto | null>(null);
-  const [timeline, setTimeline] = useState<TransferTimelineDto[]>([]);
   const [itemId, setItemId] = useState('');
   const [quantity, setQuantity] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -29,12 +28,8 @@ export default function TransferDetailPage() {
     setError(null);
     try {
       const client = getApiClient();
-      const [nextDoc, nextTimeline] = await Promise.all([
-        client.getTransfer(organizationId, storeId, transferId),
-        client.getTransferTimeline(organizationId, storeId, transferId),
-      ]);
+      const nextDoc = await client.getTransfer(organizationId, storeId, transferId);
       setDoc(nextDoc);
-      setTimeline(nextTimeline);
     } catch (err) {
       setError(err instanceof ApiClientError ? err.message : 'Не удалось загрузить перемещение');
     } finally {
@@ -208,28 +203,6 @@ export default function TransferDetailPage() {
                             <span>Отправлено {item.dispatchedQuantity ?? '—'}</span>
                             <span>Получено {item.receivedQuantity ?? '—'}</span>
                             <span>Повреждено {item.damagedQuantity ?? '—'}</span>
-                          </div>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </Card>
-            </Section>
-
-            <Section>
-              <Card title={`Timeline (${timeline.length})`}>
-                {timeline.length === 0 ? (
-                  <EmptyState message="История пока пуста." />
-                ) : (
-                  <ul className="stock-list">
-                    {timeline.map((event) => (
-                      <li key={event.id} className="stock-row">
-                        <div>
-                          <strong>{event.type}</strong>
-                          <div className="meta-row">
-                            <span>{event.message ?? '—'}</span>
-                            <span>{new Date(event.occurredAt).toLocaleString()}</span>
                           </div>
                         </div>
                       </li>
