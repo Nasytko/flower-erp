@@ -1,9 +1,107 @@
 #!/usr/bin/env bash
-# PostgreSQL helpers for deploy scripts (never print DATABASE_URL/passwords).
+# PostgreSQL helpers via migrate container (never parse or log DATABASE_URL).
+
+PG_MIGRATE_IMAGE_BUILT=0
+PG_USING_DATABASE_URL_FALLBACK=0
+
+pg_load_env() {
+  : "${DEPLOY_ROOT:?DEPLOY_ROOT required for pg_load_env}"
+  deploy_common_init
+  [[ -f "${ENV_FILE}" ]] || deploy_die "${ENV_FILE} not found."
+  [[ -f "${COMPOSE_FILE}" ]] || deploy_die "${COMPOSE_FILE} not found."
+  # shellcheck disable=SC1090
+  set -a
+  # shellcheck source=/dev/null
+  source "${ENV_FILE}"
+  set +a
+  export COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-flower-erp}"
+
+  if [[ -n "${DATABASE_MIGRATE_URL:-}" ]]; then
+    export DATABASE_URL="${DATABASE_MIGRATE_URL}"
+  elif [[ -n "${DATABASE_URL:-}" ]]; then
+    deploy_warn "DATABASE_MIGRATE_URL is not set; using DATABASE_URL fallback (verify DDL privileges)."
+    export DATABASE_MIGRATE_URL="${DATABASE_URL}"
+    PG_USING_DATABASE_URL_FALLBACK=1
+  else
+    deploy_die "DATABASE_MIGRATE_URL or DATABASE_URL is required."
+  fi
+}
+
+pg_assert_ddl_privileges() {
+  if [[ "${PG_USING_DATABASE_URL_FALLBACK}" != "1" ]]; then
+    return 0
+  fi
+  local can_create
+  can_create="$(pg_run_sql "SELECT has_schema_privilege('public', 'CREATE');")"
+  [[ "${can_create}" == "t" ]] \
+    || deploy_die "DATABASE_URL fallback user lacks CREATE privilege on schema public."
+}
+
+pg_ensure_migrate_image() {
+  if [[ "${PG_MIGRATE_IMAGE_BUILT}" == "1" ]]; then
+    return 0
+  fi
+  deploy_compose_migrate build migrate >/dev/null
+  PG_MIGRATE_IMAGE_BUILT=1
+}
+
+pg_assert_psql_in_migrate_image() {
+  pg_ensure_migrate_image
+  if ! deploy_compose_migrate run --rm --no-deps --entrypoint sh migrate \
+    -c 'command -v psql >/dev/null 2>&1 && psql --version'; then
+    deploy_die "psql is not available in migrate container (rebuild migrate image with postgresql-client)."
+  fi
+}
+
+pg_psql_via_migrate() {
+  local -a psql_args=("$@")
+  local -a compose_args=(run --rm --no-deps -i --entrypoint sh migrate)
+  local file_arg="" file_path="" file_idx=-1 arg i=0
+
+  pg_ensure_migrate_image
+
+  while [[ $i -lt ${#psql_args[@]} ]]; do
+    arg="${psql_args[$i]}"
+    if [[ "${arg}" == "-f" && $((i + 1)) -lt ${#psql_args[@]} ]]; then
+      file_arg="${psql_args[$((i + 1))]}"
+      if [[ -f "${file_arg}" ]]; then
+        file_path="$(cd "$(dirname "${file_arg}")" && pwd)/$(basename "${file_arg}")"
+        file_idx=$i
+      fi
+      break
+    fi
+    i=$((i + 1))
+  done
+
+  if [[ -n "${file_path}" ]]; then
+    local -a inner_args=()
+    i=0
+    while [[ $i -lt ${#psql_args[@]} ]]; do
+      if [[ $i -eq $((file_idx + 1)) ]]; then
+        inner_args+=("/tmp/pgexec.sql")
+      elif [[ $i -ne "${file_idx}" ]]; then
+        inner_args+=("${psql_args[$i]}")
+      fi
+      i=$((i + 1))
+    done
+    compose_args+=(-v "${file_path}:/tmp/pgexec.sql:ro")
+    compose_args+=(-c 'psql "$DATABASE_URL" "$@"' _ "${inner_args[@]}")
+  else
+    compose_args+=(-c 'psql "$DATABASE_URL" "$@"' _ "${psql_args[@]}")
+  fi
+
+  deploy_compose_migrate "${compose_args[@]}"
+}
+
+pg_psql_via_explicit_container() {
+  local container="${FLOWER_POSTGRES_CONTAINER:-}"
+  [[ -n "${container}" ]] || return 1
+  docker exec -i "${container}" psql "${DATABASE_MIGRATE_URL}" "$@"
+}
 
 pg_run_sql() {
   local sql="$1"
-  pg_psql -v ON_ERROR_STOP=1 -Atqc "${sql}"
+  pg_psql -X -A -t -P pager=off -v ON_ERROR_STOP=1 -c "${sql}"
 }
 
 pg_run_sql_file() {
@@ -13,7 +111,6 @@ pg_run_sql_file() {
 
 pg_psql() {
   if [[ -n "${PG_EXEC_TEST_OUTPUT:-}" ]]; then
-    # Test harness captures SQL via mocked pg_psql.
     printf '%s\n' "$*" >> "${PG_EXEC_TEST_OUTPUT}"
     return 0
   fi
@@ -24,37 +121,21 @@ pg_psql() {
     return $?
   fi
 
-  if command -v psql >/dev/null 2>&1; then
-    psql "${DATABASE_MIGRATE_URL}" "$@"
-    return $?
+  deploy_require_cmd docker
+  : "${DATABASE_MIGRATE_URL:?DATABASE_MIGRATE_URL is required (call pg_load_env first)}"
+
+  if pg_psql_via_migrate "$@"; then
+    return 0
   fi
 
-  deploy_require_cmd docker
-  : "${FLOWER_DB_HOST:?FLOWER_DB_HOST required for docker psql fallback}"
-  : "${FLOWER_DB_PORT:?FLOWER_DB_PORT required}"
-  : "${FLOWER_DB_NAME:?FLOWER_DB_NAME required}"
+  if [[ -n "${FLOWER_POSTGRES_CONTAINER:-}" ]]; then
+    if pg_psql_via_explicit_container "$@"; then
+      deploy_warn "Executed psql via FLOWER_POSTGRES_CONTAINER fallback."
+      return 0
+    fi
+  fi
 
-  local migrate_user migrate_password
-  migrate_user="$(pg_parse_url_component user "${DATABASE_MIGRATE_URL}")"
-  migrate_password="$(pg_parse_url_component password "${DATABASE_MIGRATE_URL}")"
-  [[ -n "${migrate_user}" && -n "${migrate_password}" ]] \
-    || deploy_die "Could not parse DATABASE_MIGRATE_URL for docker psql fallback."
-
-  docker run --rm -i \
-    --network "${PG_DOCKER_NETWORK:-leadflow_default}" \
-    -e "PGPASSWORD=${migrate_password}" \
-    postgres:16-alpine \
-    psql -h "${FLOWER_DB_HOST}" -p "${FLOWER_DB_PORT}" -U "${migrate_user}" -d "${FLOWER_DB_NAME}" "$@"
-}
-
-pg_parse_url_component() {
-  local component="$1" url="$2"
-  node -e "
-    const url = new URL(process.argv[1]);
-    const key = process.argv[2];
-    if (key === 'user') process.stdout.write(decodeURIComponent(url.username));
-    else if (key === 'password') process.stdout.write(decodeURIComponent(url.password));
-  " "${url}" "${component}" 2>/dev/null || true
+  deploy_die "Could not execute psql via migrate container. Rebuild migrate image and verify database connectivity."
 }
 
 pg_table_exists() {
@@ -119,4 +200,10 @@ pg_type_used_by_column() {
         AND t.typname = '${type_name}'
     );
   ")" == "t" ]]
+}
+
+pg_verify_connection() {
+  pg_assert_psql_in_migrate_image
+  pg_psql -v ON_ERROR_STOP=1 -c "SELECT 1;" >/dev/null \
+    || deploy_die "Database is not reachable via migrate container."
 }

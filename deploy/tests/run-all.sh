@@ -28,8 +28,10 @@ bash -n "${SCRIPT_DIR}/../scripts/lib/prisma-migrate.sh"
 bash -n "${SCRIPT_DIR}/../scripts/lib/recover-stage-c-lib.sh"
 echo "OK: bash -n syntax checks"
 
+run_test "pg-exec.test.sh"
 run_test "deploy-migration-status.test.sh"
 run_test "recover-stage-c-migration.test.sh"
 run_test "recover-stage-c-integration.test.sh"
+run_test "migrate-image-psql.test.sh"
 
 exit "${fail}"

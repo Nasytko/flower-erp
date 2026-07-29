@@ -101,8 +101,9 @@ FROM node:22-bookworm-slim AS migrate
 WORKDIR /app
 ENV NODE_ENV=production
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends openssl ca-certificates \
+  && apt-get install -y --no-install-recommends openssl ca-certificates postgresql-client \
   && rm -rf /var/lib/apt/lists/* \
+  && psql --version \
   && groupadd --system --gid 1001 flower \
   && useradd --system --uid 1001 --gid flower flower
 COPY --from=migrate-bundle --chown=flower:flower /prod/migrate /app

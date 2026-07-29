@@ -42,145 +42,12 @@ EOF
 
 trap recover_on_error ERR
 
-recover_effective_database_url() {
-  if [[ -n "${DATABASE_MIGRATE_URL:-}" ]]; then
-    printf '%s' "${DATABASE_MIGRATE_URL}"
-    return 0
-  fi
-  if [[ -n "${DATABASE_URL:-}" ]]; then
-    printf '%s' "${DATABASE_URL}"
-    return 0
-  fi
-  deploy_die "DATABASE_URL or DATABASE_MIGRATE_URL is required."
-}
-
-recover_load_env() {
-  [[ -f "${ENV_FILE}" ]] || deploy_die "${ENV_FILE} not found."
-  [[ -f "${COMPOSE_FILE}" ]] || deploy_die "${COMPOSE_FILE} not found."
-  # shellcheck disable=SC1090
-  set -a
-  # shellcheck source=/dev/null
-  source "${ENV_FILE}"
-  set +a
-  export COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-flower-erp}"
-
-  if [[ -z "${DATABASE_MIGRATE_URL:-}" && -n "${DATABASE_URL:-}" ]]; then
-    export DATABASE_MIGRATE_URL="${DATABASE_URL}"
-  fi
-  if [[ -z "${DATABASE_URL:-}" && -n "${DATABASE_MIGRATE_URL:-}" ]]; then
-    export DATABASE_URL="${DATABASE_MIGRATE_URL}"
-  fi
-  [[ -n "${DATABASE_MIGRATE_URL:-}" || -n "${DATABASE_URL:-}" ]] \
-    || deploy_die "DATABASE_URL or DATABASE_MIGRATE_URL is required."
-}
-
-recover_pg_via_compose_postgres() {
-  local db_url="$1"
-  shift
-  local service
-  for service in postgres postgresql db; do
-    if deploy_compose config --services 2>/dev/null | grep -qx "${service}"; then
-      if deploy_compose exec -T "${service}" psql "${db_url}" "$@"; then
-        RECOVER_PG_VIA="compose:${service}"
-        return 0
-      fi
-    fi
-  done
-  return 1
-}
-
-recover_pg_via_postgres_container() {
-  local db_url="$1"
-  shift
-  local container="${FLOWER_POSTGRES_CONTAINER:-leadflow-postgres-1}"
-  if docker ps --format '{{.Names}}' | grep -qx "${container}"; then
-    if docker exec -i "${container}" psql "${db_url}" "$@"; then
-      RECOVER_PG_VIA="container:${container}"
-      return 0
-    fi
-  fi
-  return 1
-}
-
-recover_pg_via_migrate_container() {
-  local db_url="$1"
-  shift
-  local psql_args=()
-  local arg
-  for arg in "$@"; do
-    psql_args+=("$(printf '%q' "${arg}")")
-  done
-  if deploy_compose_migrate run --rm --no-deps --entrypoint sh migrate -c \
-    'command -v psql >/dev/null 2>&1'; then
-    # shellcheck disable=SC2086
-    if deploy_compose_migrate run --rm --no-deps --entrypoint sh migrate -c \
-      "psql \"\${DATABASE_URL}\" ${psql_args[*]}"; then
-      RECOVER_PG_VIA="migrate-container"
-      return 0
-    fi
-  fi
-  return 1
-}
-
-recover_pg_via_host_psql() {
-  local db_url="$1"
-  shift
-  if command -v psql >/dev/null 2>&1; then
-    if psql "${db_url}" "$@"; then
-      RECOVER_PG_VIA="host-psql"
-      return 0
-    fi
-  fi
-  return 1
-}
-
-recover_pg_via_ephemeral_client() {
-  local db_url="$1"
-  shift
-  deploy_require_cmd docker
-  if docker run --rm -i \
-    --network "${PG_DOCKER_NETWORK:-leadflow_default}" \
-    postgres:16-alpine \
-    psql "${db_url}" "$@"; then
-    RECOVER_PG_VIA="docker-client:postgres:16-alpine"
-    return 0
-  fi
-  return 1
-}
-
-recover_pg_psql() {
-  local db_url
-  db_url="$(recover_effective_database_url)"
-
-  if recover_pg_via_compose_postgres "${db_url}" "$@"; then
-    return 0
-  fi
-  if recover_pg_via_postgres_container "${db_url}" "$@"; then
-    return 0
-  fi
-  if recover_pg_via_migrate_container "${db_url}" "$@"; then
-    return 0
-  fi
-  if recover_pg_via_host_psql "${db_url}" "$@"; then
-    return 0
-  fi
-  if recover_pg_via_ephemeral_client "${db_url}" "$@"; then
-    return 0
-  fi
-
-  deploy_die "Could not connect to PostgreSQL (tried compose postgres, postgres container, migrate container, host psql, docker client)."
-}
-
-pg_psql() {
-  recover_pg_psql "$@"
-}
-
-recover_setup_pg_connection() {
-  if [[ -z "${RECOVER_PG_VIA:-}" ]]; then
-    pg_psql -v ON_ERROR_STOP=1 -c "SELECT 1;" >/dev/null \
-      || deploy_die "Database is not reachable."
-    deploy_log "PostgreSQL connection OK (${RECOVER_PG_VIA})."
-  fi
+recover_setup_database() {
+  pg_load_env
+  pg_assert_psql_in_migrate_image
+  pg_verify_connection
+  pg_assert_ddl_privileges
+  deploy_log "PostgreSQL connection OK (migrate container)."
 }
 
 recover_create_snapshot() {
@@ -237,12 +104,9 @@ recover_create_snapshot() {
 recover_validate_preconditions() {
   deploy_check_docker
   deploy_common_init
-  recover_load_env
   deploy_check_git_clean
 
-  deploy_compose_migrate build migrate >/dev/null
-
-  recover_setup_pg_connection
+  recover_setup_database
 
   recover_collect_schema_state
 
