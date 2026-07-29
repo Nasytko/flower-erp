@@ -162,15 +162,24 @@ test('resolveNavActionShortcuts maps to PRIMARY_NAV routes', () => {
   const today = actions.find((a) => a.id === 'today');
   const sale = actions.find((a) => a.id === 'new-sale');
   const stock = actions.find((a) => a.id === 'stock');
-  assert.equal(today?.href, '/organizations/org-1/stores/store-1/home');
+  assert.equal(today?.href, '/organizations/org-1/stores/store-1/orders/calendar');
   assert.equal(sale?.href, '/organizations/org-1/stores/store-1/sales/new');
   assert.equal(stock?.href, '/organizations/org-1/stores/store-1/stock');
 });
 
-test('resolveStoreHomePath returns home when workspace:read', () => {
+test('resolveStoreHomePath returns calendar when orders:read', () => {
   assert.equal(
     resolveStoreHomePath('org-1', 'store-1', (code) =>
       ['workspace:read', 'operations:read', 'delivery:read'].includes(code),
+    ),
+    '/organizations/org-1/stores/store-1/orders/calendar',
+  );
+});
+
+test('resolveStoreHomePath returns home for delivery-only director path', () => {
+  assert.equal(
+    resolveStoreHomePath('org-1', 'store-1', (code) =>
+      ['operations:read', 'delivery:read'].includes(code),
     ),
     '/organizations/org-1/stores/store-1/home',
   );

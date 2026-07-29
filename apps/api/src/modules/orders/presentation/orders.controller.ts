@@ -19,6 +19,7 @@ import {
   CompositionItemDto,
   CreateOrderDto,
   ListOrdersQueryDto,
+  OrderBoardQueryDto,
   OrderParamsDto,
   ReassignFloristDto,
   ReleaseAssignmentDto,
@@ -61,6 +62,15 @@ export class OrdersController {
       params.storeId,
       query.status as OrderStatus | undefined,
       query.phase,
+    );
+  }
+
+  @Get('orders/board')
+  calendarBoard(@Param() params: StoreParamsDto, @Query() query: OrderBoardQueryDto) {
+    return this.orders.getCalendarBoard(
+      params.organizationId,
+      params.storeId,
+      query.date,
     );
   }
 

@@ -26,6 +26,12 @@ import {
 } from '@/components/workspace/workspace-ui';
 import { BOARD_SECTION_LABELS, formatWindow, todayIsoDate } from '@/lib/delivery-labels';
 import { resolveAttentionHref } from '@/lib/attention-ui';
+import { OrderJourneyStrip } from '@/components/order/order-journey-strip';
+import { DirectorKpiPanel } from '@/components/director/director-kpi-panel';
+import {
+  buildJourneyStrip,
+  journeyInputFromWorkspaceCard,
+} from '@/lib/order-journey';
 import {
   orderPhaseLabel,
   resolveOrderPhase,
@@ -157,10 +163,18 @@ export default function StoreHomePage() {
     return `${base}/orders?filter=${encodeURIComponent(filter)}`;
   }
 
+  useEffect(() => {
+    if (tab === 'queue' && canWorkspace) {
+      router.replace(`${base}/orders/calendar`);
+    }
+  }, [tab, canWorkspace, base, router]);
+
   function setTab(next: string) {
-    const href =
-      next === 'queue' ? `${base}/home?tab=queue` : `${base}/home`;
-    router.replace(href);
+    if (next === 'queue') {
+      router.push(`${base}/orders/calendar`);
+      return;
+    }
+    router.replace(`${base}/home`);
   }
 
   function lifecycleFilterHref(phase: string) {
@@ -169,6 +183,26 @@ export default function StoreHomePage() {
     }
     return `${base}/orders?phase=${encodeURIComponent(phase)}`;
   }
+
+  const deliveryByOrderId = useMemo(() => {
+    const map = new Map<
+      string,
+      { id: string; number: string; status: string; handedOverAt: string | null }
+    >();
+    if (!deliveryBoard) return map;
+    for (const section of Object.values(deliveryBoard.sections)) {
+      for (const card of section) {
+        if (map.has(card.orderId)) continue;
+        map.set(card.orderId, {
+          id: card.id,
+          number: card.number,
+          status: card.status,
+          handedOverAt: card.handedOverAt,
+        });
+      }
+    }
+    return map;
+  }, [deliveryBoard]);
 
   const priorityQueue = useMemo(() => {
     if (!workspace) return [];
@@ -280,7 +314,7 @@ export default function StoreHomePage() {
               onChange={setTab}
               options={[
                 { value: 'overview', label: 'Обзор' },
-                { value: 'queue', label: 'Очередь' },
+                { value: 'queue', label: 'Смена' },
               ]}
             />
           </Section>
@@ -304,6 +338,11 @@ export default function StoreHomePage() {
                     <strong>Новый заказ</strong>
                   </Link>
                 ) : null}
+                {canWorkspace ? (
+                  <Link href={`${base}/orders/calendar`} className="hub-quick__card hub-quick__card--accent">
+                    <strong>Календарь заказов</strong>
+                  </Link>
+                ) : null}
                 {canDelivery ? (
                   <Link href={`${base}/deliveries`} className="hub-quick__card">
                     <strong>Доска доставок</strong>
@@ -311,7 +350,7 @@ export default function StoreHomePage() {
                 ) : null}
                 {canOperations ? (
                   <Link href={`${base}/operations`} className="hub-quick__card">
-                    <strong>Операции</strong>
+                    <strong>KPI директора</strong>
                   </Link>
                 ) : null}
               </div>
@@ -447,6 +486,16 @@ export default function StoreHomePage() {
               </Section>
             ) : null}
 
+            {showOverviewSections && operations?.directorKpi ? (
+              <Section>
+                <DirectorKpiPanel
+                  base={base}
+                  directorKpi={operations.directorKpi}
+                  variant="compact"
+                />
+              </Section>
+            ) : null}
+
             {showOverviewSections && operations ? (
               <Section>
                 <h2 className="home-section-title">Магазин</h2>
@@ -519,6 +568,14 @@ export default function StoreHomePage() {
                         {priorityQueue.map((card) => {
                           const boardAction =
                             card.primaryAction === 'CLAIM' ? null : card.primaryAction;
+                          const linkedDelivery = deliveryByOrderId.get(card.id) ?? null;
+                          const journeyStrip = (
+                            <OrderJourneyStrip
+                              nodes={buildJourneyStrip(
+                                journeyInputFromWorkspaceCard(base, card, linkedDelivery),
+                              )}
+                            />
+                          );
                           return (
                           <OrderCard
                             key={card.id}
@@ -529,6 +586,7 @@ export default function StoreHomePage() {
                             urgency={card.urgency}
                             hasDeficit={card.hasDeficit}
                             href={`${base}/work-orders/${card.id}`}
+                            journey={journeyStrip}
                             countdown={
                               <CountdownBadge
                                 readyAt={card.readyAt}
@@ -554,7 +612,7 @@ export default function StoreHomePage() {
                     )}
                     <div className="hub-card-footer">
                       <Link href={`${base}/orders`}>Все заказы</Link>
-                      <Link href={`${base}/home?tab=queue`}>Очередь</Link>
+                      <Link href={`${base}/orders/calendar`}>Календарь смены</Link>
                     </div>
                   </Card>
                 ) : null}

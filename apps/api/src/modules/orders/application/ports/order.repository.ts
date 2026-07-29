@@ -165,6 +165,45 @@ export type OrderDashboardBuckets = {
   inProgress: OrderView[];
 };
 
+export type OrderBoardPaymentStatus = 'PAID' | 'PARTIALLY_PAID' | 'UNPAID';
+
+export type OrderBoardCardView = {
+  id: string;
+  number: string;
+  status: string;
+  type: string;
+  readyAt: string | null;
+  customerName: string | null;
+  customerPhone: string | null;
+  recipientName: string | null;
+  plannedPrice: string | null;
+  assignedFloristId: string | null;
+  floristDisplayName: string | null;
+  displayPhase: string;
+  displayPhaseLabel: string;
+  column: string;
+  paymentStatus: OrderBoardPaymentStatus;
+  saleId: string | null;
+  deliveryId: string | null;
+  deliveryStatus: string | null;
+  deliveryWindowStart: string | null;
+  deliveryWindowEnd: string | null;
+  compositionLabel: string | null;
+};
+
+export type OrderCalendarBoardView = {
+  date: string;
+  month: string;
+  sections: {
+    NEW: OrderBoardCardView[];
+    IN_WORK: OrderBoardCardView[];
+    READY: OrderBoardCardView[];
+    WITH_COURIER: OrderBoardCardView[];
+    HANDED_OFF: OrderBoardCardView[];
+  };
+  dateCounts: Array<{ date: string; count: number }>;
+};
+
 export type PlannedCompositionItemInput = {
   id: string;
   itemId: string;
@@ -402,4 +441,10 @@ export interface OrderRepository {
     message: string;
   }): Promise<CommentView>;
   listComments(organizationId: string, orderId: string): Promise<CommentView[]>;
+
+  getCalendarBoard(input: {
+    organizationId: string;
+    storeId: string;
+    date: Date;
+  }): Promise<OrderCalendarBoardView>;
 }

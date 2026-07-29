@@ -34,10 +34,11 @@ import { InlineAlert } from '@/components/workspace/workspace-ui';
 import { StatusBadge } from '@/components/layout/status-badge';
 import { deliveryStatusLabel } from '@/lib/delivery-labels';
 import { newIdempotencyKey } from '@/lib/idempotency';
+import { OrderJourneyTree } from '@/components/order/order-journey-tree';
+import { pickLinkedSale } from '@/lib/order-journey';
 import {
   combineDateAndTime,
   isOrderHeaderEditable,
-  orderLifecycleSteps,
   orderPhaseLabel,
   resolveOrderPhase,
   splitReadyAt,
@@ -80,6 +81,11 @@ export default function OrderDetailPage() {
 
   const [order, setOrder] = useState<OrderDetail | null>(null);
   const [delivery, setDelivery] = useState<DeliveryJobDto | null>(null);
+  const [linkedSale, setLinkedSale] = useState<{
+    id: string;
+    number: string;
+    status: string;
+  } | null>(null);
   const [items, setItems] = useState<Array<{ id: string; name: string; code: string; itemType: string }>>([]);
   const [flowerItemId, setFlowerItemId] = useState('');
   const [flowerQty, setFlowerQty] = useState('1');
@@ -129,13 +135,14 @@ export default function OrderDetailPage() {
 
   const canReadPayments = auth.hasPermission('payments:read');
   const canReadDelivery = auth.hasPermission('delivery:read');
+  const canReadSales = auth.hasPermission('sales:read');
 
   async function load() {
     setLoading(true);
     setError(null);
     try {
       const client = getApiClient();
-      const [detail, catalog, methods, deliveries, history] = await Promise.all([
+      const [detail, catalog, methods, deliveries, sales, history] = await Promise.all([
         client.getOrder(organizationId, storeId, orderId),
         client.listItems(organizationId, { pageSize: 100, status: 'ACTIVE' }),
         canReadPayments &&
@@ -145,9 +152,13 @@ export default function OrderDetailPage() {
         canReadDelivery
           ? client.listDeliveries(organizationId, storeId)
           : Promise.resolve([]),
+        canReadSales
+          ? client.listSales(organizationId, storeId, { orderId })
+          : Promise.resolve([]),
         client.listOrderAuditTrail(organizationId, storeId, orderId).catch(() => []),
       ]);
       setOrder(detail);
+      setLinkedSale(pickLinkedSale(sales));
       setAuditTrail(history);
       setEditType(detail.type === 'DELIVERY' ? 'DELIVERY' : 'PICKUP');
       const { date, time } = splitReadyAt(detail.readyAt);
@@ -372,10 +383,6 @@ export default function OrderDetailPage() {
     [order, delivery],
   );
 
-  const lifecycleSteps = orderLifecycleSteps();
-  const currentStepIdx =
-    phase && order?.status !== 'CANCELLED' ? lifecycleSteps.indexOf(phase) : -1;
-
   if (!auth.hasPermission('orders:read')) {
     return <p className="page-state">Доступ запрещён</p>;
   }
@@ -413,24 +420,36 @@ export default function OrderDetailPage() {
 
         {order ? (
           <>
-            <div className="order-lifecycle" aria-label="Этапы заказа">
-              {lifecycleSteps.map((step, idx) => {
-                const reached = order.status !== 'CANCELLED' && currentStepIdx >= idx;
-                const isCurrent = phase === step;
-                return (
-                  <div
-                    key={step}
-                    className={`order-lifecycle__step${reached ? ' order-lifecycle__step--done' : ''}${isCurrent ? ' order-lifecycle__step--current' : ''}`}
-                  >
-                    <span className="order-lifecycle__dot" />
-                    <span className="order-lifecycle__label">
-                      {order ? orderPhaseLabel(step, order) : orderPhaseLabel(step)}
-                    </span>
-                  </div>
-                );
-              })}
-              {order.status === 'CANCELLED' ? <StatusBadge status="CANCELLED" /> : null}
-            </div>
+            <OrderJourneyTree
+              basePath={base}
+              order={{
+                id: order.id,
+                number: order.number,
+                type: order.type,
+                status: order.status,
+                displayPhase: order.displayPhase,
+                displayPhaseLabel: order.displayPhaseLabel,
+                hasActiveAssignment: Boolean(order.assignedFloristId),
+                completedAt: order.completedAt,
+              }}
+              delivery={
+                delivery
+                  ? {
+                      id: delivery.id,
+                      number: delivery.number,
+                      status: delivery.status,
+                      handedOverAt: delivery.handedOverAt,
+                    }
+                  : null
+              }
+              sale={linkedSale}
+              links={{
+                order: true,
+                delivery: canReadDelivery,
+                sale: canReadSales,
+              }}
+              permissions={{ createSale: auth.hasPermission('sales:create') }}
+            />
 
             <Section>
               <Card title="Действия">

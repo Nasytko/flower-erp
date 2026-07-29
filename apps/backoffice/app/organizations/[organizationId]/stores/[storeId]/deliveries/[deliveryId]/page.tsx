@@ -32,6 +32,8 @@ import {
   formatWindow,
   newIdempotencyKey,
 } from '@/lib/delivery-labels';
+import { OrderJourneyTree } from '@/components/order/order-journey-tree';
+import { pickLinkedSale } from '@/lib/order-journey';
 import {
   orderPhaseLabel,
   resolveOrderPhase,
@@ -93,8 +95,22 @@ export default function DeliveryDetailPage() {
   const [editApartment, setEditApartment] = useState('');
   const [editDeliveryComment, setEditDeliveryComment] = useState('');
   const [addressErrors, setAddressErrors] = useState<FieldErrors>({});
+  const [journeyOrder, setJourneyOrder] = useState<{
+    id: string;
+    number: string;
+    type: string;
+    status: string;
+    completedAt?: string | null;
+  } | null>(null);
+  const [linkedSale, setLinkedSale] = useState<{
+    id: string;
+    number: string;
+    status: string;
+  } | null>(null);
 
   const canRead = auth.hasPermission('delivery:read');
+  const canReadOrders = auth.hasPermission('orders:read');
+  const canReadSales = auth.hasPermission('sales:read');
   const canPayment = auth.hasPermission('delivery:view-payment-summary');
   const canAudit = auth.hasPermission('audit:read');
 
@@ -116,12 +132,43 @@ export default function DeliveryDetailPage() {
       setEditCity(sum.delivery.city);
       setEditApartment(sum.delivery.apartment ?? '');
       setEditDeliveryComment(sum.delivery.deliveryComment ?? '');
+      const orderId = sum.delivery.orderId;
+      if (canReadOrders || canReadSales) {
+        const [orderDetail, sales] = await Promise.all([
+          canReadOrders
+            ? client.getOrder(organizationId, storeId, orderId).catch(() => null)
+            : Promise.resolve(null),
+          canReadSales
+            ? client.listSales(organizationId, storeId, { orderId })
+            : Promise.resolve([]),
+        ]);
+        setJourneyOrder(
+          orderDetail
+            ? {
+                id: orderDetail.id,
+                number: orderDetail.number,
+                type: orderDetail.type,
+                status: orderDetail.status,
+                completedAt: orderDetail.completedAt,
+              }
+            : {
+                id: orderId,
+                number: sum.orderNumber ?? orderId,
+                type: 'DELIVERY',
+                status: sum.orderStatus ?? 'DRAFT',
+              },
+        );
+        setLinkedSale(pickLinkedSale(sales));
+      } else {
+        setJourneyOrder(null);
+        setLinkedSale(null);
+      }
     } catch (err) {
       setError(err instanceof ApiClientError ? err.message : 'Не удалось загрузить доставку');
     } finally {
       setLoading(false);
     }
-  }, [organizationId, storeId, deliveryId]);
+  }, [organizationId, storeId, deliveryId, canReadOrders, canReadSales]);
 
   useEffect(() => {
     if (!canRead) return;
@@ -286,6 +333,27 @@ export default function DeliveryDetailPage() {
 
         {!loading && summary && job ? (
           <>
+            {journeyOrder ? (
+              <OrderJourneyTree
+                basePath={base}
+                compact
+                title="Путь заказа"
+                order={journeyOrder}
+                delivery={{
+                  id: job.id,
+                  number: job.number,
+                  status: job.status,
+                  handedOverAt: job.handedOverAt,
+                }}
+                sale={linkedSale}
+                links={{
+                  order: canReadOrders,
+                  delivery: true,
+                  sale: canReadSales,
+                }}
+                permissions={{ createSale: auth.hasPermission('sales:create') }}
+              />
+            ) : null}
             <Section>
               <Card title="Статус">
                 <div className="meta-row">

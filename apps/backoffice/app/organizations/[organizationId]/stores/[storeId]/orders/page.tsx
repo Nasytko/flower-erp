@@ -12,6 +12,7 @@ import { FancySelect } from '@/components/layout/fancy-select';
 import { MoneyBynInput, parseBynToApi } from '@/components/layout/money-byn-input';
 import { defaultReadyDate, ReadyAtField } from '@/components/layout/ready-at-field';
 import { DocRef } from '@/components/layout/doc-ref';
+import { OrderJourneyStrip } from '@/components/order/order-journey-strip';
 import { PageContainer } from '@/components/layout/page-container';
 import { PageHeader } from '@/components/layout/page-header';
 import { Section } from '@/components/layout/section';
@@ -31,6 +32,7 @@ import {
   type OrderListFilter,
   type OrderPhase,
 } from '@/lib/order-ui';
+import { buildJourneyStrip, pickLinkedSale } from '@/lib/order-journey';
 import { statusLabelRu } from '@/lib/status-labels-ru';
 
 type OrderRow = {
@@ -49,8 +51,16 @@ type OrderRow = {
 type DeliveryRow = {
   id: string;
   orderId: string;
+  number: string;
   status: string;
   handedOverAt?: string | null;
+};
+
+type SaleRow = {
+  id: string;
+  orderId: string | null;
+  number: string;
+  status: string;
 };
 
 const ORDER_LIST_FILTERS: OrderListFilter[] = [
@@ -98,6 +108,7 @@ export default function OrdersPage() {
 
   const [orders, setOrders] = useState<OrderRow[]>([]);
   const [deliveries, setDeliveries] = useState<DeliveryRow[]>([]);
+  const [sales, setSales] = useState<SaleRow[]>([]);
   const [customers, setCustomers] = useState<CustomerOption[]>([]);
   const [orderType, setOrderType] = useState<'PICKUP' | 'DELIVERY'>('PICKUP');
   const [customerId, setCustomerId] = useState('');
@@ -120,6 +131,7 @@ export default function OrdersPage() {
   const [creating, setCreating] = useState(false);
 
   const canReadDelivery = auth.hasPermission('delivery:read');
+  const canReadSales = auth.hasPermission('sales:read');
 
   useEffect(() => {
     const phase = searchParams.get('phase');
@@ -138,7 +150,7 @@ export default function OrdersPage() {
         activeFilter === 'ALL'
           ? undefined
           : { phase: activeFilter };
-      const [list, customerList, store, deliveryList] = await Promise.all([
+      const [list, customerList, store, deliveryList, saleList] = await Promise.all([
         client.listOrders(organizationId, storeId, orderQuery),
         auth.hasPermission('customers:read')
           ? client.listCustomers(organizationId)
@@ -146,16 +158,32 @@ export default function OrdersPage() {
         client.getStore(organizationId, storeId),
         canReadDelivery
           ? client.listDeliveries(organizationId, storeId)
-          : Promise.resolve([] as DeliveryRow[]),
+          : Promise.resolve([]),
+        canReadSales
+          ? client.listSales(organizationId, storeId)
+          : Promise.resolve([]),
       ]);
       setOrders(list);
       setDeliveries(
-        deliveryList.filter((d) => d.status !== 'CANCELLED').map((d) => ({
-          id: d.id,
-          orderId: d.orderId,
-          status: d.status,
-          handedOverAt: d.handedOverAt,
-        })),
+        deliveryList
+          .filter((d) => d.status !== 'CANCELLED')
+          .map((d) => ({
+            id: d.id,
+            orderId: d.orderId,
+            number: d.number,
+            status: d.status,
+            handedOverAt: d.handedOverAt,
+          })),
+      );
+      setSales(
+        saleList
+          .filter((s) => s.orderId)
+          .map((s) => ({
+            id: s.id,
+            orderId: s.orderId,
+            number: s.number,
+            status: s.status,
+          })),
       );
       setCustomers(customerList.filter((c) => c.status === 'ACTIVE'));
       setStoreCity(store.city?.trim() || '');
@@ -179,6 +207,22 @@ export default function OrdersPage() {
     }
     return map;
   }, [deliveries]);
+
+  const saleByOrderId = useMemo(() => {
+    const grouped = new Map<string, SaleRow[]>();
+    for (const sale of sales) {
+      if (!sale.orderId) continue;
+      const list = grouped.get(sale.orderId) ?? [];
+      list.push(sale);
+      grouped.set(sale.orderId, list);
+    }
+    const map = new Map<string, SaleRow>();
+    for (const [orderId, list] of grouped) {
+      const picked = pickLinkedSale(list);
+      if (picked) map.set(orderId, picked);
+    }
+    return map;
+  }, [sales]);
 
   const filteredOrders = useMemo(() => {
     if (filter === 'ALL') return orders.filter((item) => item.status !== 'CANCELLED');
@@ -249,11 +293,18 @@ export default function OrdersPage() {
             { label: 'Заказы' },
           ]}
           actions={
-            canCreate ? (
-              <Button type="button" onClick={() => setShowCreate((v) => !v)}>
-                {showCreate ? 'Скрыть' : 'Новый заказ'}
-              </Button>
-            ) : null
+            <div className="page-header__actions">
+              <Link href={`${base}/orders/calendar`}>
+                <Button type="button" variant="secondary">
+                  Календарь
+                </Button>
+              </Link>
+              {canCreate ? (
+                <Button type="button" onClick={() => setShowCreate((v) => !v)}>
+                  {showCreate ? 'Скрыть' : 'Новый заказ'}
+                </Button>
+              ) : null}
+            </div>
           }
         />
 
@@ -461,6 +512,7 @@ export default function OrdersPage() {
             <ul className="list-stack">
               {filteredOrders.map((item) => {
                 const delivery = deliveryByOrderId.get(item.id) ?? null;
+                const sale = saleByOrderId.get(item.id) ?? null;
                 const phase = resolveOrderPhase(
                   {
                     status: item.status,
@@ -470,6 +522,38 @@ export default function OrdersPage() {
                     hasActiveAssignment: Boolean(item.activeAssignment),
                   },
                   delivery,
+                );
+                const journeyStrip = (
+                  <OrderJourneyStrip
+                    nodes={buildJourneyStrip({
+                      basePath: base,
+                      order: {
+                        id: item.id,
+                        number: item.number,
+                        type: item.type ?? 'PICKUP',
+                        status: item.status,
+                        displayPhase: item.displayPhase,
+                        displayPhaseLabel: item.displayPhaseLabel,
+                        hasActiveAssignment: Boolean(item.activeAssignment),
+                      },
+                      delivery: delivery
+                        ? {
+                            id: delivery.id,
+                            number: delivery.number,
+                            status: delivery.status,
+                            handedOverAt: delivery.handedOverAt,
+                          }
+                        : null,
+                      sale: sale
+                        ? { id: sale.id, number: sale.number, status: sale.status }
+                        : null,
+                      links: {
+                        order: true,
+                        delivery: canReadDelivery,
+                        sale: canReadSales,
+                      },
+                    })}
+                  />
                 );
                 return (
                   <li key={item.id}>
@@ -484,6 +568,7 @@ export default function OrdersPage() {
                             {item.type ? statusLabelRu(item.type) : null}
                             {item.readyAt ? ` · ${formatReadyAt(item.readyAt)}` : null}
                           </div>
+                          <div className="order-queue__journey">{journeyStrip}</div>
                         </div>
                         <OrderPhaseBadge
                           phase={phase}

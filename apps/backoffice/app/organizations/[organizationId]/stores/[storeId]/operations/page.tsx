@@ -18,6 +18,7 @@ import { PageHeader } from '@/components/layout/page-header';
 import { Section } from '@/components/layout/section';
 import { EmptyState, ErrorState, LoadingState } from '@/components/layout/states';
 import { AttentionItem, MetricCard } from '@/components/workspace/workspace-ui';
+import { DirectorKpiPanel } from '@/components/director/director-kpi-panel';
 import { resolveAttentionHref } from '@/lib/attention-ui';
 
 export default function OperationsPage() {
@@ -108,11 +109,11 @@ export default function OperationsPage() {
     <main>
       <PageContainer>
         <PageHeader
-          title="Операции"
-          description="Операционная панель директора"
+          title="KPI директора"
+          description="Заказы, оплаты поставщикам, заказанные цветы и юнит-экономика"
           breadcrumbs={[
             { label: 'Магазин', href: base },
-            { label: 'Операции' },
+            { label: 'KPI директора' },
           ]}
           actions={
             <Button type="button" variant="secondary" onClick={() => void load()}>
@@ -126,6 +127,10 @@ export default function OperationsPage() {
 
         {!loading && !error && data ? (
           <>
+            {data.directorKpi ? (
+              <DirectorKpiPanel base={base} directorKpi={data.directorKpi} />
+            ) : null}
+
             <Section>
               <div className="metric-grid">
                 <MetricCard label="Заказы сегодня" value={data.kpis.ordersToday} href={`${base}/today`} />

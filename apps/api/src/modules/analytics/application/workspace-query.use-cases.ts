@@ -256,7 +256,9 @@ export class WorkspaceQueryUseCases {
     this.assertOperationsAccess();
     await this.organizations.getStore(organizationId, storeId);
     const now = this.clock.now();
-    const [kpis, attentionItems] = await Promise.all([
+    const permissions = getRequestContext()?.auth?.permissions ?? [];
+    const includeMargin = hasPermission(permissions, ['sales:view-margin']);
+    const [kpis, attentionItems, directorKpi] = await Promise.all([
       this.reads.getOperationalKpis({ organizationId, storeId, now }),
       this.reads.listAttentionItems({
         organizationId,
@@ -265,12 +267,20 @@ export class WorkspaceQueryUseCases {
         soonMinutes: this.env.WORKSPACE_READY_SOON_MINUTES,
         lowStockThreshold: this.env.WORKSPACE_LOW_STOCK_THRESHOLD,
       }),
+      this.reads.getDirectorKpi({
+        organizationId,
+        storeId,
+        now,
+        soonMinutes: this.env.WORKSPACE_READY_SOON_MINUTES,
+        includeMargin,
+      }),
     ]);
 
     return {
       serverNow: now.toISOString(),
       kpis,
       attentionItems,
+      directorKpi,
     };
   }
 

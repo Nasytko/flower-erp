@@ -18,6 +18,7 @@ import { PageHeader } from '@/components/layout/page-header';
 import { Section } from '@/components/layout/section';
 import { ErrorState, LoadingState } from '@/components/layout/states';
 import { StatusBadge } from '@/components/layout/status-badge';
+import { OrderJourneyTree } from '@/components/order/order-journey-tree';
 import { formatApiError } from '@/lib/format-api-error';
 import { statusLabelRu, timelineMessageRu } from '@/lib/status-labels-ru';
 import { newIdempotencyKey } from '@/lib/idempotency';
@@ -65,10 +66,25 @@ function SaleDetailPageInner() {
   const [infoMessage, setInfoMessage] = useState<string | null>(
     searchParams.get('completed') === '1' ? 'Продажа завершена, состав списан со склада.' : null,
   );
+  const [journeyOrder, setJourneyOrder] = useState<{
+    id: string;
+    number: string;
+    type: string;
+    status: string;
+    completedAt?: string | null;
+  } | null>(null);
+  const [journeyDelivery, setJourneyDelivery] = useState<{
+    id: string;
+    number: string;
+    status: string;
+    handedOverAt?: string | null;
+  } | null>(null);
 
   const canViewCost = auth.hasPermission('sales:view-cost');
   const canViewMargin = auth.hasPermission('sales:view-margin');
   const canReadPayments = auth.hasPermission('payments:read');
+  const canReadOrders = auth.hasPermission('orders:read');
+  const canReadDelivery = auth.hasPermission('delivery:read');
 
   async function load() {
     setLoading(true);
@@ -104,6 +120,44 @@ function SaleDetailPageInner() {
       setConsumption(cons);
       setPaymentSummary(summary);
       setPaymentMethods(methods);
+      if (detail.orderId && (canReadOrders || canReadDelivery)) {
+        const orderId = detail.orderId;
+        const [orderDetail, deliveries] = await Promise.all([
+          canReadOrders
+            ? client.getOrder(organizationId, storeId, orderId).catch(() => null)
+            : Promise.resolve(null),
+          canReadDelivery
+            ? client.listDeliveries(organizationId, storeId)
+            : Promise.resolve([]),
+        ]);
+        setJourneyOrder(
+          orderDetail
+            ? {
+                id: orderDetail.id,
+                number: orderDetail.number,
+                type: orderDetail.type,
+                status: orderDetail.status,
+                completedAt: orderDetail.completedAt,
+              }
+            : null,
+        );
+        const linked = deliveries.find(
+          (d) => d.orderId === orderId && d.status !== 'CANCELLED',
+        );
+        setJourneyDelivery(
+          linked
+            ? {
+                id: linked.id,
+                number: linked.number,
+                status: linked.status,
+                handedOverAt: linked.handedOverAt,
+              }
+            : null,
+        );
+      } else {
+        setJourneyOrder(null);
+        setJourneyDelivery(null);
+      }
       if (methods[0]) {
         setPaymentLines((prev) =>
           prev.length === 1 && !prev[0]!.methodId && !prev[0]!.amount
@@ -227,6 +281,22 @@ function SaleDetailPageInner() {
 
         {sale ? (
           <>
+            {sale.orderId && journeyOrder ? (
+              <OrderJourneyTree
+                basePath={base}
+                compact
+                title="Путь заказа"
+                order={journeyOrder}
+                delivery={journeyDelivery}
+                sale={{ id: sale.id, number: sale.number, status: sale.status }}
+                links={{
+                  order: canReadOrders,
+                  delivery: canReadDelivery,
+                  sale: true,
+                }}
+                permissions={{ createSale: false }}
+              />
+            ) : null}
             <Section>
               <Card title="Сводка">
                 <div className="stack-form">

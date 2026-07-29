@@ -24,7 +24,7 @@ export const PRIMARY_NAV: NavItem[] = [
     storeScoped: true,
   },
   {
-    href: '/organizations/{orgId}/stores/{storeId}/orders',
+    href: '/organizations/{orgId}/stores/{storeId}/orders/calendar',
     label: 'Заказы',
     permission: 'orders:read',
     storeScoped: true,
@@ -85,7 +85,7 @@ export const NAV_ACTION_SHORTCUTS: NavActionShortcut[] = [
   { id: 'new-order', label: 'Новый заказ', navLabel: 'Заказы' },
   { id: 'new-sale', label: 'Новая продажа', navLabel: 'Продажи' },
   { id: 'stock', label: 'Остатки', navLabel: 'Остатки' },
-  { id: 'today', label: 'Обзор', navLabel: 'Обзор' },
+  { id: 'today', label: 'Смена', navLabel: 'Заказы' },
 ];
 
 /**
@@ -100,12 +100,11 @@ export function resolveStoreHomePath(
 ): string {
   const base = `/organizations/${organizationId}/stores/${storeId}`;
 
-  if (
-    hasPermission('workspace:read') ||
-    hasPermission('orders:read') ||
-    hasPermission('operations:read') ||
-    hasPermission('delivery:read')
-  ) {
+  if (hasPermission('orders:read') || hasPermission('workspace:read')) {
+    return `${base}/orders/calendar`;
+  }
+
+  if (hasPermission('operations:read') || hasPermission('delivery:read')) {
     return `${base}/home`;
   }
   return base;

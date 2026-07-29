@@ -331,6 +331,12 @@ export class ListOrdersQueryDto {
   phase?: string;
 }
 
+export class OrderBoardQueryDto {
+  @IsOptional()
+  @IsString()
+  date?: string;
+}
+
 /** @deprecated */
 export class OrderItemDto {
   @IsUUID()

@@ -1607,6 +1607,16 @@ export class OrderUseCases {
     return Promise.all(list.map((o) => this.enrichWithReservation(o)));
   }
 
+  async getCalendarBoard(organizationId: string, storeId: string, date?: string) {
+    await this.organizations.getStore(organizationId, storeId);
+    const parsed = date ? new Date(date) : this.clock.now();
+    return this.orders.getCalendarBoard({
+      organizationId,
+      storeId,
+      date: parsed,
+    });
+  }
+
   async getDashboard(
     organizationId: string,
     storeId: string,

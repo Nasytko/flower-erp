@@ -5,6 +5,10 @@ import {
   type AttentionItemProjection,
   type LowStockWarning,
   type OperationalKpis,
+  type DirectorKpi,
+  type FinancePeriodKpi,
+  type OrderedFlowerRow,
+  type SupplierPayableRow,
   type OperationalStockRow,
   type PlannedLineProjection,
   type WorkspaceFilter,
@@ -638,6 +642,189 @@ export class PrismaWorkspaceReadRepository implements WorkspaceReadRepository {
       flowerShortageOrders,
       flowersBelowThreshold,
       suppliesAwaitingReceipt,
+    };
+  }
+
+  async getDirectorKpi(input: {
+    organizationId: string;
+    storeId: string;
+    now: Date;
+    soonMinutes: number;
+    includeMargin: boolean;
+  }): Promise<DirectorKpi> {
+    const dayStartAt = dayStart(input.now);
+    const dayEndAt = dayEnd(input.now);
+    const weekStartAt = new Date(dayStartAt);
+    weekStartAt.setDate(weekStartAt.getDate() - 6);
+
+    const payablesHorizon = new Date(dayStartAt);
+    payablesHorizon.setDate(payablesHorizon.getDate() + 14);
+
+    const [buckets, financeToday, financeWeek, supplies, flowerItems] = await Promise.all([
+      this.countWorkspaceBuckets({
+        organizationId: input.organizationId,
+        storeId: input.storeId,
+        now: input.now,
+        soonMinutes: input.soonMinutes,
+      }),
+      this.aggregateFinancePeriod({
+        organizationId: input.organizationId,
+        storeId: input.storeId,
+        from: dayStartAt,
+        to: dayEndAt,
+        includeMargin: input.includeMargin,
+      }),
+      this.aggregateFinancePeriod({
+        organizationId: input.organizationId,
+        storeId: input.storeId,
+        from: weekStartAt,
+        to: dayEndAt,
+        includeMargin: input.includeMargin,
+      }),
+      this.prisma.supply.findMany({
+        where: {
+          organizationId: input.organizationId,
+          storeId: input.storeId,
+          status: { notIn: ['DRAFT', 'ANNULLED'] },
+          paymentDueDate: { not: null, lte: payablesHorizon },
+        },
+        include: {
+          supplier: { select: { name: true } },
+          items: { select: { orderedQuantity: true, plannedUnitPrice: true } },
+        },
+        orderBy: { paymentDueDate: 'asc' },
+        take: 15,
+      }),
+      this.prisma.supplyItem.findMany({
+        where: {
+          organizationId: input.organizationId,
+          supply: {
+            storeId: input.storeId,
+            status: { in: ['SUBMITTED_TO_SUPPLIER', 'PARTIALLY_RECEIVED'] },
+          },
+          item: { itemType: 'FLOWER' },
+        },
+        include: {
+          item: { select: { id: true, name: true, code: true } },
+        },
+      }),
+    ]);
+
+    const todayStartMs = dayStartAt.getTime();
+    const upcoming: SupplierPayableRow[] = [];
+    let overdueCount = 0;
+    let upcomingTotal = 0;
+
+    for (const supply of supplies) {
+      if (!supply.paymentDueDate) continue;
+      const due = new Date(supply.paymentDueDate);
+      const dueStart = dayStart(due);
+      const daysUntilDue = Math.round((dueStart.getTime() - todayStartMs) / 86_400_000);
+      const isOverdue = daysUntilDue < 0;
+      if (isOverdue) overdueCount += 1;
+
+      let amount = 0;
+      for (const line of supply.items) {
+        const price = Number(line.plannedUnitPrice?.toString() ?? '0');
+        const qty = Number(line.orderedQuantity.toString());
+        amount += qty * price;
+      }
+
+      upcomingTotal += amount;
+      upcoming.push({
+        supplyId: supply.id,
+        supplyNumber: supply.number,
+        supplierName: supply.supplier.name,
+        paymentDueDate: due.toISOString().slice(0, 10),
+        amount: amount.toFixed(2),
+        isOverdue,
+        daysUntilDue,
+      });
+    }
+
+    const flowerTotals = new Map<string, OrderedFlowerRow>();
+    for (const line of flowerItems) {
+      const existing = flowerTotals.get(line.itemId);
+      const qty = Number(line.orderedQuantity.toString());
+      if (existing) {
+        existing.orderedQuantity = (
+          Number(existing.orderedQuantity) + qty
+        ).toFixed(3);
+      } else {
+        flowerTotals.set(line.itemId, {
+          itemId: line.item.id,
+          itemName: line.item.name,
+          itemCode: line.item.code,
+          orderedQuantity: qty.toFixed(3),
+        });
+      }
+    }
+
+    const orderedFlowers = [...flowerTotals.values()].sort((a, b) =>
+      a.itemName.localeCompare(b.itemName, 'ru'),
+    );
+
+    return {
+      orders: {
+        newUnassigned: buckets.unassigned ?? 0,
+        inPreparation: buckets.in_preparation ?? 0,
+        ready: buckets.ready ?? 0,
+        overdue: buckets.overdue ?? 0,
+      },
+      finance: {
+        today: financeToday,
+        week: financeWeek,
+        marginRedacted: !input.includeMargin,
+      },
+      payables: {
+        upcoming,
+        overdueCount,
+        upcomingTotalAmount: upcomingTotal.toFixed(2),
+      },
+      orderedFlowers,
+    };
+  }
+
+  private async aggregateFinancePeriod(input: {
+    organizationId: string;
+    storeId: string;
+    from: Date;
+    to: Date;
+    includeMargin: boolean;
+  }): Promise<FinancePeriodKpi> {
+    const agg = await this.prisma.sale.aggregate({
+      where: {
+        organizationId: input.organizationId,
+        storeId: input.storeId,
+        status: 'COMPLETED',
+        completedAt: { gte: input.from, lte: input.to },
+      },
+      _sum: {
+        netAmount: true,
+        costAmount: true,
+        grossProfitAmount: true,
+      },
+      _count: true,
+    });
+
+    const revenue = Number(agg._sum.netAmount?.toString() ?? '0');
+    const cogs = input.includeMargin
+      ? Number(agg._sum.costAmount?.toString() ?? '0')
+      : null;
+    const profit = input.includeMargin
+      ? Number(agg._sum.grossProfitAmount?.toString() ?? '0')
+      : null;
+    const avgMarginPercent =
+      input.includeMargin && revenue > 0 && profit != null
+        ? ((profit / revenue) * 100).toFixed(1)
+        : null;
+
+    return {
+      revenue: revenue.toFixed(2),
+      cogs: cogs != null ? cogs.toFixed(2) : null,
+      grossProfit: profit != null ? profit.toFixed(2) : null,
+      avgMarginPercent,
+      completedSalesCount: agg._count,
     };
   }
 

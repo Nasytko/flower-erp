@@ -22,6 +22,14 @@ import { PrismaService } from '../../../infrastructure/prisma/prisma.service';
 import { resolvePrismaClient } from '../../../infrastructure/persistence/prisma-transaction-context';
 import type { OrderOccasion, OrderStatus, OrderType } from '../domain/order-rules';
 import {
+  orderDisplayPhaseLabel,
+  resolveOrderDisplayPhase,
+} from '../domain/order-display-phase';
+import {
+  resolveOrderBoardColumn,
+  type OrderBoardColumn,
+} from '../domain/order-board-column';
+import {
   AssignmentConflictError,
   CustomerPhoneConflictError,
   type ActualCompositionItemInput,
@@ -37,6 +45,9 @@ import {
   type ItemBriefView,
   type OrderRepository,
   type OrderView,
+  type OrderCalendarBoardView,
+  type OrderBoardCardView,
+  type OrderBoardPaymentStatus,
   type PlannedCompositionItemInput,
   type TimelineEventView,
 } from '../application/ports/order.repository';
@@ -918,4 +929,267 @@ export class PrismaOrderRepository implements OrderRepository {
     });
     return rows.map(mapComment);
   }
+
+  async getCalendarBoard(input: {
+    organizationId: string;
+    storeId: string;
+    date: Date;
+  }): Promise<OrderCalendarBoardView> {
+    const dayStartAt = calendarDayStart(input.date);
+    const dayEndAt = calendarDayEnd(input.date);
+    const monthStartAt = new Date(dayStartAt.getFullYear(), dayStartAt.getMonth(), 1);
+    const monthEndAt = new Date(
+      dayStartAt.getFullYear(),
+      dayStartAt.getMonth() + 1,
+      0,
+      23,
+      59,
+      59,
+      999,
+    );
+
+    const client = this.client();
+    const [orders, monthRows] = await Promise.all([
+      client.order.findMany({
+        where: {
+          organizationId: input.organizationId,
+          storeId: input.storeId,
+          status: { not: 'CANCELLED' },
+          readyAt: { gte: dayStartAt, lte: dayEndAt },
+        },
+        include: {
+          assignments: { where: { releasedAt: null }, take: 1 },
+          composition: {
+            include: {
+              items: {
+                include: { item: { select: { name: true } } },
+                orderBy: { sortOrder: 'asc' },
+                take: 3,
+              },
+            },
+          },
+        },
+        orderBy: [{ readyAt: 'asc' }, { createdAt: 'desc' }],
+      }),
+      client.order.findMany({
+        where: {
+          organizationId: input.organizationId,
+          storeId: input.storeId,
+          status: { not: 'CANCELLED' },
+          readyAt: { gte: monthStartAt, lte: monthEndAt },
+        },
+        select: { readyAt: true },
+      }),
+    ]);
+
+    const orderIds = orders.map((o) => o.id);
+    const floristIds = [
+      ...new Set(
+        orders
+          .map((o) => o.assignedFloristId)
+          .filter((id): id is string => Boolean(id)),
+      ),
+    ];
+
+    const [deliveries, sales, orderAllocations, florists] = await Promise.all([
+      orderIds.length > 0
+        ? client.deliveryJob.findMany({
+            where: {
+              organizationId: input.organizationId,
+              storeId: input.storeId,
+              orderId: { in: orderIds },
+              status: { not: 'CANCELLED' },
+            },
+            orderBy: { createdAt: 'desc' },
+          })
+        : Promise.resolve([]),
+      orderIds.length > 0
+        ? client.sale.findMany({
+            where: {
+              organizationId: input.organizationId,
+              storeId: input.storeId,
+              orderId: { in: orderIds },
+              status: { not: 'ANNULLED' },
+            },
+          })
+        : Promise.resolve([]),
+      orderIds.length > 0
+        ? client.paymentAllocation.findMany({
+            where: {
+              organizationId: input.organizationId,
+              targetType: 'ORDER',
+              targetId: { in: orderIds },
+              isActive: true,
+              payment: { status: 'COMPLETED' },
+            },
+          })
+        : Promise.resolve([]),
+      floristIds.length > 0
+        ? client.organizationMembership.findMany({
+            where: { organizationId: input.organizationId, id: { in: floristIds } },
+            include: { user: { select: { displayName: true } } },
+          })
+        : Promise.resolve([]),
+    ]);
+
+    const saleIds = sales.map((s) => s.id);
+    const saleByOrderId = new Map(sales.map((s) => [s.orderId!, s]));
+    const saleAllocations =
+      saleIds.length > 0
+        ? await client.paymentAllocation.findMany({
+            where: {
+              organizationId: input.organizationId,
+              targetType: 'SALE',
+              targetId: { in: saleIds },
+              isActive: true,
+              payment: { status: 'COMPLETED' },
+            },
+          })
+        : [];
+
+    const deliveryByOrderId = new Map<string, (typeof deliveries)[number]>();
+    for (const job of deliveries) {
+      if (!deliveryByOrderId.has(job.orderId)) {
+        deliveryByOrderId.set(job.orderId, job);
+      }
+    }
+
+    const floristNameById = new Map(
+      florists.map((m) => [m.id, m.user.displayName]),
+    );
+
+    const orderAllocByOrderId = new Map<string, string[]>();
+    for (const alloc of orderAllocations) {
+      const list = orderAllocByOrderId.get(alloc.targetId) ?? [];
+      list.push(alloc.amount.toString());
+      orderAllocByOrderId.set(alloc.targetId, list);
+    }
+
+    const saleAllocBySaleId = new Map<string, string[]>();
+    for (const alloc of saleAllocations) {
+      const list = saleAllocBySaleId.get(alloc.targetId) ?? [];
+      list.push(alloc.amount.toString());
+      saleAllocBySaleId.set(alloc.targetId, list);
+    }
+
+    const sections: OrderCalendarBoardView['sections'] = {
+      NEW: [],
+      IN_WORK: [],
+      READY: [],
+      WITH_COURIER: [],
+      HANDED_OFF: [],
+    };
+
+    for (const order of orders) {
+      const delivery = deliveryByOrderId.get(order.id) ?? null;
+      const hasActiveAssignment = order.assignments.length > 0;
+      const displayPhase = resolveOrderDisplayPhase(
+        {
+          status: order.status,
+          type: order.type,
+          hasActiveAssignment,
+        },
+        delivery ? { status: delivery.status } : null,
+      );
+      const column = resolveOrderBoardColumn({
+        status: order.status,
+        type: order.type,
+        hasActiveAssignment,
+        deliveryStatus: delivery?.status ?? null,
+      });
+
+      const sale = saleByOrderId.get(order.id);
+      const planned = Number(order.plannedPrice?.toString() ?? '0');
+      const paidOnOrder = sumMoney(orderAllocByOrderId.get(order.id) ?? []);
+      const paidOnSale = sale
+        ? sumMoney(saleAllocBySaleId.get(sale.id) ?? [])
+        : '0';
+      const totalPaid = Number(paidOnOrder) + Number(paidOnSale);
+      const paymentStatus = resolveBoardPaymentStatus(planned, totalPaid);
+
+      const items = order.composition?.items ?? [];
+      const compositionLabel = buildCompositionLabel(items);
+
+      const card: OrderBoardCardView = {
+        id: order.id,
+        number: order.number,
+        status: order.status,
+        type: order.type,
+        readyAt: order.readyAt?.toISOString() ?? null,
+        customerName: order.customerNameSnapshot,
+        customerPhone: order.customerPhoneSnapshot ?? order.recipientPhone,
+        recipientName: order.recipientName,
+        plannedPrice: order.plannedPrice?.toFixed(2) ?? null,
+        assignedFloristId: order.assignedFloristId,
+        floristDisplayName: order.assignedFloristId
+          ? (floristNameById.get(order.assignedFloristId) ?? null)
+          : null,
+        displayPhase,
+        displayPhaseLabel: orderDisplayPhaseLabel(displayPhase, { type: order.type }),
+        column,
+        paymentStatus,
+        saleId: sale?.id ?? null,
+        deliveryId: delivery?.id ?? null,
+        deliveryStatus: delivery?.status ?? null,
+        deliveryWindowStart: delivery?.windowStart?.toISOString() ?? null,
+        deliveryWindowEnd: delivery?.windowEnd?.toISOString() ?? null,
+        compositionLabel,
+      };
+
+      sections[column as OrderBoardColumn].push(card);
+    }
+
+    const countByDate = new Map<string, number>();
+    for (const row of monthRows) {
+      if (!row.readyAt) continue;
+      const key = row.readyAt.toISOString().slice(0, 10);
+      countByDate.set(key, (countByDate.get(key) ?? 0) + 1);
+    }
+
+    return {
+      date: dayStartAt.toISOString().slice(0, 10),
+      month: `${dayStartAt.getFullYear()}-${String(dayStartAt.getMonth() + 1).padStart(2, '0')}`,
+      sections,
+      dateCounts: [...countByDate.entries()]
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([date, count]) => ({ date, count })),
+    };
+  }
+}
+
+function calendarDayStart(date: Date): Date {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function calendarDayEnd(date: Date): Date {
+  const d = new Date(date);
+  d.setHours(23, 59, 59, 999);
+  return d;
+}
+
+function sumMoney(values: string[]): string {
+  const total = values.reduce((sum, value) => sum + Number(value), 0);
+  return total.toFixed(2);
+}
+
+function resolveBoardPaymentStatus(
+  planned: number,
+  paid: number,
+): OrderBoardPaymentStatus {
+  if (planned <= 0) {
+    return paid > 0 ? 'PAID' : 'UNPAID';
+  }
+  if (paid >= planned - 0.005) return 'PAID';
+  if (paid > 0) return 'PARTIALLY_PAID';
+  return 'UNPAID';
+}
+
+function buildCompositionLabel(
+  items: Array<{ item: { name: string } }>,
+): string | null {
+  if (items.length === 0) return null;
+  if (items.length === 1) return items[0]!.item.name;
+  return `${items[0]!.item.name} +${items.length - 1}`;
 }

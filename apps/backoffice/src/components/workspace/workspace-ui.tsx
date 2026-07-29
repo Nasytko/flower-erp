@@ -91,6 +91,7 @@ type OrderCardProps = {
   urgency?: string;
   hasDeficit?: boolean;
   countdown?: ReactNode;
+  journey?: ReactNode;
   primaryActionLabel?: string;
   onPrimaryAction?: () => void;
   href: string;
@@ -105,6 +106,7 @@ export function OrderCard({
   urgency,
   hasDeficit,
   countdown,
+  journey,
   primaryActionLabel,
   onPrimaryAction,
   href,
@@ -130,6 +132,7 @@ export function OrderCard({
           {countdown}
         </div>
         {occasion ? <p className="order-card__sub">{occasion}</p> : null}
+        {journey ? <div className="order-card__journey">{journey}</div> : null}
       </div>
       {primaryActionLabel && onPrimaryAction ? (
         <button

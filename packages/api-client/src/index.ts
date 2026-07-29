@@ -1133,6 +1133,12 @@ export function createApiClient(options: ApiClientOptions) {
         ready: Array<{ id: string; number: string; status: string; readyAt: string | null }>;
         inProgress: Array<{ id: string; number: string; status: string; readyAt: string | null }>;
       }>(`/organizations/${organizationId}/stores/${storeId}/orders/dashboard`),
+    getOrderCalendarBoard: (organizationId: string, storeId: string, date?: string) => {
+      const q = date ? `?date=${encodeURIComponent(date)}` : '';
+      return request<OrderCalendarBoardDto>(
+        `/organizations/${organizationId}/stores/${storeId}/orders/board${q}`,
+      );
+    },
     createOrder: (
       organizationId: string,
       storeId: string,
@@ -2815,10 +2821,56 @@ export type OperationalKpisDto = {
   suppliesAwaitingReceipt: number;
 };
 
+export type FinancePeriodKpiDto = {
+  revenue: string;
+  cogs: string | null;
+  grossProfit: string | null;
+  avgMarginPercent: string | null;
+  completedSalesCount: number;
+};
+
+export type SupplierPayableRowDto = {
+  supplyId: string;
+  supplyNumber: string;
+  supplierName: string;
+  paymentDueDate: string;
+  amount: string;
+  isOverdue: boolean;
+  daysUntilDue: number;
+};
+
+export type OrderedFlowerRowDto = {
+  itemId: string;
+  itemName: string;
+  itemCode: string;
+  orderedQuantity: string;
+};
+
+export type DirectorKpiDto = {
+  orders: {
+    newUnassigned: number;
+    inPreparation: number;
+    ready: number;
+    overdue: number;
+  };
+  finance: {
+    today: FinancePeriodKpiDto;
+    week: FinancePeriodKpiDto;
+    marginRedacted: boolean;
+  };
+  payables: {
+    upcoming: SupplierPayableRowDto[];
+    overdueCount: number;
+    upcomingTotalAmount: string;
+  };
+  orderedFlowers: OrderedFlowerRowDto[];
+};
+
 export type OperationsBoardDto = {
   serverNow: string;
   kpis: OperationalKpisDto;
   attentionItems: AttentionItemDto[];
+  directorKpi: DirectorKpiDto;
 };
 
 export type OperationalStockRowDto = {
@@ -3039,6 +3091,41 @@ export type DeliveryJobDto = {
   createdByMembershipId: string | null;
   createdAt: string;
   updatedAt: string;
+};
+
+export type OrderBoardPaymentStatus = 'PAID' | 'PARTIALLY_PAID' | 'UNPAID';
+
+export type OrderBoardColumn = 'NEW' | 'IN_WORK' | 'READY' | 'WITH_COURIER' | 'HANDED_OFF';
+
+export type OrderBoardCardDto = {
+  id: string;
+  number: string;
+  status: string;
+  type: string;
+  readyAt: string | null;
+  customerName: string | null;
+  customerPhone: string | null;
+  recipientName: string | null;
+  plannedPrice: string | null;
+  assignedFloristId: string | null;
+  floristDisplayName: string | null;
+  displayPhase: string;
+  displayPhaseLabel: string;
+  column: OrderBoardColumn;
+  paymentStatus: OrderBoardPaymentStatus;
+  saleId: string | null;
+  deliveryId: string | null;
+  deliveryStatus: string | null;
+  deliveryWindowStart: string | null;
+  deliveryWindowEnd: string | null;
+  compositionLabel: string | null;
+};
+
+export type OrderCalendarBoardDto = {
+  date: string;
+  month: string;
+  sections: Record<OrderBoardColumn, OrderBoardCardDto[]>;
+  dateCounts: Array<{ date: string; count: number }>;
 };
 
 export type DeliveryBoardCardDto = DeliveryJobDto & {

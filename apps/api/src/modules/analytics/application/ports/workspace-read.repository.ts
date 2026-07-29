@@ -94,6 +94,51 @@ export type OperationalKpis = {
   suppliesAwaitingReceipt: number;
 };
 
+export type FinancePeriodKpi = {
+  revenue: string;
+  cogs: string | null;
+  grossProfit: string | null;
+  avgMarginPercent: string | null;
+  completedSalesCount: number;
+};
+
+export type SupplierPayableRow = {
+  supplyId: string;
+  supplyNumber: string;
+  supplierName: string;
+  paymentDueDate: string;
+  amount: string;
+  isOverdue: boolean;
+  daysUntilDue: number;
+};
+
+export type OrderedFlowerRow = {
+  itemId: string;
+  itemName: string;
+  itemCode: string;
+  orderedQuantity: string;
+};
+
+export type DirectorKpi = {
+  orders: {
+    newUnassigned: number;
+    inPreparation: number;
+    ready: number;
+    overdue: number;
+  };
+  finance: {
+    today: FinancePeriodKpi;
+    week: FinancePeriodKpi;
+    marginRedacted: boolean;
+  };
+  payables: {
+    upcoming: SupplierPayableRow[];
+    overdueCount: number;
+    upcomingTotalAmount: string;
+  };
+  orderedFlowers: OrderedFlowerRow[];
+};
+
 export type LowStockWarning = {
   itemId: string;
   itemName: string;
@@ -189,6 +234,14 @@ export interface WorkspaceReadRepository {
     storeId: string;
     now: Date;
   }): Promise<OperationalKpis>;
+
+  getDirectorKpi(input: {
+    organizationId: string;
+    storeId: string;
+    now: Date;
+    soonMinutes: number;
+    includeMargin: boolean;
+  }): Promise<DirectorKpi>;
 
   countFlowerShortageOrders(input: {
     organizationId: string;

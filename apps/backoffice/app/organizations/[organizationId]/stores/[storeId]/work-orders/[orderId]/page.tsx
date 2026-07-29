@@ -22,6 +22,8 @@ import {
   InlineAlert,
   StickyActionBar,
 } from '@/components/workspace/workspace-ui';
+import { OrderJourneyTree } from '@/components/order/order-journey-tree';
+import { pickLinkedSale } from '@/lib/order-journey';
 import {
   orderPhaseLabel,
   resolveOrderPhase,
@@ -73,10 +75,17 @@ export default function WorkOrderPage() {
     status: string;
     windowStart: string;
     windowEnd: string;
+    handedOverAt?: string | null;
+  } | null>(null);
+  const [linkedSale, setLinkedSale] = useState<{
+    id: string;
+    number: string;
+    status: string;
   } | null>(null);
 
   const canRead = auth.hasPermission('workspace:read') || auth.hasPermission('orders:read');
   const canReadDelivery = auth.hasPermission('delivery:read');
+  const canReadSales = auth.hasPermission('sales:read');
   const canClaim =
     auth.hasPermission('orders:assign') && auth.hasPermission('orders:prepare');
   const canReserve = auth.hasPermission('orders:reserve');
@@ -113,14 +122,18 @@ export default function WorkOrderPage() {
     setError(null);
     try {
       const client = getApiClient();
-      const [workOrder, items, deliveries] = await Promise.all([
+      const [workOrder, items, deliveries, sales] = await Promise.all([
         client.getWorkOrder(organizationId, storeId, orderId),
         client.listItems(organizationId, { pageSize: 100, status: 'ACTIVE' }),
         canReadDelivery
           ? client.listDeliveries(organizationId, storeId)
           : Promise.resolve([]),
+        canReadSales
+          ? client.listSales(organizationId, storeId, { orderId })
+          : Promise.resolve([]),
       ]);
       setData(workOrder);
+      setLinkedSale(pickLinkedSale(sales));
       setCapturedAt(Date.now());
       syncDrafts(workOrder);
       setCatalog(items.items);
@@ -137,6 +150,7 @@ export default function WorkOrderPage() {
               status: linked.status,
               windowStart: linked.windowStart,
               windowEnd: linked.windowEnd,
+              handedOverAt: linked.handedOverAt,
             }
           : null,
       );
@@ -145,7 +159,7 @@ export default function WorkOrderPage() {
     } finally {
       setLoading(false);
     }
-  }, [organizationId, storeId, orderId, syncDrafts, canReadDelivery]);
+  }, [organizationId, storeId, orderId, syncDrafts, canReadDelivery, canReadSales]);
 
   useEffect(() => {
     if (!canRead) return;
@@ -350,6 +364,35 @@ export default function WorkOrderPage() {
         {info ? <InlineAlert tone="warning">{info}</InlineAlert> : null}
 
         {!loading && data ? (
+          <>
+            <OrderJourneyTree
+              basePath={base}
+              order={{
+                id: data.order.id,
+                number: data.order.number,
+                type: data.order.type,
+                status: data.order.status,
+                hasActiveAssignment: data.order.hasActiveAssignment,
+                primaryAction: data.primaryAction,
+              }}
+              delivery={
+                deliveryHint
+                  ? {
+                      id: deliveryHint.id,
+                      number: deliveryHint.number,
+                      status: deliveryHint.status,
+                      handedOverAt: deliveryHint.handedOverAt ?? null,
+                    }
+                  : null
+              }
+              sale={linkedSale}
+              links={{
+                order: true,
+                delivery: canReadDelivery,
+                sale: canReadSales,
+              }}
+              permissions={{ createSale: auth.hasPermission('sales:create') }}
+            />
           <div className="work-order-layout">
             <div className="work-order-layout__main">
               <Section>
@@ -614,6 +657,7 @@ export default function WorkOrderPage() {
               </Card>
             </aside>
           </div>
+          </>
         ) : null}
       </PageContainer>
 
