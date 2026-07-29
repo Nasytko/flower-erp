@@ -1,520 +1,186 @@
-# Flower ERP — Production deployment on shared VPS (ORVIX-safe)
+# Flower ERP — production deploy runbook
 
-Deploy Flower ERP alongside an existing ORVIX Docker stack **without** sharing ports, networks, volumes, or database objects.
+Deploy Flower ERP on a shared VPS alongside ORVIX/LeadFlow without touching their databases, volumes, or ports.
 
-## Design principles
+## 1. Prerequisites
 
-| Concern | Flower ERP | ORVIX (unchanged) |
-|---------|------------|-------------------|
-| Compose project | `flower-erp` | own project name |
-| Directory | `/opt/flower-erp` | existing path |
-| Public ports | **none** (127.0.0.1 only) | keeps 80/443 |
-| Container names | `flower-erp-*` | unchanged |
-| Network | `flower-erp-internal` + external `leadflow_default` (API/migrate only) | unchanged |
-| PostgreSQL | DB `flower_erp`, user `flower_user` | own DB/users |
-| Volumes | `flower-erp-backups` (optional) | untouched |
+- Docker Engine + Compose V2
+- Git checkout at `/opt/flower-erp`
+- PostgreSQL database `flower_erp` on shared instance (`leadflow-postgres-1`)
+- Reverse proxy on host (nginx) for TLS
 
-## Files in this repository
-
-| File | Purpose |
-|------|---------|
-| `apps/api/Dockerfile` | Production multi-stage API (+ `migrate` target) |
-| `apps/backoffice/Dockerfile` | Production multi-stage Backoffice (Next standalone) |
-| `docker-compose.production.yml` | Production compose (no Postgres service) |
-| `.env.production.example` | Environment template (no secrets) |
-| `deploy/scripts/init-production.sh` | Idempotent production secrets + `.env.production` init |
-| `deploy/scripts/test-env-upsert.sh` | Fixture tests for env upsert helpers |
-| `deploy/scripts/migrate.sh` | Safe migration job before rollout |
-| `deploy/scripts/deploy.sh` | Build → migrate → deploy |
-| `deploy/scripts/recover-stage-c-migration.sh` | Automated recovery for failed Stage C enum migration |
-| `deploy/scripts/reset-test-database.sh` | Safe full reset of test-only `flower_erp` database (never run from deploy.sh) |
-| `deploy/scripts/backup-db.sh` | `pg_dump` for `flower_erp` only |
-| `deploy/scripts/restore-db.sh` | `pg_restore` for `flower_erp` only |
-| `deploy/nginx/flower-erp.conf.example` | Reverse-proxy upstream snippet |
-
-Legacy dev/CI Dockerfiles remain at `docker/api/Dockerfile` and `docker/backoffice/Dockerfile`.
-
-## Ports (localhost only)
-
-| Service | Host bind | Container port |
-|---------|-----------|----------------|
-| API | `127.0.0.1:4100` (override: `FLOWER_API_PORT`) | `4000` |
-| Backoffice | `127.0.0.1:3100` (override: `FLOWER_BACKOFFICE_PORT`) | `3000` |
-
-No binding on `0.0.0.0`. Ports **80/443** stay with the existing reverse proxy.
-
-## Networks & volumes
-
-**Network created:** `flower-erp-internal` (bridge, isolated)
-
-**Volume declared:** `flower-erp-backups` (optional; host backups default to `/opt/flower-erp/backups`)
-
-**Not created / not touched:** any ORVIX network, volume, or container.
-
----
-
-## 1. PostgreSQL setup (existing instance)
-
-Run as PostgreSQL superuser (`postgres`). **Do not reuse ORVIX roles or databases.**
-
-```sql
--- Roles (choose strong passwords; store only in /opt/flower-erp/.env.production)
-CREATE ROLE flower_user LOGIN PASSWORD 'REPLACE_WITH_STRONG_PASSWORD';
-CREATE ROLE flower_migrate LOGIN PASSWORD 'REPLACE_WITH_STRONG_PASSWORD';
-
--- Database owned by migrate role (DDL)
-CREATE DATABASE flower_erp OWNER flower_migrate ENCODING 'UTF8';
-
-REVOKE ALL ON DATABASE flower_erp FROM PUBLIC;
-GRANT CONNECT ON DATABASE flower_erp TO flower_user;
-GRANT CONNECT ON DATABASE flower_erp TO flower_migrate;
-
-\c flower_erp
-
-REVOKE ALL ON SCHEMA public FROM PUBLIC;
-GRANT USAGE ON SCHEMA public TO flower_user;
-GRANT USAGE ON SCHEMA public TO flower_migrate;
-
--- Runtime DML (API)
-GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO flower_user;
-GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO flower_user;
-ALTER DEFAULT PRIVILEGES FOR ROLE flower_migrate IN SCHEMA public
-  GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO flower_user;
-ALTER DEFAULT PRIVILEGES FOR ROLE flower_migrate IN SCHEMA public
-  GRANT USAGE, SELECT ON SEQUENCES TO flower_user;
-
--- Migration DDL (migrate job)
-GRANT CREATE ON SCHEMA public TO flower_migrate;
-GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO flower_migrate;
-GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO flower_migrate;
-ALTER DEFAULT PRIVILEGES FOR ROLE flower_migrate IN SCHEMA public
-  GRANT ALL ON TABLES TO flower_migrate;
-ALTER DEFAULT PRIVILEGES FOR ROLE flower_migrate IN SCHEMA public
-  GRANT ALL ON SEQUENCES TO flower_migrate;
-```
-
-On a small VPS you may use a single role for both URLs (not ideal, but acceptable):
-
-```sql
--- Simplified: one role
-CREATE ROLE flower_user LOGIN PASSWORD 'REPLACE_WITH_STRONG_PASSWORD';
-CREATE DATABASE flower_erp OWNER flower_user ENCODING 'UTF8';
-```
-
-Then set `DATABASE_URL` and `DATABASE_MIGRATE_URL` to the same connection string.
-
----
-
-## 2. First deploy
+## 2. First installation
 
 ```bash
-# On VPS — separate directory, separate project
-sudo mkdir -p /opt/flower-erp
-# Clone or pull release into /opt/flower-erp
 cd /opt/flower-erp
-chmod +x deploy/scripts/*.sh
+git clone …   # or copy release
+cp .env.production.example .env.production
+# edit secrets in .env.production (never commit)
 
-# Prepare secrets + .env.production (does NOT run migrations or start the app)
 ./deploy/scripts/init-production.sh
-./deploy/scripts/init-production.sh --check
-
-# Verify no port conflict with ORVIX
-ss -tlnp | grep -E ':(3100|4100)\b'   # should be empty
-
-# Deploy (build → migrate → start)
 ./deploy/scripts/deploy.sh
-
-# Verify local health
-curl -sf http://127.0.0.1:4100/api/v1/health/live
-curl -sf http://127.0.0.1:4100/api/v1/health/ready
-curl -sf -o /dev/null -w '%{http_code}\n' http://127.0.0.1:3100/
+./deploy/scripts/bootstrap-first-organization.sh
 ```
 
-### Initial production user (DIRECTOR)
+After bootstrap:
 
-After migrations and a healthy API, create the first organization owner.  
-This reuses `BootstrapOwnerUseCases` (one DB transaction: org, store, warehouse, user, DIRECTOR, `ALL_STORES`, audit).
+1. Sign in at Backoffice using **login** (not email).
+2. Set `ALLOW_OWNER_BOOTSTRAP=false` in `.env.production`.
+3. Run `./deploy/scripts/deploy.sh` again.
 
-Auth identity is **login** (derived from email local-part). Email is stored on the user record; Backoffice login field expects **login**.
+## 3. Environment
 
-Interactive (password is hidden; never pass password on the command line):
+Template: `.env.production.example`
 
-```bash
-cd /opt/flower-erp
+Key variables:
 
-docker compose \
-  --env-file .env.production \
-  -f docker-compose.production.yml \
-  run --rm --no-deps -it \
-  -e ALLOW_OWNER_BOOTSTRAP=true \
-  api node dist/scripts/create-initial-director.js
-```
+| Variable | Purpose |
+|----------|---------|
+| `DATABASE_URL` | API runtime (flower_user) |
+| `DATABASE_MIGRATE_URL` | Migrations (flower_migrate) |
+| `JWT_ACCESS_SECRET` / `JWT_REFRESH_SECRET` | Auth |
+| `NEXT_PUBLIC_API_BASE_URL` | Backoffice build-time API URL |
+| `CORS_ORIGINS` | API CORS |
+| `FLOWER_PG_ADMIN_USER` / `FLOWER_PG_ADMIN_DB` | LeadFlow admin (default `leadflow`) |
 
-The CLI prompts for: email, password, password confirmation, full name, organization name, first store name.
+Secrets live only in `.env.production` on the server.
 
-Non-interactive automation (password via env only — never log it):
+## 4. First database migration
 
-```bash
-docker compose \
-  --env-file .env.production \
-  -f docker-compose.production.yml \
-  run --rm --no-deps \
-  -e ALLOW_OWNER_BOOTSTRAP=true \
-  -e INITIAL_ADMIN_EMAIL='director@example.com' \
-  -e INITIAL_ADMIN_PASSWORD='…' \
-  -e INITIAL_ADMIN_FULL_NAME='Director Name' \
-  -e INITIAL_ORGANIZATION_NAME='My Flowers' \
-  -e INITIAL_STORE_NAME='Main Store' \
-  api node dist/scripts/create-initial-director.js
-```
-
-Rules:
-
-- Run only after successful migrations.
-- Default: refuses if any users/organizations already exist.
-- Repeat run does not create duplicates (`USER_EXISTS` / `BOOTSTRAP_ALREADY_DONE`).
-- `--allow-existing-system` only for intentionally adding another org director (still no password overwrite / silent elevation).
-- After success, set `ALLOW_OWNER_BOOTSTRAP=false` in `.env.production` and recreate the API container.
-- Sign in at https://erp.nasytko.ru using **Login** + password.
-
-Verify users (no password hash):
-
-```bash
-docker exec leadflow-postgres-1 \
-  psql -U flower_user -d flower_erp \
-  -c 'SELECT login, email, display_name FROM users;'
-```
-
-### Production initialization (`init-production.sh`)
-
-One-shot / idempotent helper for VPS secrets:
-
-```bash
-cd /opt/flower-erp
-chmod +x deploy/scripts/init-production.sh
-./deploy/scripts/init-production.sh
-./deploy/scripts/init-production.sh --check
-```
-
-Rotate DB passwords + JWT (invalidates existing sessions; recreate API containers after):
-
-```bash
-./deploy/scripts/init-production.sh --rotate-secrets
-./deploy/scripts/deploy.sh
-```
-
-Behaviour:
-
-- Secrets live **only** in `/opt/flower-erp/.env.production` (`chmod 600`); they are **never** committed to Git.
-- Without `--rotate-secrets`, existing real passwords/JWT are left unchanged; only empty / `CHANGE_ME*` values are filled.
-- The script syncs `flower_user` / `flower_migrate` passwords in PostgreSQL (`leadflow-postgres-1`) and verifies TCP logins.
-- It does **not** run migrations, start Compose services, or restart LeadFlow.
-- First-init limitation: if role passwords are changed but previous values were unknown placeholders, automatic DB rollback is not possible — fix roles manually before retry.
-
-Manual `nano .env.production` is not required when using this script.
-
-### Reverse proxy
-
-Add `deploy/nginx/flower-erp.conf.example` to your **existing** nginx (ORVIX config untouched):
-
-```bash
-sudo cp deploy/nginx/flower-erp.conf.example /etc/nginx/snippets/flower-erp.conf
-# include inside your TLS server blocks
-sudo nginx -t && sudo systemctl reload nginx
-```
-
-Set in `.env.production`:
-
-- `NEXT_PUBLIC_API_BASE_URL=https://api-erp.nasytko.ru/api/v1`
-- `CORS_ORIGINS=https://erp.nasytko.ru`
-
-Rebuild backoffice after changing `NEXT_PUBLIC_API_BASE_URL`:
-
-```bash
-docker compose -f docker-compose.production.yml --env-file .env.production build backoffice
-docker compose -f docker-compose.production.yml --env-file .env.production up -d backoffice
-```
-
----
-
-## 3. Updates (standard rollout)
-
-```bash
-cd /opt/flower-erp
-git pull   # or rsync new release
-./deploy/scripts/deploy.sh
-```
-
-**Dry run (no changes):**
-
-```bash
-DRY_RUN=1 ./deploy/scripts/deploy.sh
-```
-
-**First deploy after Stage C** (destructive migrations pending):
-
-```bash
-RUN_STAGE_C_AUDIT=1 \
-RUN_STAGE_C_BACKUP=1 \
-ALLOW_DESTRUCTIVE_MIGRATIONS=1 \
-  ./deploy/scripts/deploy.sh
-```
-
-`deploy.sh` always runs migrations **before** recreating the API container.
-
-Manual migration only:
+Migrations run automatically in `deploy.sh`. Manual run:
 
 ```bash
 ./deploy/scripts/migrate.sh
 ```
 
-### Failed migration recovery (P3009)
+## 5. Bootstrap first organization and director
 
-If `prisma migrate deploy` fails, Prisma records the migration as **failed** in `_prisma_migrations` and blocks further deploys until resolved.
+Empty database after migrate:
 
-**Do not** delete rows from `_prisma_migrations` or run `migrate reset`.
+```bash
+./deploy/scripts/bootstrap-first-organization.sh
+```
 
-#### Recovering `20260729150000_remove_unused_enum_values` (automated)
+Creates organization, first store, warehouse, and DIRECTOR with `mustChangePassword=true`.
+
+Add another director to existing organization:
+
+```bash
+./deploy/scripts/create-director-user.sh
+```
+
+Prefer `DIRECTOR_PASSWORD_FILE=/secure/path` over env password.
+
+Development only (never production):
+
+```bash
+ALLOW_DEV_DATABASE_RESET=YES \
+CONFIRM_RESET_TEST_DATABASE=YES \
+CONFIRM_ALL_FLOWER_DATA_CAN_BE_DELETED=YES \
+  ./deploy/scripts/dev/reset-test-database.sh
+```
+
+## 6. Normal deployment
 
 ```bash
 cd /opt/flower-erp
 git pull --ff-only
-bash -n deploy/scripts/recover-stage-c-migration.sh
-./deploy/scripts/recover-stage-c-migration.sh
 ./deploy/scripts/deploy.sh
 ```
 
-The recovery script:
+Optional: `DRY_RUN=1`, `SKIP_DOCKER_CLEANUP=1`.
 
-- creates a full backup and schema snapshot under `backups/recovery-stage-c-YYYYMMDDTHHMMSSZ/`;
-- detects partial enum migration state and repairs it in one SQL transaction;
-- aborts if `GIFT_CERTIFICATE` or `TELEGRAM` rows still exist;
-- runs `prisma migrate resolve --applied` and verifies `prisma migrate deploy`;
-- never runs `migrate reset`, `DELETE`/`UPDATE` on `_prisma_migrations`, or `DROP … CASCADE`.
+Flow: build images → `prisma migrate deploy` → start api/backoffice → health checks.
 
-**Verify:**
+## 7. Status
 
 ```bash
-docker compose -f docker-compose.production.yml --env-file .env.production \
-  --profile migrate run --rm migrate migrate status
-curl -sf http://127.0.0.1:4100/api/v1/health/live
+./deploy/scripts/status.sh
 ```
 
-**Rollback:**
+Shows git, disk, compose health, HTTP checks, migration status, latest backup (no secrets).
+
+## 8. Backup
 
 ```bash
-./deploy/scripts/restore-db.sh /opt/flower-erp/backups/flower_erp_YYYYMMDDTHHMMSSZ.dump
+./deploy/scripts/backup-db.sh
 ```
 
-See diagnostics in `backups/recovery-stage-c-*/recovery.log`.
+Creates verified custom-format dump on host (`PGDMP` magic, optional `pg_restore --list`).
 
-#### Manual resolve (other migrations)
-
-```bash
-docker compose -f docker-compose.production.yml --env-file .env.production \
-  --profile migrate run --rm migrate migrate status
-
-docker compose -f docker-compose.production.yml --env-file .env.production \
-  --profile migrate run --rm migrate \
-  migrate resolve --rolled-back "MIGRATION_NAME"
-```
-
-Use `--applied` only if the SQL was completed manually and schema matches `migration.sql`.
-
----
-
-### Resetting a test-only Flower ERP database
-
-When production PostgreSQL contains **only disposable test data**, you can recreate `flower_erp` from current Prisma migrations instead of repairing a failed migration.
-
-**This permanently deletes all Flower ERP data.** It does **not** delete the shared PostgreSQL Docker volume or any other databases (for example ORVIX / LeadFlow databases on the same instance).
-
-The script is **never** invoked from `deploy.sh`. You must run it explicitly with confirmation flags:
-
-```bash
-cd /opt/flower-erp
-
-CONFIRM_RESET_TEST_DATABASE=YES \
-CONFIRM_ALL_FLOWER_DATA_CAN_BE_DELETED=YES \
-ALLOW_RESET_WITHOUT_BACKUP=YES \
-  ./deploy/scripts/reset-test-database.sh
-```
-
-- `CONFIRM_RESET_TEST_DATABASE=YES` and `CONFIRM_ALL_FLOWER_DATA_CAN_BE_DELETED=YES` are required.
-- On an interactive terminal you must also type exactly: `RESET flower_erp`
-- A pre-reset backup is attempted; if backup fails, set `ALLOW_RESET_WITHOUT_BACKUP=YES`.
-- Demo data is **not** loaded unless `RUN_SEED=1` (no Prisma seed is configured; use `create-initial-director.js` after reset).
-- Admin DDL uses the shared LeadFlow PostgreSQL superuser (defaults: `FLOWER_PG_ADMIN_USER=leadflow`, `FLOWER_PG_ADMIN_DB=leadflow` — not `postgres`).
-
-What the script does:
-
-1. Stops Flower ERP `api` and `backoffice` only (PostgreSQL keeps running).
-2. Terminates connections to `flower_erp`, drops and recreates that database only.
-3. Runs `prisma migrate deploy` via the migrate container.
-4. Validates schema, migration history, and restarts `api` / `backoffice`.
-
-It refuses to run against any database name other than `flower_erp`.
-
----
-
-## 4. Rollback
-
-### Application rollback (keep DB schema)
-
-```bash
-cd /opt/flower-erp
-
-# Pin previous image tags in .env.production, e.g.:
-#   FLOWER_API_IMAGE=flower-erp-api:20260717-1200
-#   FLOWER_BACKOFFICE_IMAGE=flower-erp-backoffice:20260717-1200
-
-docker compose -f docker-compose.production.yml --env-file .env.production up -d --no-deps --force-recreate api
-docker compose -f docker-compose.production.yml --env-file .env.production up -d --force-recreate backoffice
-```
-
-Tag images before each deploy for easy rollback:
-
-```bash
-docker tag flower-erp-api:production flower-erp-api:$(date -u +%Y%m%d-%H%M%S)
-```
-
-### Full rollback (app + database)
+## 9. Restore
 
 ```bash
 ./deploy/scripts/restore-db.sh /opt/flower-erp/backups/flower_erp_YYYYMMDDTHHMMSSZ.dump
-./deploy/scripts/deploy.sh   # or start pinned image tags
 ```
 
-### Emergency stop (Flower only)
+Stops Flower ERP containers only; does not delete Docker volumes or other databases.
+
+## 10. Rollback application
 
 ```bash
-docker compose -f docker-compose.production.yml --env-file .env.production stop api backoffice
-# ORVIX containers are not affected
+./deploy/scripts/rollback.sh
 ```
 
----
+Rolls back **Docker images only**. Database migrations are **not** automatically rolled back.
 
-## 5. Backup & restore
+State file: `deploy/state/previous-deploy.env` (no secrets).
+
+## 11. Create another director
 
 ```bash
-# Daily cron example (flower_erp only)
-0 3 * * * /opt/flower-erp/deploy/scripts/backup-db.sh >> /var/log/flower-erp-backup.log 2>&1
+./deploy/scripts/create-director-user.sh
 ```
 
-Requires `postgresql-client` (`pg_dump`, `pg_restore`) on the host.
-
----
-
-## 6. EPIC 12 DB verification on VPS
-
-After first deploy and DB setup:
+Or via API container:
 
 ```bash
-cd /opt/flower-erp
-export DATABASE_URL='postgresql://flower_migrate:SECRET@127.0.0.1:5432/flower_erp?schema=public'
-export DATABASE_MIGRATE_URL="$DATABASE_URL"
-export JWT_ACCESS_SECRET='ci-test-access-secret-min-32-chars-long'
-export JWT_REFRESH_SECRET='ci-test-refresh-secret-min-32-chars-long'
-export ALLOW_OWNER_BOOTSTRAP=true
-
-# Migrations from scratch (already done by deploy.sh; safe to re-run)
-./deploy/scripts/migrate.sh
-
-# Integration + E2E (run on host with Node 20 + pnpm, or one-off container)
-pnpm install --frozen-lockfile
-pnpm db:generate
-pnpm --filter @flower/api test:integration
-pnpm --filter @flower/api test:e2e
+docker compose -f docker-compose.production.yml --env-file .env.production \
+  run --rm -e ALLOW_OWNER_BOOTSTRAP=true -e DIRECTOR_ORGANIZATION_ID=… \
+  api node dist/scripts/create-director.js
 ```
 
-Or via Docker one-shot (uses migrate image + dev deps not included — prefer host Node for tests):
+## 12. Password reset
 
-```bash
-docker compose -f docker-compose.production.yml --env-file .env.production run --rm \
-  -e DATABASE_URL -e DATABASE_MIGRATE_URL -e JWT_ACCESS_SECRET -e JWT_REFRESH_SECRET \
-  --entrypoint bash api -c 'cd /app && pnpm --filter @flower/api test:integration'
+Set `DIRECTOR_RESET_PASSWORD=1` and re-run `create-director-user.sh` for existing director login.
+
+## 13. Troubleshooting
+
+| Symptom | Action |
+|---------|--------|
+| Migration failed | Read Prisma output; fix SQL; `migrate resolve`; redeploy |
+| API unhealthy | `./deploy/scripts/status.sh`; check `docker compose logs api` |
+| Backoffice unhealthy | Check `http://127.0.0.1:3100/health`; rebuild backoffice if URL changed |
+| Failed migration P3009 | `docker compose … run --rm migrate migrate status`; resolve manually |
+
+## 14. Commands that must never be used
+
+- `docker compose down -v` on shared Postgres host
+- `prisma migrate reset` against production
+- `deploy/scripts/dev/reset-test-database.sh` on production without dev approval
+- Deleting rows from `_prisma_migrations`
+- `docker volume rm` on LeadFlow volumes
+
+## Scripts layout
+
+```
+deploy/scripts/
+  deploy.sh
+  migrate.sh
+  backup-db.sh
+  restore-db.sh
+  status.sh
+  rollback.sh
+  bootstrap-first-organization.sh
+  create-director-user.sh
+  init-production.sh
+  lib/common.sh compose.sh health.sh database.sh
+  dev/reset-test-database.sh   # dev/staging only
 ```
 
----
+## Ports (localhost)
 
-## 7. Migrate database to external DBaaS (future)
-
-1. Create `flower_erp` + roles on DBaaS provider.
-2. Backup from VPS Postgres:
-   ```bash
-   ./deploy/scripts/backup-db.sh
-   ```
-3. Restore to DBaaS:
-   ```bash
-   PGPASSWORD=... pg_restore -h db.provider.com -U flower_migrate -d flower_erp --no-owner --no-privileges backup.dump
-   ```
-4. Update `.env.production`:
-   ```env
-   DATABASE_URL=postgresql://flower_user:SECRET@db.provider.com:5432/flower_erp?sslmode=require
-   DATABASE_MIGRATE_URL=postgresql://flower_migrate:SECRET@db.provider.com:5432/flower_erp?sslmode=require
-   FLOWER_DB_HOST=db.provider.com
-   ```
-5. Run migrations against new host:
-   ```bash
-   ./deploy/scripts/migrate.sh
-   ```
-6. Redeploy app:
-   ```bash
-   ./deploy/scripts/deploy.sh
-   ```
-7. Verify health, then decommission local `flower_erp` DB on VPS Postgres (ORVIX DB untouched).
-
----
-
-## 8. ORVIX conflict checklist
-
-Before and after deploy:
-
-```bash
-# Flower project only
-docker compose -p flower-erp ps
-
-# Must NOT show ORVIX containers
-docker ps --filter name=flower-erp
-
-# No public Flower ports
-ss -tlnp | grep -E '127.0.0.1:(3100|4100)'
-
-# No Flower volumes except flower-erp-backups
-docker volume ls | grep flower-erp
-```
-
-**Never run:**
-
-```bash
-docker system prune -a --volumes   # would destroy ORVIX volumes
-docker compose down -v             # in ORVIX directory
-```
-
-Flower teardown (safe):
-
-```bash
-docker compose -f docker-compose.production.yml --env-file .env.production down
-# omit -v unless you intentionally remove flower-erp-backups volume
-```
-
----
-
-## Resource limits (defaults)
-
-| Service | CPUs | Memory limit | Reservation |
-|---------|------|--------------|-------------|
-| API | 0.75 | 768 MB | 256 MB |
-| Backoffice | 0.50 | 512 MB | 128 MB |
-
-Override via `.env.production` (`FLOWER_API_CPUS`, etc.).
-
-## Logging
-
-Docker json-file driver with rotation: **10 MB × 5 files**, compressed.
-
-## Healthchecks & restart
-
-- `restart: unless-stopped` on API and Backoffice
-- HTTP healthchecks on `/api/v1/health/live` (API) and `/` (Backoffice)
-- Migrate job: `restart: "no"` (one-shot)
+| Service | Host | Container |
+|---------|------|-----------|
+| API | 127.0.0.1:4100 | 4000 |
+| Backoffice | 127.0.0.1:3100 | 3000 |
