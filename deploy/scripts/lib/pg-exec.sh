@@ -256,3 +256,30 @@ pg_verify_connection() {
   pg_psql -v ON_ERROR_STOP=1 -c "SELECT 1;" >/dev/null \
     || deploy_die "Database is not reachable via migrate container."
 }
+
+pg_run_pg_dump() {
+  local output_file="$1"
+  local backup_dir output_name psql_url
+
+  [[ -n "${output_file}" ]] || deploy_die "pg_run_pg_dump: output file required."
+  backup_dir="$(cd "$(dirname "${output_file}")" && pwd)"
+  output_name="$(basename "${output_file}")"
+  mkdir -p "${backup_dir}"
+
+  deploy_require_cmd docker
+  pg_ensure_migrate_image
+  psql_url="$(pg_psql_connection_url)"
+
+  if ! deploy_compose_migrate run --rm --no-deps --entrypoint sh migrate \
+    -c 'command -v pg_dump >/dev/null 2>&1'; then
+    deploy_die "pg_dump is not available in migrate container."
+  fi
+
+  deploy_compose_migrate run --rm --no-deps \
+    -v "${backup_dir}:/backups" \
+    -e "DATABASE_URL=${psql_url}" \
+    --entrypoint sh migrate \
+    -c "pg_dump \"\$DATABASE_URL\" -Fc --no-owner --no-privileges -f /backups/${output_name}"
+
+  deploy_verify_nonempty_file "${output_file}"
+}

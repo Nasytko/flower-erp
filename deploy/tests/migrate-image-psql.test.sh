@@ -20,5 +20,7 @@ fi
 docker compose -f "${COMPOSE_FILE}" --env-file "${ENV_FILE}" --profile migrate build migrate
 docker compose -f "${COMPOSE_FILE}" --env-file "${ENV_FILE}" --profile migrate \
   run --rm --no-deps --entrypoint psql migrate --version
+docker compose -f "${COMPOSE_FILE}" --env-file "${ENV_FILE}" --profile migrate \
+  run --rm --no-deps --entrypoint pg_dump migrate --version
 
-echo "OK: migrate image provides psql"
+echo "OK: migrate image provides psql and pg_dump"
