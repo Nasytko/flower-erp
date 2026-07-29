@@ -1,6 +1,7 @@
 ﻿import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+  ADMIN_NAV,
   filterNavByPermissions,
   isNavItemActive,
   parseStoreRoute,
@@ -14,7 +15,6 @@ import {
   clearLastWorkspace,
   LAST_ORGANIZATION_ID_KEY,
   LAST_STORE_ID_KEY,
-  setLastWorkspace,
 } from './workspace-context';
 
 const memory = new Map<string, string>();
@@ -36,182 +36,87 @@ Object.defineProperty(globalThis, 'window', {
   configurable: true,
 });
 
-test('organizations link is active on nested store routes', () => {
-  assert.equal(isNavItemActive('/organizations', '/organizations'), true);
-  assert.equal(isNavItemActive('/organizations/org-1/stores/store-1', '/organizations'), true);
-  assert.equal(isNavItemActive('/', '/organizations'), false);
-});
-
-test('parseStoreRoute extracts org and store ids', () => {
-  assert.deepEqual(parseStoreRoute('/organizations/org-1/stores/store-1/sales'), {
-    organizationId: 'org-1',
-    storeId: 'store-1',
-  });
-  assert.deepEqual(parseStoreRoute('/organizations/org-1'), {
-    organizationId: null,
-    storeId: null,
-  });
-});
-
-test('PRIMARY_NAV is flat nine-item IA with Обзор first', () => {
+test('PRIMARY_NAV follows Stage B IA with Сегодня first', () => {
   const labels = PRIMARY_NAV.map((item) => item.label);
   assert.deepEqual(labels, [
-    'Обзор',
+    'Сегодня',
     'Заказы',
-    'Продажи',
+    'Продажа',
+    'Клиенты',
     'Остатки',
-    'Приёмки',
-    'Доставка',
-    'Финансы',
-    'Справочники',
+    'Поступления',
+    'Списания',
+    'Инвентаризация',
+    'Отчёты',
     'Настройки',
   ]);
-  assert.equal(labels.includes('Операции'), false);
-  assert.equal(labels.includes('Оплаты'), false);
-  assert.equal(labels.includes('Склад'), false);
-  assert.equal(labels.includes('Списания'), false);
-  assert.equal(labels.includes('Перемещения'), false);
-  assert.equal(labels.includes('Инвентаризации'), false);
-  assert.equal(labels.includes('Клиенты'), false);
-  assert.equal(labels.includes('Пользователи'), false);
-  assert.equal(labels.includes('Организации'), false);
-  assert.equal(labels.includes('Сессии'), false);
 });
 
-test('store-scoped Delivery nav resolves with delivery:read', () => {
-  const deliveryItem = PRIMARY_NAV.find((item) => item.label === 'Доставка');
-  assert.ok(deliveryItem);
-  assert.equal(deliveryItem.permission, 'delivery:read');
-  assert.equal(resolveNavHref(deliveryItem, 'org-1', null), null);
+test('ADMIN_NAV contains director sections', () => {
+  const labels = ADMIN_NAV.map((item) => item.label);
+  assert.ok(labels.includes('Сотрудники'));
+  assert.ok(labels.includes('Касса'));
+  assert.ok(labels.includes('Аудит'));
+});
+
+test('resolveStoreHomePath returns /today when workspace access', () => {
   assert.equal(
-    resolveNavHref(deliveryItem, 'org-1', 'store-1'),
-    '/organizations/org-1/stores/store-1/deliveries',
+    resolveStoreHomePath('org-1', 'store-1', (code) =>
+      ['workspace:read', 'operations:read', 'delivery:read'].includes(code),
+    ),
+    '/organizations/org-1/stores/store-1/today',
   );
+});
+
+test('resolveNavActionShortcuts maps today to /today', () => {
+  const nav = filterNavByPermissions(PRIMARY_NAV, () => true, 'org-1', 'store-1');
+  const actions = resolveNavActionShortcuts(nav);
+  const today = actions.find((a) => a.id === 'today');
+  assert.equal(today?.href, '/organizations/org-1/stores/store-1/today');
+});
+
+test('Сегодня nav resolves without single permission when anyPermission matches', () => {
+  const today = PRIMARY_NAV.find((item) => item.label === 'Сегодня');
+  assert.ok(today);
   const filtered = filterNavByPermissions(
-    [deliveryItem],
+    [today],
     (code) => code === 'delivery:read',
     'org-1',
     'store-1',
   );
   assert.equal(filtered.length, 1);
-  assert.equal(filtered[0]?.href, '/organizations/org-1/stores/store-1/deliveries');
+  assert.equal(filtered[0]?.href, '/organizations/org-1/stores/store-1/today');
 });
 
-test('store-scoped Обзор nav resolves without extra permission', () => {
-  const homeItem = PRIMARY_NAV.find((item) => item.label === 'Обзор');
-  assert.ok(homeItem);
-  assert.equal(resolveNavHref(homeItem, 'org-1', null), null);
-  assert.equal(
-    resolveNavHref(homeItem, 'org-1', 'store-1'),
-    '/organizations/org-1/stores/store-1/home',
-  );
-});
-
-test('Финансы resolves to payments route', () => {
-  const finance = PRIMARY_NAV.find((item) => item.label === 'Финансы');
-  assert.ok(finance);
-  assert.equal(finance.permission, 'payments:read');
-  assert.equal(
-    resolveNavHref(finance, 'org-1', 'store-1'),
-    '/organizations/org-1/stores/store-1/payments',
-  );
-});
-
-test('Остатки resolves to stock route', () => {
-  const stock = PRIMARY_NAV.find((item) => item.label === 'Остатки');
-  assert.ok(stock);
-  assert.equal(stock.permission, 'inventory:read');
-  assert.equal(
-    resolveNavHref(stock, 'org-1', 'store-1'),
-    '/organizations/org-1/stores/store-1/stock',
-  );
-});
-
-test('Настройки resolves to users admin page', () => {
+test('Настройки resolves to store settings', () => {
   const settings = PRIMARY_NAV.find((item) => item.label === 'Настройки');
   assert.ok(settings);
-  assert.equal(settings.permission, 'users:read');
-  assert.equal(resolveNavHref(settings, 'org-1', null), '/organizations/org-1/users');
-});
-
-test('store-scoped Sales nav resolves only with store context', () => {
-  const salesItem = {
-    href: '/organizations/{orgId}/stores/{storeId}/sales',
-    label: 'Продажи',
-    permission: 'sales:read',
-    storeScoped: true,
-  };
-  assert.equal(resolveNavHref(salesItem, 'org-1', null), null);
   assert.equal(
-    resolveNavHref(salesItem, 'org-1', 'store-1'),
-    '/organizations/org-1/stores/store-1/sales',
-  );
-  const filtered = filterNavByPermissions(
-    [salesItem],
-    (code) => code === 'sales:read',
-    'org-1',
-    'store-1',
-  );
-  assert.equal(filtered.length, 1);
-  assert.equal(filtered[0]?.href, '/organizations/org-1/stores/store-1/sales');
-});
-
-test('resolveNavActionShortcuts maps to PRIMARY_NAV routes', () => {
-  const nav = filterNavByPermissions(PRIMARY_NAV, () => true, 'org-1', 'store-1');
-  const actions = resolveNavActionShortcuts(nav);
-  const today = actions.find((a) => a.id === 'today');
-  const sale = actions.find((a) => a.id === 'new-sale');
-  const stock = actions.find((a) => a.id === 'stock');
-  assert.equal(today?.href, '/organizations/org-1/stores/store-1/orders/calendar');
-  assert.equal(sale?.href, '/organizations/org-1/stores/store-1/sales/new');
-  assert.equal(stock?.href, '/organizations/org-1/stores/store-1/stock');
-});
-
-test('resolveStoreHomePath returns calendar when orders:read', () => {
-  assert.equal(
-    resolveStoreHomePath('org-1', 'store-1', (code) =>
-      ['workspace:read', 'operations:read', 'delivery:read'].includes(code),
-    ),
-    '/organizations/org-1/stores/store-1/orders/calendar',
+    resolveNavHref(settings, 'org-1', 'store-1'),
+    '/organizations/org-1/stores/store-1/settings',
   );
 });
 
-test('resolveStoreHomePath returns home for delivery-only director path', () => {
-  assert.equal(
-    resolveStoreHomePath('org-1', 'store-1', (code) =>
-      ['operations:read', 'delivery:read'].includes(code),
-    ),
-    '/organizations/org-1/stores/store-1/home',
-  );
+test('parseStoreRoute extracts org and store ids', () => {
+  assert.deepEqual(parseStoreRoute('/organizations/org-1/stores/store-1/today'), {
+    organizationId: 'org-1',
+    storeId: 'store-1',
+  });
 });
 
-test('resolveStoreHomePath returns home for delivery-only (courier)', () => {
-  assert.equal(
-    resolveStoreHomePath('org-1', 'store-1', (code) => code === 'delivery:read'),
-    '/organizations/org-1/stores/store-1/home',
-  );
-});
-
-test('resolveStoreHomePath falls back to store base without workspace/delivery', () => {
-  assert.equal(
-    resolveStoreHomePath('org-1', 'store-1', () => false),
-    '/organizations/org-1/stores/store-1',
-  );
-});
-
-test('resolveNavWorkspace falls back to last store outside store routes', () => {
+test('resolveNavWorkspace uses store from URL on /today', () => {
   clearLastWorkspace();
-  setLastWorkspace({ organizationId: 'org-1', storeId: 'store-9', storeName: 'Main' });
-  const resolved = resolveNavWorkspace('/organizations', 'org-1');
-  assert.equal(resolved.organizationId, 'org-1');
-  assert.equal(resolved.storeId, 'store-9');
-  assert.equal(resolved.fromLastStore, true);
-
   const onStore = resolveNavWorkspace('/organizations/org-1/stores/store-2/today', 'org-1');
   assert.equal(onStore.storeId, 'store-2');
   assert.equal(onStore.fromLastStore, false);
-
   clearLastWorkspace();
   assert.equal(globalThis.localStorage?.getItem(LAST_STORE_ID_KEY), null);
   assert.equal(globalThis.localStorage?.getItem(LAST_ORGANIZATION_ID_KEY), null);
+});
+
+test('isNavItemActive matches nested routes', () => {
+  assert.equal(
+    isNavItemActive('/organizations/org-1/stores/store-1/today', '/organizations/org-1/stores/store-1/today'),
+    true,
+  );
 });

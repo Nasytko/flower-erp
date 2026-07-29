@@ -9,18 +9,20 @@ export type NavItem = {
   href: string;
   label: string;
   permission?: string;
+  /** Show when user has any of these permissions (overrides single permission when set). */
+  anyPermission?: string[];
   orgScoped?: boolean;
   storeScoped?: boolean;
 };
 
 /**
- * Flat primary navigation (iteration 1 IA).
- * Order is product-defined; do not reintroduce parallel top-level items for hub children.
+ * Primary navigation for store staff (Stage B IA).
  */
 export const PRIMARY_NAV: NavItem[] = [
   {
-    href: '/organizations/{orgId}/stores/{storeId}/home',
-    label: 'Обзор',
+    href: '/organizations/{orgId}/stores/{storeId}/today',
+    label: 'Сегодня',
+    anyPermission: ['workspace:read', 'orders:read', 'operations:read', 'delivery:read'],
     storeScoped: true,
   },
   {
@@ -31,9 +33,15 @@ export const PRIMARY_NAV: NavItem[] = [
   },
   {
     href: '/organizations/{orgId}/stores/{storeId}/sales',
-    label: 'Продажи',
+    label: 'Продажа',
     permission: 'sales:read',
     storeScoped: true,
+  },
+  {
+    href: '/organizations/{orgId}/customers',
+    label: 'Клиенты',
+    permission: 'customers:read',
+    orgScoped: true,
   },
   {
     href: '/organizations/{orgId}/stores/{storeId}/stock',
@@ -43,32 +51,72 @@ export const PRIMARY_NAV: NavItem[] = [
   },
   {
     href: '/organizations/{orgId}/stores/{storeId}/supplies',
-    label: 'Приёмки',
+    label: 'Поступления',
     permission: 'supply:read',
     storeScoped: true,
   },
   {
-    href: '/organizations/{orgId}/stores/{storeId}/deliveries',
-    label: 'Доставка',
-    permission: 'delivery:read',
+    href: '/organizations/{orgId}/stores/{storeId}/write-offs',
+    label: 'Списания',
+    permission: 'write-offs:read',
     storeScoped: true,
   },
   {
-    href: '/organizations/{orgId}/stores/{storeId}/payments',
-    label: 'Финансы',
-    permission: 'payments:read',
+    href: '/organizations/{orgId}/stores/{storeId}/inventory-counts',
+    label: 'Инвентаризация',
+    permission: 'inventory-counts:read',
     storeScoped: true,
   },
   {
-    href: '/organizations/{orgId}/master-data',
-    label: 'Справочники',
-    permission: 'master-data:read',
+    href: '/organizations/{orgId}/stores/{storeId}/reports',
+    label: 'Отчёты',
+    permission: 'operations:read',
+    storeScoped: true,
+  },
+  {
+    href: '/organizations/{orgId}/stores/{storeId}/settings',
+    label: 'Настройки',
+    permission: 'stores:read',
+    storeScoped: true,
+  },
+];
+
+/** Admin-only navigation (director / owner). */
+export const ADMIN_NAV: NavItem[] = [
+  {
+    href: '/organizations/{orgId}/users',
+    label: 'Сотрудники',
+    permission: 'users:read',
     orgScoped: true,
   },
   {
-    href: '/organizations/{orgId}/users',
-    label: 'Настройки',
-    permission: 'users:read',
+    href: '/organizations/{orgId}',
+    label: 'Магазины',
+    permission: 'organization:read',
+    orgScoped: true,
+  },
+  {
+    href: '/organizations/{orgId}/stores/{storeId}/settings',
+    label: 'Склады',
+    permission: 'stores:read',
+    storeScoped: true,
+  },
+  {
+    href: '/organizations/{orgId}/stores/{storeId}/transfers',
+    label: 'Перемещения',
+    permission: 'transfers:read',
+    storeScoped: true,
+  },
+  {
+    href: '/organizations/{orgId}/stores/{storeId}/cash-accounts',
+    label: 'Касса',
+    permission: 'payments:view-cash',
+    storeScoped: true,
+  },
+  {
+    href: '/organizations/{orgId}/audit',
+    label: 'Аудит',
+    permission: 'audit:read',
     orgScoped: true,
   },
 ];
@@ -83,15 +131,13 @@ export type NavActionShortcut = {
 
 export const NAV_ACTION_SHORTCUTS: NavActionShortcut[] = [
   { id: 'new-order', label: 'Новый заказ', navLabel: 'Заказы' },
-  { id: 'new-sale', label: 'Новая продажа', navLabel: 'Продажи' },
+  { id: 'new-sale', label: 'Новая продажа', navLabel: 'Продажа' },
   { id: 'stock', label: 'Остатки', navLabel: 'Остатки' },
-  { id: 'today', label: 'Смена', navLabel: 'Заказы' },
+  { id: 'today', label: 'Смена', navLabel: 'Сегодня' },
 ];
 
 /**
- * Post-login / store home:
- * - orders/workspace/operations/delivery → unified Обзор (/home)
- * - fallback store base
+ * Post-login / store home: «Сегодня» as the shift workspace.
  */
 export function resolveStoreHomePath(
   organizationId: string,
@@ -100,13 +146,15 @@ export function resolveStoreHomePath(
 ): string {
   const base = `/organizations/${organizationId}/stores/${storeId}`;
 
-  if (hasPermission('orders:read') || hasPermission('workspace:read')) {
-    return `${base}/orders/calendar`;
+  if (
+    hasPermission('workspace:read') ||
+    hasPermission('orders:read') ||
+    hasPermission('operations:read') ||
+    hasPermission('delivery:read')
+  ) {
+    return `${base}/today`;
   }
 
-  if (hasPermission('operations:read') || hasPermission('delivery:read')) {
-    return `${base}/home`;
-  }
   return base;
 }
 
@@ -184,6 +232,16 @@ export function isNavItemActive(pathname: string, href: string): boolean {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
+function navItemAllowed(item: NavItem, hasPermission: (code: string) => boolean): boolean {
+  if (item.anyPermission?.length) {
+    return item.anyPermission.some((code) => hasPermission(code));
+  }
+  if (item.permission) {
+    return hasPermission(item.permission);
+  }
+  return true;
+}
+
 export function filterNavByPermissions(
   items: NavItem[],
   hasPermission: (code: string) => boolean,
@@ -191,7 +249,7 @@ export function filterNavByPermissions(
   storeId?: string | null,
 ): Array<NavItem & { href: string }> {
   return items
-    .filter((item) => !item.permission || hasPermission(item.permission))
+    .filter((item) => navItemAllowed(item, hasPermission))
     .map((item) => {
       const href = resolveNavHref(item, organizationId, storeId);
       return href ? { ...item, href } : null;
@@ -205,7 +263,7 @@ export function countStoreScopedEligible(
   hasPermission: (code: string) => boolean,
 ): number {
   return items.filter(
-    (item) => item.storeScoped && (!item.permission || hasPermission(item.permission)),
+    (item) => item.storeScoped && navItemAllowed(item, hasPermission),
   ).length;
 }
 
@@ -219,6 +277,9 @@ export function resolveNavActionShortcuts(
     let href = nav.href;
     if (shortcut.id === 'new-sale') {
       href = `${nav.href.replace(/\/$/, '')}/new`;
+    }
+    if (shortcut.id === 'new-order') {
+      href = `${nav.href.replace(/\/$/, '')}/calendar`;
     }
     return [{ id: shortcut.id, label: shortcut.label, href }];
   });

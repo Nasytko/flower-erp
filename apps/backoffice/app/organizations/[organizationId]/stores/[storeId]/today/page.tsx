@@ -1,18 +1,7 @@
 ﻿'use client';
 
-import { useEffect } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { TodayWorkspaceView } from '@/components/workspace/today-workspace-view';
 
-/** Legacy route — смена теперь в календаре заказов. */
-export default function TodayRedirectPage() {
-  const params = useParams<{ organizationId: string; storeId: string }>();
-  const router = useRouter();
-
-  useEffect(() => {
-    router.replace(
-      `/organizations/${params.organizationId}/stores/${params.storeId}/orders/calendar`,
-    );
-  }, [params.organizationId, params.storeId, router]);
-
-  return null;
+export default function TodayPage() {
+  return <TodayWorkspaceView />;
 }

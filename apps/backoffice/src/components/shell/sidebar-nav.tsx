@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation';
 import { useAuth } from '@/components/auth-provider';
 import { t } from '@/i18n/ru';
 import {
+  ADMIN_NAV,
   countStoreScopedEligible,
   filterNavByPermissions,
   isNavItemActive,
@@ -30,6 +31,13 @@ export function SidebarNav({
 
   const items = filterNavByPermissions(
     PRIMARY_NAV,
+    auth.hasPermission,
+    workspace.organizationId,
+    workspace.storeId,
+  );
+
+  const adminItems = filterNavByPermissions(
+    ADMIN_NAV,
     auth.hasPermission,
     workspace.organizationId,
     workspace.storeId,
@@ -67,6 +75,11 @@ export function SidebarNav({
     <nav className={`shell__nav shell__nav--${variant}`} aria-label={t('navigate')}>
       {needsStoreHint ? <p className="shell__nav-hint">{t('selectStoreHint')}</p> : null}
       <div className="shell__nav-primary">{primary.map(renderLink)}</div>
+      {adminItems.length > 0 ? (
+        <div className="shell__nav-admin" aria-label="Администрирование">
+          {adminItems.map(renderLink)}
+        </div>
+      ) : null}
       {settings.length > 0 ? <div className="shell__nav-footer">{settings.map(renderLink)}</div> : null}
     </nav>
   );

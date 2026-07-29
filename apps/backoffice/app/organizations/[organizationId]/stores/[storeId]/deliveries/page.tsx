@@ -134,13 +134,6 @@ export default function DeliveriesBoardPage() {
                   </Button>
                 </Link>
               ) : null}
-              {auth.hasPermission('delivery:manage-routes') || canRead ? (
-                <Link href={`${base}/delivery-routes`}>
-                  <Button type="button" variant="secondary">
-                    Маршруты
-                  </Button>
-                </Link>
-              ) : null}
             </div>
           }
         />
