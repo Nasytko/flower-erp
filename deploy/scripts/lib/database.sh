@@ -259,27 +259,203 @@ pg_verify_connection() {
 
 pg_run_pg_dump() {
   local output_file="$1"
-  local backup_dir output_name psql_url
+  db_stream_pg_dump_to_file "${output_file}"
+}
 
-  [[ -n "${output_file}" ]] || deploy_die "pg_run_pg_dump: output file required."
+# Stream custom-format pg_dump to a host file (stderr separate from binary stdout).
+db_stream_pg_dump_to_file() {
+  local output_file="$1"
+  local partial err_file psql_url backup_dir
+
+  [[ -n "${output_file}" ]] || deploy_die "db_stream_pg_dump_to_file: output file required."
   backup_dir="$(cd "$(dirname "${output_file}")" && pwd)"
-  output_name="$(basename "${output_file}")"
   mkdir -p "${backup_dir}"
+  partial="${backup_dir}/.partial.$(basename "${output_file}").$$"
+  err_file="${partial}.err"
 
-  deploy_require_cmd docker
-  pg_ensure_migrate_image
-  psql_url="$(pg_psql_connection_url)"
-
-  if ! deploy_compose_migrate run --rm --no-deps --entrypoint sh migrate \
-    -c 'command -v pg_dump >/dev/null 2>&1'; then
-    deploy_die "pg_dump is not available in migrate container."
+  if command -v pg_dump >/dev/null 2>&1 \
+    && [[ -n "${FLOWER_DB_HOST:-}" && -n "${FLOWER_DB_PORT:-}" \
+      && -n "${FLOWER_DB_USER:-}" && -n "${FLOWER_DB_PASSWORD:-}" ]]; then
+    PGPASSWORD="${FLOWER_DB_PASSWORD}" pg_dump \
+      -h "${FLOWER_DB_HOST}" \
+      -p "${FLOWER_DB_PORT}" \
+      -U "${FLOWER_DB_USER}" \
+      -d "${FLOWER_DB_NAME:-flower_erp}" \
+      -Fc --no-owner --no-privileges > "${partial}" 2>"${err_file}" \
+      || deploy_die "pg_dump failed (see ${err_file})."
+  else
+    deploy_require_cmd docker
+    pg_ensure_migrate_image
+    psql_url="$(pg_psql_connection_url)"
+    if ! deploy_compose_migrate run --rm --no-deps --entrypoint sh migrate \
+      -c 'command -v pg_dump >/dev/null 2>&1'; then
+      deploy_die "pg_dump is not available in migrate container."
+    fi
+    deploy_compose_migrate run --rm --no-deps \
+      -e "DATABASE_URL=${psql_url}" \
+      --entrypoint sh migrate \
+      -c 'pg_dump "$DATABASE_URL" -Fc --no-owner --no-privileges' > "${partial}" 2>"${err_file}" \
+      || deploy_die "pg_dump via migrate container failed (see ${err_file})."
   fi
 
-  deploy_compose_migrate run --rm --no-deps \
-    -v "${backup_dir}:/backups" \
-    -e "DATABASE_URL=${psql_url}" \
-    --entrypoint sh migrate \
-    -c "pg_dump \"\$DATABASE_URL\" -Fc --no-owner --no-privileges -f /backups/${output_name}"
+  db_verify_pg_dump_file "${partial}"
+  mv -f "${partial}" "${output_file}"
+  chmod 600 "${output_file}" 2>/dev/null || true
+  rm -f "${err_file}"
+}
 
-  deploy_verify_nonempty_file "${output_file}"
+db_verify_pg_dump_file() {
+  local file="$1"
+  deploy_verify_nonempty_file "${file}"
+  [[ "$(head -c 5 "${file}" 2>/dev/null || true)" == "PGDMP" ]] \
+    || deploy_die "Backup file is not a valid pg_dump custom archive (missing PGDMP magic): ${file}"
+  if command -v pg_restore >/dev/null 2>&1; then
+    pg_restore --list "${file}" >/dev/null \
+      || deploy_die "pg_restore --list rejected backup file: ${file}"
+  fi
+}
+
+# --- Prisma migrate helpers (entrypoint: prisma "$@") ---
+
+PRISMA_MIGRATE_STATUS_OUTPUT=""
+PRISMA_MIGRATE_STATUS_CLASS=""
+
+prisma_compose_cmd_hint() {
+  printf 'docker compose -f %q --env-file %q --profile migrate run --rm migrate migrate' \
+    "${COMPOSE_FILE}" "${ENV_FILE}"
+}
+
+prisma_run_migrate() {
+  local tmp exit_code
+  tmp="$(mktemp "${TMPDIR:-/tmp}/flower-prisma.XXXXXX")"
+  if deploy_compose_migrate run --rm migrate migrate "$@" >"${tmp}" 2>&1; then
+    exit_code=0
+  else
+    exit_code=$?
+  fi
+  PRISMA_MIGRATE_LAST_OUTPUT="$(cat "${tmp}")"
+  rm -f "${tmp}"
+  return "${exit_code}"
+}
+
+prisma_classify_status_output() {
+  local output="$1" exit_code="$2"
+
+  if [[ -z "${output}" && "${exit_code}" -ne 0 ]]; then
+    printf 'connection_error'
+    return 0
+  fi
+  if printf '%s' "${output}" | grep -q 'Unknown command'; then
+    printf 'cli_error'
+    return 0
+  fi
+  if printf '%s' "${output}" | grep -qiE 'P1001|Can.t reach database|ECONNREFUSED|Connection refused|timeout'; then
+    printf 'connection_error'
+    return 0
+  fi
+  if printf '%s' "${output}" | grep -qi 'following migration.*have failed'; then
+    printf 'failed'
+    return 0
+  fi
+  if printf '%s' "${output}" | grep -qi 'not yet been applied'; then
+    printf 'pending'
+    return 0
+  fi
+  if printf '%s' "${output}" | grep -qi 'Database schema is up to date'; then
+    printf 'up_to_date'
+    return 0
+  fi
+  if [[ "${exit_code}" -eq 0 ]]; then
+    printf 'up_to_date'
+    return 0
+  fi
+  if printf '%s' "${output}" | grep -qiE 'Prisma schema|Datasource|migration|Database schema'; then
+    if printf '%s' "${output}" | grep -qi 'failed'; then
+      printf 'failed'
+    elif printf '%s' "${output}" | grep -qi 'not yet been applied'; then
+      printf 'pending'
+    else
+      printf 'unknown'
+    fi
+    return 0
+  fi
+  printf 'connection_error'
+}
+
+prisma_refresh_migrate_status() {
+  local exit_code
+  if prisma_run_migrate status; then
+    exit_code=0
+  else
+    exit_code=$?
+  fi
+  PRISMA_MIGRATE_STATUS_OUTPUT="${PRISMA_MIGRATE_LAST_OUTPUT}"
+  PRISMA_MIGRATE_STATUS_CLASS="$(prisma_classify_status_output "${PRISMA_MIGRATE_STATUS_OUTPUT}" "${exit_code}")"
+}
+
+prisma_invalidate_status_cache() {
+  PRISMA_MIGRATE_STATUS_OUTPUT=""
+  PRISMA_MIGRATE_STATUS_CLASS=""
+}
+
+prisma_extract_migration_names() {
+  local section_header="$1" output="$2"
+  printf '%s\n' "${output}" | awk -v header="${section_header}" '
+    BEGIN { IGNORECASE = 1 }
+    $0 ~ header { in_section = 1; next }
+    in_section && /^[0-9]{14}_[a-zA-Z0-9_]+$/ { print }
+    in_section && /^[[:space:]]*$/ { in_section = 0 }
+  '
+}
+
+prisma_failed_migration_names() {
+  prisma_extract_migration_names 'have failed' "${PRISMA_MIGRATE_STATUS_OUTPUT}"
+}
+
+prisma_pending_migration_names() {
+  prisma_extract_migration_names 'not yet been applied' "${PRISMA_MIGRATE_STATUS_OUTPUT}"
+}
+
+prisma_assert_status_readable() {
+  prisma_refresh_migrate_status
+  case "${PRISMA_MIGRATE_STATUS_CLASS}" in
+    connection_error)
+      deploy_die "Unable to determine Prisma migration status (database connection failed)."
+      ;;
+    cli_error)
+      deploy_die "Prisma CLI rejected migrate status (check migrate container entrypoint)."
+      ;;
+    unknown)
+      deploy_die "Unable to determine Prisma migration status (unrecognized output)."
+      ;;
+  esac
+}
+
+prisma_assert_no_failed_migrations() {
+  if [[ "${PRISMA_MIGRATE_STATUS_CLASS}" == "failed" ]]; then
+    local failed_names
+    failed_names="$(prisma_failed_migration_names)"
+    cat >&2 <<EOF
+ERROR: Prisma found failed migration(s). Deploy is blocked (P3009).
+
+Failed migration(s):
+${failed_names:-unknown}
+
+Resolve with prisma migrate resolve, then redeploy.
+Example:
+  $(prisma_compose_cmd_hint) resolve --rolled-back "MIGRATION_NAME"
+EOF
+    exit 1
+  fi
+}
+
+prisma_migrate_deploy() {
+  deploy_log "Running prisma migrate deploy..."
+  if prisma_run_migrate deploy; then
+    deploy_log "Migrations applied successfully."
+    return 0
+  fi
+  deploy_warn "Prisma migrate deploy failed:"
+  printf '%s\n' "${PRISMA_MIGRATE_LAST_OUTPUT}" >&2
+  deploy_die "Database migrations failed. Runtime containers were not updated."
 }

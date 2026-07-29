@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
-# Shared helpers for Flower ERP deploy scripts.
+# Logging, errors, env loading, git/disk checks.
 
 deploy_common_init() {
   : "${DEPLOY_ROOT:?DEPLOY_ROOT required}"
   ENV_FILE="${ENV_FILE:-${DEPLOY_ROOT}/.env.production}"
   COMPOSE_FILE="${COMPOSE_FILE:-${DEPLOY_ROOT}/docker-compose.production.yml}"
+  STATE_DIR="${STATE_DIR:-${DEPLOY_ROOT}/deploy/state}"
 }
 
 deploy_log() { printf '==> %s\n' "$*"; }
@@ -35,12 +36,18 @@ deploy_load_env() {
   : "${DATABASE_MIGRATE_URL:?DATABASE_MIGRATE_URL is required}"
 }
 
-deploy_compose() {
-  docker compose -f "${COMPOSE_FILE}" --env-file "${ENV_FILE}" "$@"
-}
-
-deploy_compose_migrate() {
-  deploy_compose --profile migrate "$@"
+deploy_git_info() {
+  if ! command -v git >/dev/null 2>&1; then
+    printf 'unknown unknown'
+    return 0
+  fi
+  if ! git -C "${DEPLOY_ROOT}" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    printf 'unknown unknown'
+    return 0
+  fi
+  printf '%s %s' \
+    "$(git -C "${DEPLOY_ROOT}" rev-parse --short HEAD 2>/dev/null || echo unknown)" \
+    "$(git -C "${DEPLOY_ROOT}" rev-parse --abbrev-ref HEAD 2>/dev/null || echo unknown)"
 }
 
 deploy_check_git_clean() {
@@ -53,8 +60,21 @@ deploy_check_git_clean() {
     return 0
   fi
   if [[ -n "$(git -C "${DEPLOY_ROOT}" status --porcelain --untracked-files=no)" ]]; then
-    deploy_die "Modified tracked files detected. Commit or stash before continuing."
+    deploy_die "Modified tracked files detected. Commit or stash before deploy."
   fi
+}
+
+deploy_check_disk_space() {
+  local avail_kb min_kb=1048576
+  if ! command -v df >/dev/null 2>&1; then
+    deploy_warn "df not found; skipping disk space check."
+    return 0
+  fi
+  avail_kb="$(df -Pk "${DEPLOY_ROOT}" | awk 'NR==2 {print $4}')"
+  if [[ "${avail_kb}" -lt "${min_kb}" ]]; then
+    deploy_die "Insufficient disk space in ${DEPLOY_ROOT}: ${avail_kb} KiB free (need >= 1 GiB)."
+  fi
+  deploy_log "Disk free in ${DEPLOY_ROOT}: $(( avail_kb / 1024 / 1024 )) GiB"
 }
 
 deploy_write_checksum() {
@@ -66,11 +86,16 @@ deploy_write_checksum() {
     shasum -a 256 "${file}" > "${checksum_file}"
   else
     deploy_warn "No sha256sum/shasum; skipping checksum for ${file}."
-    return 0
   fi
 }
 
 deploy_verify_nonempty_file() {
   local file="$1"
   [[ -f "${file}" && -s "${file}" ]] || deploy_die "Backup file missing or empty: ${file}"
+}
+
+deploy_read_password_file() {
+  local file="$1"
+  [[ -f "${file}" && -r "${file}" ]] || deploy_die "Password file not readable: ${file}"
+  tr -d '\r\n' < "${file}"
 }
