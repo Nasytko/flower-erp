@@ -1,8 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import type {
-  CashAccount as PrismaCashAccount,
-  CashOperation as PrismaCashOperation,
   Payment as PrismaPayment,
   PaymentAllocation as PrismaAllocation,
   PaymentMethod as PrismaMethod,
@@ -11,10 +9,6 @@ import type {
 import { PrismaService } from '../../../infrastructure/prisma/prisma.service';
 import { resolvePrismaClient } from '../../../infrastructure/persistence/prisma-transaction-context';
 import type {
-  CashAccountStatus,
-  CashAccountType,
-  CashOperationDirection,
-  CashOperationType,
   PaymentAllocationTargetType,
   PaymentDirection,
   PaymentMethodType,
@@ -23,9 +17,6 @@ import type {
   PaymentType,
 } from '../domain/payment-rules';
 import type {
-  CashAccountView,
-  CashOperationView,
-  CreateCashOperationInput,
   CreatePaymentInput,
   CreateRefundInput,
   IdempotencyRecord,
@@ -112,37 +103,6 @@ function mapRefund(row: PrismaRefund): PaymentRefundView {
     annulReason: row.annulReason,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
-  };
-}
-
-function mapCashAccount(row: PrismaCashAccount): CashAccountView {
-  return {
-    id: row.id,
-    organizationId: row.organizationId,
-    storeId: row.storeId,
-    name: row.name,
-    type: row.type as CashAccountType,
-    status: row.status as CashAccountStatus,
-    createdAt: row.createdAt,
-    updatedAt: row.updatedAt,
-  };
-}
-
-function mapCashOperation(row: PrismaCashOperation): CashOperationView {
-  return {
-    id: row.id,
-    organizationId: row.organizationId,
-    storeId: row.storeId,
-    cashAccountId: row.cashAccountId,
-    paymentId: row.paymentId,
-    refundId: row.refundId,
-    type: row.type as CashOperationType,
-    direction: row.direction as CashOperationDirection,
-    amount: money(row.amount),
-    occurredAt: row.occurredAt,
-    comment: row.comment,
-    createdByMembershipId: row.createdByMembershipId,
-    createdAt: row.createdAt,
   };
 }
 
@@ -486,91 +446,6 @@ export class PrismaPaymentRepository implements PaymentRepository {
     const row = await this.getRefund(input.organizationId, input.storeId, input.refundId);
     if (!row) throw new Error('Refund not found after annul');
     return row;
-  }
-
-  async ensureDefaultCashAccount(input: {
-    id: string;
-    organizationId: string;
-    storeId: string;
-    name: string;
-    type: CashAccountType;
-  }): Promise<CashAccountView> {
-    const existing = await this.getActiveCashRegister(input.organizationId, input.storeId);
-    if (existing) return existing;
-    const row = await this.client().cashAccount.create({
-      data: {
-        id: input.id,
-        organizationId: input.organizationId,
-        storeId: input.storeId,
-        name: input.name,
-        type: input.type,
-        status: 'ACTIVE',
-      },
-    });
-    return mapCashAccount(row);
-  }
-
-  async listCashAccounts(
-    organizationId: string,
-    storeId: string,
-  ): Promise<CashAccountView[]> {
-    const rows = await this.client().cashAccount.findMany({
-      where: { organizationId, storeId },
-      orderBy: { createdAt: 'asc' },
-    });
-    return rows.map(mapCashAccount);
-  }
-
-  async getActiveCashRegister(
-    organizationId: string,
-    storeId: string,
-  ): Promise<CashAccountView | null> {
-    const row = await this.client().cashAccount.findFirst({
-      where: {
-        organizationId,
-        storeId,
-        type: 'CASH_REGISTER',
-        status: 'ACTIVE',
-      },
-      orderBy: { createdAt: 'asc' },
-    });
-    return row ? mapCashAccount(row) : null;
-  }
-
-  async createCashOperation(input: CreateCashOperationInput): Promise<CashOperationView> {
-    const row = await this.client().cashOperation.create({
-      data: {
-        id: input.id,
-        organizationId: input.organizationId,
-        storeId: input.storeId,
-        cashAccountId: input.cashAccountId,
-        paymentId: input.paymentId,
-        refundId: input.refundId,
-        type: input.type,
-        direction: input.direction,
-        amount: new Prisma.Decimal(input.amount),
-        occurredAt: input.occurredAt,
-        comment: input.comment,
-        createdByMembershipId: input.createdByMembershipId,
-      },
-    });
-    return mapCashOperation(row);
-  }
-
-  async listCashOperations(
-    organizationId: string,
-    storeId: string,
-    cashAccountId?: string,
-  ): Promise<CashOperationView[]> {
-    const rows = await this.client().cashOperation.findMany({
-      where: {
-        organizationId,
-        storeId,
-        ...(cashAccountId ? { cashAccountId } : {}),
-      },
-      orderBy: { occurredAt: 'desc' },
-    });
-    return rows.map(mapCashOperation);
   }
 
   async sumActiveCompletedAllocationsForTarget(

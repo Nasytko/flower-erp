@@ -9,7 +9,6 @@ import { ApiTags } from '@nestjs/swagger';
 import { IsEnum, IsInt, IsOptional, IsUUID, Max, Min } from 'class-validator';
 import { Type } from 'class-transformer';
 import { hasAnyPermission } from '@flower/permissions';
-import { RequirePermissions } from '../../auth/presentation/auth.decorators';
 import { CurrentAuthContext } from '../../auth/presentation/current-auth-context.decorator';
 import type { AuthContext } from '../../../infrastructure/context/request-context';
 import { WorkspaceQueryUseCases } from '../application/workspace-query.use-cases';

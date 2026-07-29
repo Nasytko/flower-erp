@@ -1,8 +1,4 @@
 import type {
-  CashAccountStatus,
-  CashAccountType,
-  CashOperationDirection,
-  CashOperationType,
   PaymentAllocationTargetType,
   PaymentDirection,
   PaymentMethodType,
@@ -79,33 +75,6 @@ export type PaymentRefundView = {
   updatedAt: Date;
 };
 
-export type CashAccountView = {
-  id: string;
-  organizationId: string;
-  storeId: string;
-  name: string;
-  type: CashAccountType;
-  status: CashAccountStatus;
-  createdAt: Date;
-  updatedAt: Date;
-};
-
-export type CashOperationView = {
-  id: string;
-  organizationId: string;
-  storeId: string;
-  cashAccountId: string;
-  paymentId: string | null;
-  refundId: string | null;
-  type: CashOperationType;
-  direction: CashOperationDirection;
-  amount: string;
-  occurredAt: Date;
-  comment: string | null;
-  createdByMembershipId: string | null;
-  createdAt: Date;
-};
-
 export type CreatePaymentAllocationInput = {
   id: string;
   targetType: PaymentAllocationTargetType;
@@ -139,21 +108,6 @@ export type CreateRefundInput = {
   reason: string;
   methodId: string;
   externalReference: string | null;
-  createdByMembershipId: string | null;
-};
-
-export type CreateCashOperationInput = {
-  id: string;
-  organizationId: string;
-  storeId: string;
-  cashAccountId: string;
-  paymentId: string | null;
-  refundId: string | null;
-  type: CashOperationType;
-  direction: CashOperationDirection;
-  amount: string;
-  occurredAt: Date;
-  comment: string | null;
   createdByMembershipId: string | null;
 };
 
@@ -245,25 +199,6 @@ export interface PaymentRepository {
     annulledAt: Date;
     annulReason: string;
   }): Promise<PaymentRefundView>;
-
-  ensureDefaultCashAccount(input: {
-    id: string;
-    organizationId: string;
-    storeId: string;
-    name: string;
-    type: CashAccountType;
-  }): Promise<CashAccountView>;
-  listCashAccounts(organizationId: string, storeId: string): Promise<CashAccountView[]>;
-  getActiveCashRegister(
-    organizationId: string,
-    storeId: string,
-  ): Promise<CashAccountView | null>;
-  createCashOperation(input: CreateCashOperationInput): Promise<CashOperationView>;
-  listCashOperations(
-    organizationId: string,
-    storeId: string,
-    cashAccountId?: string,
-  ): Promise<CashOperationView[]>;
 
   sumActiveCompletedAllocationsForTarget(
     organizationId: string,

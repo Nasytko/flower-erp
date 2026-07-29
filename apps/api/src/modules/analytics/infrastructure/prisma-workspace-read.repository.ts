@@ -886,7 +886,3 @@ function ageMinutes(from: Date, now: Date): number {
 function sumDecimals(values: string[]): string {
   return values.reduce((acc, v) => acc + Number(v), 0).toFixed(2);
 }
-
-function sumDecimalStrings(values: string[]): string {
-  return values.reduce((acc, v) => acc + Number(v), 0).toFixed(3);
-}

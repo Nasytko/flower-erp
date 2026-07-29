@@ -38,30 +38,6 @@ export enum PaymentRefundStatus {
   ANNULLED = 'ANNULLED',
 }
 
-export enum CashAccountType {
-  CASH_REGISTER = 'CASH_REGISTER',
-  BANK = 'BANK',
-  OTHER = 'OTHER',
-}
-
-export enum CashAccountStatus {
-  ACTIVE = 'ACTIVE',
-  ARCHIVED = 'ARCHIVED',
-}
-
-export enum CashOperationType {
-  PAYMENT_RECEIPT = 'PAYMENT_RECEIPT',
-  REFUND_PAYMENT = 'REFUND_PAYMENT',
-  MANUAL_INCOME = 'MANUAL_INCOME',
-  MANUAL_EXPENSE = 'MANUAL_EXPENSE',
-  PAYMENT_ANNULMENT_REVERSAL = 'PAYMENT_ANNULMENT_REVERSAL',
-}
-
-export enum CashOperationDirection {
-  IN = 'IN',
-  OUT = 'OUT',
-}
-
 export enum PaymentStatusProjection {
   UNPAID = 'UNPAID',
   PARTIALLY_PAID = 'PARTIALLY_PAID',

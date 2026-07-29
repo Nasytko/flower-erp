@@ -189,9 +189,3 @@ export class ListMethodsQueryDto {
   @Type(() => Boolean)
   activeOnly?: boolean;
 }
-
-export class ListCashOperationsQueryDto {
-  @IsOptional()
-  @IsUUID()
-  cashAccountId?: string;
-}
