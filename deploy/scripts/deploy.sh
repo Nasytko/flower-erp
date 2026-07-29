@@ -170,23 +170,27 @@ check_prerequisites() {
   export COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-flower-erp}"
 }
 
+run_prisma_migrate_status() {
+  local output
+  if [[ "${DRY_RUN}" == "1" ]]; then
+    log "[dry-run] Checking migration status via: docker compose ... run --rm migrate status"
+  fi
+  output="$(compose_migrate run --rm migrate status 2>&1)" || {
+    cat >&2 <<EOF
+ERROR:
+Unable to determine Prisma migration status.
+
+Deployment aborted.
+EOF
+    printf '%s\n' "${output:-}" >&2
+    exit 1
+  }
+  printf '%s' "${output}"
+}
+
 get_pending_stage_c_migrations() {
   local output pending="" mig
-  if [[ "${DRY_RUN}" == "1" ]]; then
-    log "[dry-run] Would check pending migrations via: docker compose ... run --rm migrate status"
-    # Best-effort read if DB reachable; otherwise assume check at deploy time.
-    if ! compose_migrate run --rm migrate status >/tmp/flower-migrate-status.txt 2>&1; then
-      rm -f /tmp/flower-migrate-status.txt
-      return 0
-    fi
-    output="$(cat /tmp/flower-migrate-status.txt)"
-    rm -f /tmp/flower-migrate-status.txt
-  else
-    output="$(compose_migrate run --rm migrate status 2>&1)" || {
-      warn "Could not run prisma migrate status; Stage C gate skipped."
-      return 0
-    }
-  fi
+  output="$(run_prisma_migrate_status)"
   for mig in "${STAGE_C_MIGRATIONS[@]}"; do
     if printf '%s\n' "${output}" | grep -A50 'not yet been applied' | grep -q "${mig}"; then
       pending="${pending} ${mig}"
@@ -315,8 +319,8 @@ verify_health() {
   bo_code="$(curl -sf -o /dev/null -w '%{http_code}' "http://127.0.0.1:${bo_port}/" || echo 000)"
   [[ "${bo_code}" =~ ^[23] ]] || die "Backoffice HTTP check failed (status ${bo_code})."
 
-  # Migration status (informational)
-  compose_migrate run --rm migrate status || warn "Could not read migration status."
+  # Migration status must be readable after deploy
+  run_prisma_migrate_status >/dev/null
 
   # Restart loop check
   local restarting

@@ -19,6 +19,7 @@ BEGIN
 END $$;
 
 -- PaymentMethodType: remove GIFT_CERTIFICATE
+-- Column payment_methods.type: NOT NULL, no DEFAULT
 CREATE TYPE "PaymentMethodType_new" AS ENUM (
   'CASH',
   'BANK_CARD',
@@ -29,6 +30,9 @@ CREATE TYPE "PaymentMethodType_new" AS ENUM (
 );
 
 ALTER TABLE "payment_methods"
+  ALTER COLUMN "type" DROP DEFAULT;
+
+ALTER TABLE "payment_methods"
   ALTER COLUMN "type" TYPE "PaymentMethodType_new"
   USING ("type"::text::"PaymentMethodType_new");
 
@@ -36,6 +40,7 @@ DROP TYPE "PaymentMethodType";
 ALTER TYPE "PaymentMethodType_new" RENAME TO "PaymentMethodType";
 
 -- SalesChannel: remove TELEGRAM
+-- Column sales.sales_channel: NOT NULL DEFAULT 'STORE'
 CREATE TYPE "SalesChannel_new" AS ENUM (
   'STORE',
   'PHONE',
@@ -44,8 +49,14 @@ CREATE TYPE "SalesChannel_new" AS ENUM (
 );
 
 ALTER TABLE "sales"
+  ALTER COLUMN "sales_channel" DROP DEFAULT;
+
+ALTER TABLE "sales"
   ALTER COLUMN "sales_channel" TYPE "SalesChannel_new"
   USING ("sales_channel"::text::"SalesChannel_new");
 
 DROP TYPE "SalesChannel";
 ALTER TYPE "SalesChannel_new" RENAME TO "SalesChannel";
+
+ALTER TABLE "sales"
+  ALTER COLUMN "sales_channel" SET DEFAULT 'STORE'::"SalesChannel";
