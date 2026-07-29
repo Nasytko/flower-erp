@@ -1,6 +1,6 @@
 # Database Cleanup Plan — Flower ERP
 
-**Status:** Draft (Stage A — planning only)  
+**Status:** Stage C complete (migrations prepared — apply after backup + audit on target env)  
 **Date:** 2026-07-29  
 **Related:** [cleanup-audit.md](./cleanup-audit.md), [scripts/audit-removable-data.sql](../scripts/audit-removable-data.sql)
 
