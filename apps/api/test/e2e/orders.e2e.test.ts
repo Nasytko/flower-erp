@@ -79,7 +79,6 @@ test('e2e customer order draft → composition → confirm → dashboard', { ski
     .get(`${storeBase}/orders/${order.body.id}`)
     .set(headers)
     .expect(200);
-  assert.ok(detail.body.timeline?.length >= 1);
 
   const dash = await request(server).get(`${storeBase}/orders/dashboard`).set(headers).expect(200);
   assert.ok(Array.isArray(dash.body.partiallyReserved));

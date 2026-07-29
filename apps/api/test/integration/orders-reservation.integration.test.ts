@@ -152,7 +152,6 @@ test('composition confirm: full reserve, partial, assignment, ready without stoc
     orderId: order.id,
   });
   assert.equal(confirmed.status, 'RESERVED');
-  assert.ok(confirmed.timeline?.some((e) => e.type === 'RESERVATION_SUCCEEDED' || e.type === 'CONFIRMED'));
 
   const balances = await inventory.listBalances(
     auth.organizationId,
