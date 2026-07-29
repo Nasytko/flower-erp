@@ -166,7 +166,7 @@ export class BootstrapOwnerUseCases {
         email: input.email ?? null,
         passwordHash,
         displayName: input.displayName.trim(),
-        mustChangePassword: false,
+        mustChangePassword: true,
       });
 
       const membership = await this.identity.createMembership({

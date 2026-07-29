@@ -4,6 +4,7 @@ import { PrismaIdentityRepository } from './infrastructure/prisma-identity.repos
 import { PrismaSessionRepository } from './infrastructure/prisma-session.repository';
 import { UserManagementUseCases } from './application/user-management.use-cases';
 import { BootstrapOwnerUseCases } from './application/bootstrap-owner.use-cases';
+import { CreateDirectorUseCases } from './application/create-director.use-cases';
 import { UserController } from './presentation/user.controller';
 import { RoleController } from './presentation/role.controller';
 import { OrganizationModule } from '../organization/organization.module';
@@ -17,7 +18,8 @@ import { MasterDataModule } from '../master-data/master-data.module';
     { provide: SESSION_REPOSITORY, useClass: PrismaSessionRepository },
     UserManagementUseCases,
     BootstrapOwnerUseCases,
+    CreateDirectorUseCases,
   ],
-  exports: [IDENTITY_REPOSITORY, SESSION_REPOSITORY, UserManagementUseCases, BootstrapOwnerUseCases],
+  exports: [IDENTITY_REPOSITORY, SESSION_REPOSITORY, UserManagementUseCases, BootstrapOwnerUseCases, CreateDirectorUseCases],
 })
 export class IdentityModule {}

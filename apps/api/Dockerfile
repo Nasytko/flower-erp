@@ -53,6 +53,7 @@ RUN printf '%s\n' 'node-linker=hoisted' > /app/.npmrc \
     /prod/api/Dockerfile /prod/api/*.tsbuildinfo /prod/api/.npmrc \
   && test -f /prod/api/dist/main.js \
   && test -f /prod/api/dist/scripts/create-initial-director.js \
+  && test -f /prod/api/dist/scripts/create-director.js \
   && test -d /prod/api/node_modules/express \
   && test -d /prod/api/node_modules/@nestjs/core \
   && test -d /prod/api/node_modules/@nestjs/platform-express \
