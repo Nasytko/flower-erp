@@ -22,16 +22,6 @@ export type PermissionCode =
   | 'write-offs:create'
   | 'write-offs:post'
   | 'write-offs:reverse'
-  | 'transfers:read'
-  | 'transfers:create'
-  | 'transfers:dispatch'
-  | 'transfers:receive'
-  | 'transfers:cancel'
-  | 'inventory-counts:read'
-  | 'inventory-counts:create'
-  | 'inventory-counts:count'
-  | 'inventory-counts:post'
-  | 'inventory-counts:cancel'
   | 'inventory-adjustments:view-cost'
   | 'customers:read'
   | 'customers:manage'
@@ -57,8 +47,6 @@ export type PermissionCode =
   | 'payments:annul'
   | 'payments:refund'
   | 'payments:manage-methods'
-  | 'payments:view-cash'
-  | 'payments:manual-adjustment'
   | 'delivery:read'
   | 'delivery:create'
   | 'delivery:update'
@@ -74,8 +62,7 @@ export type PermissionCode =
   | 'users:read'
   | 'users:manage'
   | 'roles:manage'
-  | 'workspace:read'
-  | 'operations:read';
+  | 'workspace:read';
 
 export type PermissionDefinition = {
   readonly code: PermissionCode;
@@ -101,17 +88,7 @@ export const PERMISSION_REGISTRY: readonly PermissionDefinition[] = [
   { code: 'write-offs:create', description: 'Create draft inventory write-offs' },
   { code: 'write-offs:post', description: 'Post write-off documents' },
   { code: 'write-offs:reverse', description: 'Reverse posted write-off documents' },
-  { code: 'transfers:read', description: 'View transfer documents and in-transit inventory' },
-  { code: 'transfers:create', description: 'Create draft inventory transfers' },
-  { code: 'transfers:dispatch', description: 'Dispatch transfer documents from source warehouse' },
-  { code: 'transfers:receive', description: 'Receive transfer documents into destination warehouse' },
-  { code: 'transfers:cancel', description: 'Cancel or reverse transfer documents' },
-  { code: 'inventory-counts:read', description: 'View inventory counts and progress' },
-  { code: 'inventory-counts:create', description: 'Create inventory count snapshots' },
-  { code: 'inventory-counts:count', description: 'Enter counted quantities for inventory counts' },
-  { code: 'inventory-counts:post', description: 'Post inventory count adjustments' },
-  { code: 'inventory-counts:cancel', description: 'Cancel inventory count documents' },
-  { code: 'inventory-adjustments:view-cost', description: 'View cost amounts on write-offs, transfers, and count adjustments' },
+  { code: 'inventory-adjustments:view-cost', description: 'View cost amounts on write-offs' },
   { code: 'customers:read', description: 'View customers' },
   { code: 'customers:manage', description: 'Create and archive customers' },
   { code: 'orders:read', description: 'View orders and order dashboard' },
@@ -154,7 +131,6 @@ export const PERMISSION_REGISTRY: readonly PermissionDefinition[] = [
   { code: 'users:manage', description: 'Create, block, archive users and reset passwords' },
   { code: 'roles:manage', description: 'Assign roles and store access' },
   { code: 'workspace:read', description: 'View florist Today workspace and work-order projections' },
-  { code: 'operations:read', description: 'View director Operations attention board and KPIs' },
 ] as const;
 
 export const ALL_PERMISSION_CODES: readonly PermissionCode[] = PERMISSION_REGISTRY.map((p) => p.code);
@@ -176,9 +152,6 @@ export const FLORIST_PERMISSIONS: readonly PermissionCode[] = [
   'inventory:read',
   'write-offs:read',
   'write-offs:create',
-  'transfers:read',
-  'inventory-counts:read',
-  'inventory-counts:count',
   'customers:read',
   'orders:read',
   'orders:create',

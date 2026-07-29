@@ -11,7 +11,6 @@ import { PageHeader } from '@/components/layout/page-header';
 import { Section } from '@/components/layout/section';
 import { EmptyState, ErrorState, LoadingState } from '@/components/layout/states';
 import { StatusBadge } from '@/components/layout/status-badge';
-import { SettingsLinks } from '@/components/layout/settings-links';
 import { formatApiErrorMessage } from '@/lib/format-api-error';
 
 type PaymentRow = Awaited<ReturnType<ReturnType<typeof getApiClient>['listPayments']>>[number];
@@ -69,24 +68,6 @@ export default function PaymentsPage() {
             { label: 'Платежи' },
           ]}
         />
-
-        <Section>
-          <SettingsLinks
-            title="Справочники финансов"
-            links={[
-              {
-                href: `${base}/payment-methods`,
-                label: 'Способы оплаты',
-                description: 'Наличные, карта, перевод и другие методы',
-              },
-              {
-                href: `${base}/cash-accounts`,
-                label: 'Кассы и счета',
-                description: 'Точки приёма денег в магазине',
-              },
-            ]}
-          />
-        </Section>
 
         <Section>
           <Card title="Фильтр">

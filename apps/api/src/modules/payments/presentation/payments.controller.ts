@@ -16,7 +16,6 @@ import {
   CreatePaymentMethodDto,
   CreateRefundDto,
   CreateTargetPaymentDto,
-  ListCashOperationsQueryDto,
   ListMethodsQueryDto,
   ListPaymentsQueryDto,
   MethodParamsDto,
@@ -27,8 +26,6 @@ import {
   StoreParamsDto,
 } from './payment.dto';
 import {
-  presentCashAccount,
-  presentCashOperation,
   presentMethod,
   presentPayment,
   presentRefund,
@@ -278,52 +275,5 @@ export class PaymentsController {
         params.saleId,
       ),
     );
-  }
-
-  @Post('cash-accounts/ensure-default')
-  @RequirePermissions('payments:view-cash')
-  async ensureCash(@Param() params: StoreParamsDto) {
-    return presentCashAccount(
-      await this.payments.ensureDefaultCashAccount(params.organizationId, params.storeId),
-    );
-  }
-
-  @Get('cash-accounts')
-  @RequirePermissions('payments:view-cash')
-  async listCashAccounts(@Param() params: StoreParamsDto) {
-    const rows = await this.payments.listCashAccounts(
-      params.organizationId,
-      params.storeId,
-    );
-    return rows.map(presentCashAccount);
-  }
-
-  @Get('cash-accounts/:cashAccountId/operations')
-  @RequirePermissions('payments:view-cash')
-  async listCashAccountOperations(
-    @Param('organizationId') organizationId: string,
-    @Param('storeId') storeId: string,
-    @Param('cashAccountId') cashAccountId: string,
-  ) {
-    const rows = await this.payments.listCashOperations(
-      organizationId,
-      storeId,
-      cashAccountId,
-    );
-    return rows.map(presentCashOperation);
-  }
-
-  @Get('cash-operations')
-  @RequirePermissions('payments:view-cash')
-  async listCashOperations(
-    @Param() params: StoreParamsDto,
-    @Query() query: ListCashOperationsQueryDto,
-  ) {
-    const rows = await this.payments.listCashOperations(
-      params.organizationId,
-      params.storeId,
-      query.cashAccountId,
-    );
-    return rows.map(presentCashOperation);
   }
 }

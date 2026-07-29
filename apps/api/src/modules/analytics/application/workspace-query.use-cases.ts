@@ -252,38 +252,6 @@ export class WorkspaceQueryUseCases {
     };
   }
 
-  async getOperations(organizationId: string, storeId: string) {
-    this.assertOperationsAccess();
-    await this.organizations.getStore(organizationId, storeId);
-    const now = this.clock.now();
-    const permissions = getRequestContext()?.auth?.permissions ?? [];
-    const includeMargin = hasPermission(permissions, ['sales:view-margin']);
-    const [kpis, attentionItems, directorKpi] = await Promise.all([
-      this.reads.getOperationalKpis({ organizationId, storeId, now }),
-      this.reads.listAttentionItems({
-        organizationId,
-        storeId,
-        now,
-        soonMinutes: this.env.WORKSPACE_READY_SOON_MINUTES,
-        lowStockThreshold: this.env.WORKSPACE_LOW_STOCK_THRESHOLD,
-      }),
-      this.reads.getDirectorKpi({
-        organizationId,
-        storeId,
-        now,
-        soonMinutes: this.env.WORKSPACE_READY_SOON_MINUTES,
-        includeMargin,
-      }),
-    ]);
-
-    return {
-      serverNow: now.toISOString(),
-      kpis,
-      attentionItems,
-      directorKpi,
-    };
-  }
-
   async getOperationalStock(organizationId: string, storeId: string) {
     this.assertWorkspaceAccess();
     await this.organizations.getStore(organizationId, storeId);
@@ -302,45 +270,6 @@ export class WorkspaceQueryUseCases {
     };
   }
 
-  async getInventoryOpsAttention(organizationId: string, storeId: string) {
-    this.assertOperationsAccess();
-    await this.organizations.getStore(organizationId, storeId);
-    return {
-      serverNow: this.clock.now().toISOString(),
-      items: await this.reads.listInventoryOpsAttention({ organizationId, storeId }),
-    };
-  }
-
-  async getInventoryTransit(organizationId: string, storeId: string) {
-    this.assertOperationsAccess();
-    await this.organizations.getStore(organizationId, storeId);
-    return {
-      serverNow: this.clock.now().toISOString(),
-      items: await this.reads.listInventoryTransit({ organizationId, storeId }),
-    };
-  }
-
-  async getInventoryLosses(organizationId: string, storeId: string) {
-    this.assertOperationsAccess();
-    await this.organizations.getStore(organizationId, storeId);
-    const permissions = getRequestContext()?.auth?.permissions ?? [];
-    const includeCost = hasPermission(permissions, ['inventory-adjustments:view-cost']);
-    return {
-      serverNow: this.clock.now().toISOString(),
-      costRedacted: !includeCost,
-      items: await this.reads.listInventoryLosses({ organizationId, storeId, includeCost }),
-    };
-  }
-
-  async getInventoryCountProgress(organizationId: string, storeId: string) {
-    this.assertOperationsAccess();
-    await this.organizations.getStore(organizationId, storeId);
-    return {
-      serverNow: this.clock.now().toISOString(),
-      items: await this.reads.listInventoryCountProgress({ organizationId, storeId }),
-    };
-  }
-
   private assertWorkspaceAccess(): void {
     const permissions = getRequestContext()?.auth?.permissions ?? [];
     if (!hasAnyPermission(permissions, ['workspace:read', 'orders:read'])) {
@@ -350,19 +279,6 @@ export class WorkspaceQueryUseCases {
           permissions.length === 0
             ? 'Authentication context missing (workspace:read or orders:read required)'
             : 'workspace:read or orders:read required',
-      });
-    }
-  }
-
-  private assertOperationsAccess(): void {
-    const permissions = getRequestContext()?.auth?.permissions ?? [];
-    if (!hasAnyPermission(permissions, ['operations:read', 'orders:read'])) {
-      throw new ForbiddenException({
-        code: 'ACCESS_DENIED',
-        message:
-          permissions.length === 0
-            ? 'Authentication context missing (operations:read required)'
-            : 'operations:read required',
       });
     }
   }

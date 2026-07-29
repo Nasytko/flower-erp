@@ -7,7 +7,6 @@ import { Button, Card } from '@flower/ui';
 import {
   ApiClientError,
   type DeliveryBoardDto,
-  type OperationsBoardDto,
   type WorkspaceTodayDto,
 } from '@flower/api-client';
 import { getApiClient } from '@/lib/api-client';
@@ -26,7 +25,6 @@ import {
 import { BOARD_SECTION_LABELS, formatWindow, todayIsoDate } from '@/lib/delivery-labels';
 import { resolveAttentionHref } from '@/lib/attention-ui';
 import { OrderJourneyStrip } from '@/components/order/order-journey-strip';
-import { DirectorKpiPanel } from '@/components/director/director-kpi-panel';
 import {
   buildJourneyStrip,
   journeyInputFromWorkspaceCard,
@@ -95,7 +93,6 @@ export function TodayWorkspaceView() {
   const base = `/organizations/${organizationId}/stores/${storeId}`;
 
   const [workspace, setWorkspace] = useState<WorkspaceTodayDto | null>(null);
-  const [operations, setOperations] = useState<OperationsBoardDto | null>(null);
   const [deliveryBoard, setDeliveryBoard] = useState<DeliveryBoardDto | null>(null);
   const [capturedAt, setCapturedAt] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -104,10 +101,9 @@ export function TodayWorkspaceView() {
   const [message, setMessage] = useState<string | null>(null);
 
   const canWorkspace = auth.hasPermission('workspace:read') || auth.hasPermission('orders:read');
-  const canOperations = auth.hasPermission('operations:read');
   const canDelivery = auth.hasPermission('delivery:read');
-  const canAccess = canWorkspace || canOperations || canDelivery;
-  const courierOnly = canDelivery && !canWorkspace && !canOperations;
+  const canAccess = canWorkspace || canDelivery;
+  const courierOnly = canDelivery && !canWorkspace;
   const showOverviewSections = !courierOnly;
 
   const canCreateSale = auth.hasPermission('sales:create');
@@ -119,19 +115,15 @@ export function TodayWorkspaceView() {
     try {
       const client = getApiClient();
       const today = todayIsoDate();
-      const [ws, ops, delivery] = await Promise.all([
+      const [ws, delivery] = await Promise.all([
         canWorkspace
           ? client.getWorkspaceToday(organizationId, storeId).catch(() => null)
-          : Promise.resolve(null),
-        canOperations
-          ? client.getOperations(organizationId, storeId).catch(() => null)
           : Promise.resolve(null),
         canDelivery
           ? client.getDeliveryBoard(organizationId, storeId, today).catch(() => null)
           : Promise.resolve(null),
       ]);
       setWorkspace(ws);
-      setOperations(ops);
       setDeliveryBoard(delivery);
       setCapturedAt(Date.now());
     } catch (err) {
@@ -139,7 +131,7 @@ export function TodayWorkspaceView() {
     } finally {
       setLoading(false);
     }
-  }, [organizationId, storeId, canWorkspace, canOperations, canDelivery]);
+  }, [organizationId, storeId, canWorkspace, canDelivery]);
 
   useEffect(() => {
     if (!canAccess) return;
@@ -206,18 +198,7 @@ export function TodayWorkspaceView() {
       .slice(0, 6);
   }, [workspace]);
 
-  const attentionItems = useMemo(() => {
-    const seen = new Set<string>();
-    const items = [
-      ...(workspace?.attentionItems ?? []),
-      ...(operations?.attentionItems ?? []),
-    ];
-    return items.filter((item) => {
-      if (seen.has(item.id)) return false;
-      seen.add(item.id);
-      return true;
-    });
-  }, [workspace, operations]);
+  const attentionItems = useMemo(() => workspace?.attentionItems ?? [], [workspace]);
 
   async function runPrimary(orderId: string, action: string) {
     const client = getApiClient();
@@ -313,80 +294,42 @@ export function TodayWorkspaceView() {
                     <strong>Доска доставок</strong>
                   </Link>
                 ) : null}
-                {canOperations ? (
-                  <Link href={`${base}/reports`} className="hub-quick__card">
-                    <strong>Отчёты</strong>
-                  </Link>
-                ) : null}
               </div>
             </Section>
 
-            {(workspace || operations) && !courierOnly ? (
+            {workspace && !courierOnly ? (
               <Section>
                 <h2 className="home-section-title">Заказы</h2>
                 <div className="metric-grid metric-grid--essential">
-                  {workspace ? (
-                    <>
-                      <MetricCard
-                        label="Новые"
-                        value={workspace.counters.unassigned.count}
-                        href={lifecycleFilterHref('NEW')}
-                        tint={1}
-                      />
-                      <MetricCard
-                        label="В работе"
-                        value={
-                          workspace.counters.inWork?.count ??
-                          workspace.counters.inPreparation.count
-                        }
-                        href={lifecycleFilterHref('IN_WORK')}
-                        tint={2}
-                      />
-                      <MetricCard
-                        label="Готовы"
-                        value={workspace.counters.ready.count}
-                        href={lifecycleFilterHref('READY')}
-                        tone="success"
-                        tint={3}
-                      />
-                      <MetricCard
-                        label="Переданы"
-                        value={workspace.counters.handedOffToday?.count ?? 0}
-                        href={lifecycleFilterHref('HANDED_OFF')}
-                        tone="success"
-                        tint={4}
-                      />
-                    </>
-                  ) : operations ? (
-                    <>
-                      <MetricCard
-                        label="Новые"
-                        value={operations.kpis.ordersToday}
-                        href={lifecycleFilterHref('NEW')}
-                        tint={1}
-                      />
-                      <MetricCard
-                        label="В работе"
-                        value={operations.kpis.inProgress}
-                        href={lifecycleFilterHref('IN_WORK')}
-                        tint={2}
-                      />
-                      <MetricCard
-                        label="Готовы"
-                        value={operations.kpis.ready}
-                        tone="success"
-                        href={lifecycleFilterHref('READY')}
-                        tint={3}
-                      />
-                      <MetricCard
-                        label="Просрочены"
-                        value={operations.kpis.overdue}
-                        tone="danger"
-                        tint={4}
-                        href={`${base}/orders`}
-                      />
-                    </>
-                  ) : null}
+                  <MetricCard
+                    label="Новые"
+                    value={workspace.counters.unassigned.count}
+                    href={lifecycleFilterHref('NEW')}
+                    tint={1}
+                  />
+                  <MetricCard
+                    label="В работе"
+                    value={
+                      workspace.counters.inWork?.count ??
+                      workspace.counters.inPreparation.count
+                    }
+                    href={lifecycleFilterHref('IN_WORK')}
+                    tint={2}
+                  />
+                  <MetricCard
+                    label="Готовы"
+                    value={workspace.counters.ready.count}
+                    href={lifecycleFilterHref('READY')}
+                    tone="success"
+                    tint={3}
+                  />
+                  <MetricCard
+                    label="Переданы"
+                    value={workspace.counters.handedOffToday?.count ?? 0}
+                    href={lifecycleFilterHref('HANDED_OFF')}
+                    tone="success"
+                    tint={4}
+                  />
                 </div>
               </Section>
             ) : null}
@@ -409,75 +352,23 @@ export function TodayWorkspaceView() {
               </Section>
             ) : null}
 
-            {showOverviewSections && (operations || workspace) ? (
+            {showOverviewSections && workspace ? (
               <Section>
                 <h2 className="home-section-title">Склад</h2>
                 <div className="metric-grid">
                   <MetricCard
                     label="Нехватка в заказах"
-                    value={
-                      operations?.kpis.flowerShortageOrders ??
-                      workspace?.counters.flowerShortageOrders?.count ??
-                      0
-                    }
+                    value={workspace.counters.flowerShortageOrders?.count ?? 0}
                     href={`${base}/orders?filter=partially_reserved`}
-                    tone={
-                      (operations?.kpis.flowerShortageOrders ??
-                        workspace?.counters.flowerShortageOrders?.count ??
-                        0) > 0
-                        ? 'warning'
-                        : 'default'
-                    }
+                    tone={(workspace.counters.flowerShortageOrders?.count ?? 0) > 0 ? 'warning' : 'default'}
                     tint={1}
                   />
                   <MetricCard
                     label="Ниже порога"
-                    value={
-                      operations?.kpis.flowersBelowThreshold ??
-                      workspace?.counters.flowersBelowThreshold?.count ??
-                      0
-                    }
+                    value={workspace.counters.flowersBelowThreshold?.count ?? 0}
                     href={`${base}/stock?filter=low`}
-                    tone={
-                      (operations?.kpis.flowersBelowThreshold ??
-                        workspace?.counters.flowersBelowThreshold?.count ??
-                        0) > 0
-                        ? 'warning'
-                        : 'default'
-                    }
+                    tone={(workspace.counters.flowersBelowThreshold?.count ?? 0) > 0 ? 'warning' : 'default'}
                     tint={2}
-                  />
-                </div>
-              </Section>
-            ) : null}
-
-            {showOverviewSections && operations?.directorKpi ? (
-              <Section>
-                <DirectorKpiPanel
-                  base={base}
-                  directorKpi={operations.directorKpi}
-                  variant="compact"
-                />
-              </Section>
-            ) : null}
-
-            {showOverviewSections && operations ? (
-              <Section>
-                <h2 className="home-section-title">Магазин</h2>
-                <div className="metric-grid">
-                  <MetricCard label="Продажи сегодня" value={operations.kpis.salesToday} href={`${base}/sales`} tint={1} />
-                  <MetricCard
-                    label="Неоплаченный остаток"
-                    value={operations.kpis.unpaidBalance}
-                    href={`${base}/payments`}
-                    tone="warning"
-                    tint={2}
-                  />
-                  <MetricCard
-                    label="Приёмки ждут проведения"
-                    value={operations.kpis.suppliesAwaitingReceipt}
-                    href={`${base}/supplies`}
-                    tint={3}
                   />
                 </div>
               </Section>

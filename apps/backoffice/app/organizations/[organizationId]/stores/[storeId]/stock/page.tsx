@@ -102,11 +102,6 @@ export default function OperationalStockPage() {
                   Списать
                 </Button>
               ) : null}
-              {auth.hasPermission('transfers:read') ? (
-                <Button type="button" variant="secondary" onClick={() => (window.location.href = `${base}/transfers`)}>
-                  Переместить
-                </Button>
-              ) : null}
               <Button type="button" variant="secondary" onClick={() => void load()}>
                 Обновить
               </Button>

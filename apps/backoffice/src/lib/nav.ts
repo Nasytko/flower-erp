@@ -16,13 +16,13 @@ export type NavItem = {
 };
 
 /**
- * Primary navigation for store staff (Stage B IA).
+ * Primary navigation for store staff.
  */
 export const PRIMARY_NAV: NavItem[] = [
   {
     href: '/organizations/{orgId}/stores/{storeId}/today',
     label: 'Сегодня',
-    anyPermission: ['workspace:read', 'orders:read', 'operations:read', 'delivery:read'],
+    anyPermission: ['workspace:read', 'orders:read', 'delivery:read'],
     storeScoped: true,
   },
   {
@@ -61,65 +61,20 @@ export const PRIMARY_NAV: NavItem[] = [
     permission: 'write-offs:read',
     storeScoped: true,
   },
-  {
-    href: '/organizations/{orgId}/stores/{storeId}/inventory-counts',
-    label: 'Инвентаризация',
-    permission: 'inventory-counts:read',
-    storeScoped: true,
-  },
-  {
-    href: '/organizations/{orgId}/stores/{storeId}/reports',
-    label: 'Отчёты',
-    permission: 'operations:read',
-    storeScoped: true,
-  },
-  {
-    href: '/organizations/{orgId}/stores/{storeId}/settings',
-    label: 'Настройки',
-    permission: 'stores:read',
-    storeScoped: true,
-  },
 ];
 
-/** Admin-only navigation (director / owner). */
-export const ADMIN_NAV: NavItem[] = [
+/** Director-only settings entry (footer). */
+export const SETTINGS_NAV: NavItem[] = [
   {
-    href: '/organizations/{orgId}/users',
-    label: 'Сотрудники',
+    href: '/organizations/{orgId}/settings',
+    label: 'Настройки',
     permission: 'users:read',
     orgScoped: true,
   },
-  {
-    href: '/organizations/{orgId}',
-    label: 'Магазины',
-    permission: 'organization:read',
-    orgScoped: true,
-  },
-  {
-    href: '/organizations/{orgId}/stores/{storeId}/settings',
-    label: 'Склады',
-    permission: 'stores:read',
-    storeScoped: true,
-  },
-  {
-    href: '/organizations/{orgId}/stores/{storeId}/transfers',
-    label: 'Перемещения',
-    permission: 'transfers:read',
-    storeScoped: true,
-  },
-  {
-    href: '/organizations/{orgId}/stores/{storeId}/cash-accounts',
-    label: 'Касса',
-    permission: 'payments:view-cash',
-    storeScoped: true,
-  },
-  {
-    href: '/organizations/{orgId}/audit',
-    label: 'Аудит',
-    permission: 'audit:read',
-    orgScoped: true,
-  },
 ];
+
+/** @deprecated Use SETTINGS_NAV — kept for tests migrating off ADMIN_NAV. */
+export const ADMIN_NAV: NavItem[] = [];
 
 /** Action shortcuts that resolve to PRIMARY_NAV routes (not a second nav source). */
 export type NavActionShortcut = {
@@ -149,7 +104,6 @@ export function resolveStoreHomePath(
   if (
     hasPermission('workspace:read') ||
     hasPermission('orders:read') ||
-    hasPermission('operations:read') ||
     hasPermission('delivery:read')
   ) {
     return `${base}/today`;

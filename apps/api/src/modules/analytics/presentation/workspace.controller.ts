@@ -95,40 +95,10 @@ export class WorkspaceController {
     );
   }
 
-  @Get('operations')
-  @RequirePermissions('operations:read')
-  operations(@Param() params: StoreParamsDto) {
-    return this.workspace.getOperations(params.organizationId, params.storeId);
-  }
-
   @Get('stock/operational')
   stock(@Param() params: StoreParamsDto, @CurrentAuthContext() auth: AuthContext) {
     this.assertWorkspaceOrOrders(auth);
     return this.workspace.getOperationalStock(params.organizationId, params.storeId);
-  }
-
-  @Get('operations/inventory/attention')
-  @RequirePermissions('operations:read')
-  inventoryAttention(@Param() params: StoreParamsDto) {
-    return this.workspace.getInventoryOpsAttention(params.organizationId, params.storeId);
-  }
-
-  @Get('operations/inventory/in-transit')
-  @RequirePermissions('operations:read')
-  inventoryInTransit(@Param() params: StoreParamsDto) {
-    return this.workspace.getInventoryTransit(params.organizationId, params.storeId);
-  }
-
-  @Get('operations/inventory/losses')
-  @RequirePermissions('operations:read')
-  inventoryLosses(@Param() params: StoreParamsDto) {
-    return this.workspace.getInventoryLosses(params.organizationId, params.storeId);
-  }
-
-  @Get('operations/inventory/count-progress')
-  @RequirePermissions('operations:read')
-  inventoryCountProgress(@Param() params: StoreParamsDto) {
-    return this.workspace.getInventoryCountProgress(params.organizationId, params.storeId);
   }
 
   private assertWorkspaceOrOrders(auth: AuthContext): void {

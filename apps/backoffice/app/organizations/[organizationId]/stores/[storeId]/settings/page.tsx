@@ -149,10 +149,8 @@ export default function StoreSettingsPage() {
           title="Настройки магазина"
           refCode={store?.code}
           breadcrumbs={[
-            { label: 'Организации', href: '/organizations' },
-            { label: 'Организация', href: `/organizations/${organizationId}` },
-            { label: store?.name ?? 'Магазин', href: base },
-            { label: 'Настройки' },
+            { label: 'Настройки', href: `/organizations/${organizationId}/settings` },
+            { label: 'Магазин и склад' },
           ]}
           actions={store ? <StatusBadge status={store.status} /> : undefined}
         />

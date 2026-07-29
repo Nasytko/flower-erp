@@ -1,7 +1,6 @@
 ﻿import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
-  ADMIN_NAV,
   filterNavByPermissions,
   isNavItemActive,
   parseStoreRoute,
@@ -10,6 +9,7 @@ import {
   resolveNavHref,
   resolveNavWorkspace,
   resolveStoreHomePath,
+  SETTINGS_NAV,
 } from './nav';
 import {
   clearLastWorkspace,
@@ -36,7 +36,7 @@ Object.defineProperty(globalThis, 'window', {
   configurable: true,
 });
 
-test('PRIMARY_NAV follows Stage B IA with Сегодня first', () => {
+test('PRIMARY_NAV follows staff IA with Сегодня first', () => {
   const labels = PRIMARY_NAV.map((item) => item.label);
   assert.deepEqual(labels, [
     'Сегодня',
@@ -46,23 +46,23 @@ test('PRIMARY_NAV follows Stage B IA with Сегодня first', () => {
     'Остатки',
     'Поступления',
     'Списания',
-    'Инвентаризация',
-    'Отчёты',
-    'Настройки',
   ]);
 });
 
-test('ADMIN_NAV contains director sections', () => {
-  const labels = ADMIN_NAV.map((item) => item.label);
-  assert.ok(labels.includes('Сотрудники'));
-  assert.ok(labels.includes('Касса'));
-  assert.ok(labels.includes('Аудит'));
+test('SETTINGS_NAV is director-only settings hub', () => {
+  const settings = SETTINGS_NAV.find((item) => item.label === 'Настройки');
+  assert.ok(settings);
+  assert.equal(settings?.permission, 'users:read');
+  assert.equal(
+    resolveNavHref(settings, 'org-1', 'store-1'),
+    '/organizations/org-1/settings',
+  );
 });
 
 test('resolveStoreHomePath returns /today when workspace access', () => {
   assert.equal(
     resolveStoreHomePath('org-1', 'store-1', (code) =>
-      ['workspace:read', 'operations:read', 'delivery:read'].includes(code),
+      ['workspace:read', 'delivery:read'].includes(code),
     ),
     '/organizations/org-1/stores/store-1/today',
   );
@@ -86,15 +86,6 @@ test('Сегодня nav resolves without single permission when anyPermission m
   );
   assert.equal(filtered.length, 1);
   assert.equal(filtered[0]?.href, '/organizations/org-1/stores/store-1/today');
-});
-
-test('Настройки resolves to store settings', () => {
-  const settings = PRIMARY_NAV.find((item) => item.label === 'Настройки');
-  assert.ok(settings);
-  assert.equal(
-    resolveNavHref(settings, 'org-1', 'store-1'),
-    '/organizations/org-1/stores/store-1/settings',
-  );
 });
 
 test('parseStoreRoute extracts org and store ids', () => {

@@ -81,64 +81,6 @@ export type AttentionItemProjection = {
   ageMinutes: number;
 };
 
-export type OperationalKpis = {
-  ordersToday: number;
-  inProgress: number;
-  ready: number;
-  overdue: number;
-  salesToday: number;
-  unpaidBalance: string;
-  shortages: number;
-  flowerShortageOrders: number;
-  flowersBelowThreshold: number;
-  suppliesAwaitingReceipt: number;
-};
-
-export type FinancePeriodKpi = {
-  revenue: string;
-  cogs: string | null;
-  grossProfit: string | null;
-  avgMarginPercent: string | null;
-  completedSalesCount: number;
-};
-
-export type SupplierPayableRow = {
-  supplyId: string;
-  supplyNumber: string;
-  supplierName: string;
-  paymentDueDate: string;
-  amount: string;
-  isOverdue: boolean;
-  daysUntilDue: number;
-};
-
-export type OrderedFlowerRow = {
-  itemId: string;
-  itemName: string;
-  itemCode: string;
-  orderedQuantity: string;
-};
-
-export type DirectorKpi = {
-  orders: {
-    newUnassigned: number;
-    inPreparation: number;
-    ready: number;
-    overdue: number;
-  };
-  finance: {
-    today: FinancePeriodKpi;
-    week: FinancePeriodKpi;
-    marginRedacted: boolean;
-  };
-  payables: {
-    upcoming: SupplierPayableRow[];
-    overdueCount: number;
-    upcomingTotalAmount: string;
-  };
-  orderedFlowers: OrderedFlowerRow[];
-};
-
 export type LowStockWarning = {
   itemId: string;
   itemName: string;
@@ -159,42 +101,6 @@ export type OperationalStockRow = {
   isBelowMinimum: boolean;
   /** Present only when caller may view cost — otherwise null. */
   unitCost: string | null;
-};
-
-export type InventoryOpsAttentionRow = {
-  code: string;
-  title: string;
-  count: number;
-};
-
-export type InventoryTransitRow = {
-  transferId: string;
-  number: string;
-  fromWarehouseId: string;
-  toWarehouseId: string;
-  dispatchedAt: Date | null;
-  totalDispatchedQuantity: string;
-  totalReceivedQuantity: string;
-  totalDamagedQuantity: string;
-};
-
-export type InventoryLossRow = {
-  documentType: 'WRITE_OFF' | 'TRANSFER_DAMAGE';
-  documentId: string;
-  itemId: string;
-  quantity: string;
-  costAmount: string | null;
-};
-
-export type InventoryCountProgressRow = {
-  inventoryCountId: string;
-  number: string;
-  status: string;
-  countedItems: number;
-  totalItems: number;
-  varianceItems: number;
-  version: number;
-  updatedAt: Date;
 };
 
 export interface WorkspaceReadRepository {
@@ -229,20 +135,6 @@ export interface WorkspaceReadRepository {
     lowStockThreshold: number;
   }): Promise<AttentionItemProjection[]>;
 
-  getOperationalKpis(input: {
-    organizationId: string;
-    storeId: string;
-    now: Date;
-  }): Promise<OperationalKpis>;
-
-  getDirectorKpi(input: {
-    organizationId: string;
-    storeId: string;
-    now: Date;
-    soonMinutes: number;
-    includeMargin: boolean;
-  }): Promise<DirectorKpi>;
-
   countFlowerShortageOrders(input: {
     organizationId: string;
     storeId: string;
@@ -264,25 +156,4 @@ export interface WorkspaceReadRepository {
     storeId: string;
     includeCost: boolean;
   }): Promise<OperationalStockRow[]>;
-
-  listInventoryOpsAttention(input: {
-    organizationId: string;
-    storeId: string;
-  }): Promise<InventoryOpsAttentionRow[]>;
-
-  listInventoryTransit(input: {
-    organizationId: string;
-    storeId: string;
-  }): Promise<InventoryTransitRow[]>;
-
-  listInventoryLosses(input: {
-    organizationId: string;
-    storeId: string;
-    includeCost: boolean;
-  }): Promise<InventoryLossRow[]>;
-
-  listInventoryCountProgress(input: {
-    organizationId: string;
-    storeId: string;
-  }): Promise<InventoryCountProgressRow[]>;
 }

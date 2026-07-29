@@ -10,7 +10,6 @@ import { PlatformModule } from './modules/platform/platform.module';
 import { SalesModule } from './modules/sales/sales.module';
 import { SupplyModule } from './modules/supply/supply.module';
 import { SystemModule } from './modules/system/system.module';
-import { TransfersModule } from './modules/transfers/transfers.module';
 import { InfrastructureModule } from './infrastructure/infrastructure.module';
 
 @Module({
@@ -26,7 +25,6 @@ import { InfrastructureModule } from './infrastructure/infrastructure.module';
     PaymentsModule,
     DeliveryModule,
     AnalyticsModule,
-    TransfersModule,
     SystemModule,
   ],
 })

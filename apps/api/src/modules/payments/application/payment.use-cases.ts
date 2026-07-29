@@ -13,9 +13,6 @@ import { getRequestContext } from '../../../infrastructure/context/request-conte
 import { UNIT_OF_WORK, type UnitOfWork } from '../../../infrastructure/persistence/unit-of-work.port';
 import { OrganizationUseCases } from '../../organization/application/organization.use-cases';
 import {
-  CashAccountType,
-  CashOperationDirection,
-  CashOperationType,
   DomainError,
   PaymentAllocationTargetType,
   PaymentDirection,
@@ -156,17 +153,6 @@ export class PaymentUseCases {
       );
     }
     return created;
-  }
-
-  async ensureDefaultCashAccount(organizationId: string, storeId: string) {
-    await this.organizations.getStore(organizationId, storeId);
-    return this.payments.ensureDefaultCashAccount({
-      id: randomUUID(),
-      organizationId,
-      storeId,
-      name: 'Касса магазина',
-      type: CashAccountType.CASH_REGISTER,
-    });
   }
 
   async listPaymentMethods(organizationId: string, activeOnly = false) {
@@ -455,24 +441,6 @@ export class PaymentUseCases {
       await this.assertNoOverpaymentForPayment(payment);
 
       const now = this.clock.now();
-      const cashAccount = await this.ensureDefaultCashAccount(
-        input.organizationId,
-        input.storeId,
-      );
-      await this.payments.createCashOperation({
-        id: randomUUID(),
-        organizationId: input.organizationId,
-        storeId: input.storeId,
-        cashAccountId: cashAccount.id,
-        paymentId: payment.id,
-        refundId: null,
-        type: CashOperationType.PAYMENT_RECEIPT,
-        direction: CashOperationDirection.IN,
-        amount: payment.amount,
-        occurredAt: now,
-        comment: null,
-        createdByMembershipId: actorMembershipId(),
-      });
 
       const completed = await this.payments.markPaymentCompleted({
         organizationId: input.organizationId,
@@ -554,24 +522,6 @@ export class PaymentUseCases {
       await this.dependencies.assertNoBlockingDependencies(payment.id);
 
       const now = this.clock.now();
-      const cashAccount = await this.ensureDefaultCashAccount(
-        input.organizationId,
-        input.storeId,
-      );
-      await this.payments.createCashOperation({
-        id: randomUUID(),
-        organizationId: input.organizationId,
-        storeId: input.storeId,
-        cashAccountId: cashAccount.id,
-        paymentId: payment.id,
-        refundId: null,
-        type: CashOperationType.PAYMENT_ANNULMENT_REVERSAL,
-        direction: CashOperationDirection.OUT,
-        amount: payment.amount,
-        occurredAt: now,
-        comment: reason,
-        createdByMembershipId: actorMembershipId(),
-      });
 
       await this.payments.deactivateAllocationsForPayment(
         input.organizationId,
@@ -730,24 +680,6 @@ export class PaymentUseCases {
       }
 
       const now = this.clock.now();
-      const cashAccount = await this.ensureDefaultCashAccount(
-        input.organizationId,
-        input.storeId,
-      );
-      await this.payments.createCashOperation({
-        id: randomUUID(),
-        organizationId: input.organizationId,
-        storeId: input.storeId,
-        cashAccountId: cashAccount.id,
-        paymentId: payment.id,
-        refundId: refund.id,
-        type: CashOperationType.REFUND_PAYMENT,
-        direction: CashOperationDirection.OUT,
-        amount: refund.amount,
-        occurredAt: now,
-        comment: refund.reason,
-        createdByMembershipId: actorMembershipId(),
-      });
 
       const completed = await this.payments.markRefundCompleted({
         organizationId: input.organizationId,
@@ -826,26 +758,6 @@ export class PaymentUseCases {
       }
 
       const now = this.clock.now();
-      if (refund.status === PaymentRefundStatus.COMPLETED) {
-        const cashAccount = await this.ensureDefaultCashAccount(
-          input.organizationId,
-          input.storeId,
-        );
-        await this.payments.createCashOperation({
-          id: randomUUID(),
-          organizationId: input.organizationId,
-          storeId: input.storeId,
-          cashAccountId: cashAccount.id,
-          paymentId: refund.originalPaymentId,
-          refundId: refund.id,
-          type: CashOperationType.MANUAL_INCOME,
-          direction: CashOperationDirection.IN,
-          amount: refund.amount,
-          occurredAt: now,
-          comment: `Refund annulment: ${reason}`,
-          createdByMembershipId: actorMembershipId(),
-        });
-      }
 
       const annulled = await this.payments.markRefundAnnulled({
         organizationId: input.organizationId,
@@ -950,23 +862,9 @@ export class PaymentUseCases {
     );
   }
 
-  async listCashAccounts(organizationId: string, storeId: string) {
-    await this.organizations.getStore(organizationId, storeId);
-    return this.payments.listCashAccounts(organizationId, storeId);
-  }
-
   async listRefunds(organizationId: string, storeId: string, paymentId: string) {
     await this.requirePayment(organizationId, storeId, paymentId);
     return this.payments.listRefundsForPayment(organizationId, storeId, paymentId);
-  }
-
-  async listCashOperations(
-    organizationId: string,
-    storeId: string,
-    cashAccountId?: string,
-  ) {
-    await this.organizations.getStore(organizationId, storeId);
-    return this.payments.listCashOperations(organizationId, storeId, cashAccountId);
   }
 
   private async buildSummary(

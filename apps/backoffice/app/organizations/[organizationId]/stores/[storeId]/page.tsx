@@ -144,18 +144,13 @@ export default function StoreDetailPage() {
                     Списания
                   </Button>
                 ) : null}
-                {auth.hasPermission('transfers:read') ? (
-                  <Button type="button" variant="secondary" onClick={() => router.push(`${base}/transfers`)}>
-                    Перемещения
-                  </Button>
-                ) : null}
                 {auth.hasPermission('stores:create') ? (
                   <Button
                     type="button"
                     variant="secondary"
                     onClick={() => router.push(`${base}/settings`)}
                   >
-                    Настройки
+                    Настройки магазина
                   </Button>
                 ) : null}
               </div>
@@ -224,15 +219,10 @@ export default function StoreDetailPage() {
                   {auth.hasPermission('workspace:read') ? (
                     <Link href={`${base}/today`}>Смена</Link>
                   ) : null}
-                  {auth.hasPermission('operations:read') ? (
-                    <Link href={`${base}/operations`}>Операции</Link>
-                  ) : null}
                   <Link href={`${base}/orders`}>Очередь заказов</Link>
                   <Link href={`${base}/sales`}>Продажи</Link>
                   <Link href={`${base}/supplies`}>Приёмки</Link>
                   {auth.hasPermission('write-offs:read') ? <Link href={`${base}/write-offs`}>Списания</Link> : null}
-                  {auth.hasPermission('transfers:read') ? <Link href={`${base}/transfers`}>Перемещения</Link> : null}
-                  {auth.hasPermission('inventory-counts:read') ? <Link href={`${base}/inventory-counts`}>Инвентаризации</Link> : null}
                 </div>
               </Card>
             </Section>

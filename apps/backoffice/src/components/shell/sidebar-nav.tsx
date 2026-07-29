@@ -6,14 +6,16 @@ import { usePathname } from 'next/navigation';
 import { useAuth } from '@/components/auth-provider';
 import { t } from '@/i18n/ru';
 import {
-  ADMIN_NAV,
   countStoreScopedEligible,
   filterNavByPermissions,
   isNavItemActive,
   PRIMARY_NAV,
   resolveNavWorkspace,
+  SETTINGS_NAV,
 } from '@/lib/nav';
+import { isSettingsAreaPath } from '@/lib/settings-nav';
 import { NavIcon } from './nav-icons';
+import { SettingsSubNav } from './settings-sub-nav';
 
 export function SidebarNav({
   onNavigate,
@@ -29,6 +31,8 @@ export function SidebarNav({
     [pathname, auth.organization?.id],
   );
 
+  const inSettingsArea = isSettingsAreaPath(pathname);
+
   const items = filterNavByPermissions(
     PRIMARY_NAV,
     auth.hasPermission,
@@ -36,27 +40,27 @@ export function SidebarNav({
     workspace.storeId,
   );
 
-  const adminItems = filterNavByPermissions(
-    ADMIN_NAV,
+  const settingsItems = filterNavByPermissions(
+    SETTINGS_NAV,
     auth.hasPermission,
     workspace.organizationId,
     workspace.storeId,
   );
 
-  const settings = items.filter((item) => item.label === 'Настройки');
-  const primary = items.filter((item) => item.label !== 'Настройки');
-
   const needsStoreHint =
     !workspace.storeId && countStoreScopedEligible(PRIMARY_NAV, auth.hasPermission) > 0;
 
-  function renderLink(item: (typeof items)[number]) {
-    const active = isNavItemActive(pathname, item.href);
+  function renderLink(item: (typeof items)[number] | (typeof settingsItems)[number]) {
+    const active = isNavItemActive(pathname, item.href) || (item.label === 'Настройки' && inSettingsArea);
+    const isSettings = item.label === 'Настройки';
     return (
       <Link
         key={`${item.label}:${item.href}`}
         href={item.href}
         className={
-          item.label === 'Настройки' ? 'shell__nav-link shell__nav-link--settings' : 'shell__nav-link'
+          isSettings
+            ? 'shell__nav-link shell__nav-link--settings'
+            : 'shell__nav-link'
         }
         aria-current={active ? 'page' : undefined}
         aria-label={item.label}
@@ -74,13 +78,11 @@ export function SidebarNav({
   return (
     <nav className={`shell__nav shell__nav--${variant}`} aria-label={t('navigate')}>
       {needsStoreHint ? <p className="shell__nav-hint">{t('selectStoreHint')}</p> : null}
-      <div className="shell__nav-primary">{primary.map(renderLink)}</div>
-      {adminItems.length > 0 ? (
-        <div className="shell__nav-admin" aria-label="Администрирование">
-          {adminItems.map(renderLink)}
-        </div>
+      <div className="shell__nav-primary">{items.map(renderLink)}</div>
+      {inSettingsArea ? <SettingsSubNav onNavigate={onNavigate} /> : null}
+      {settingsItems.length > 0 ? (
+        <div className="shell__nav-footer">{settingsItems.map(renderLink)}</div>
       ) : null}
-      {settings.length > 0 ? <div className="shell__nav-footer">{settings.map(renderLink)}</div> : null}
     </nav>
   );
 }

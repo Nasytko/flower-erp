@@ -96,19 +96,12 @@ model Organization {
   payments                      Payment[]
   paymentAllocations            PaymentAllocation[]
   paymentRefunds                PaymentRefund[]
-  cashAccounts                  CashAccount[]
-  cashOperations                CashOperation[]
   deliveryJobs                  DeliveryJob[]
   deliveryAssignments           DeliveryAssignment[]
   deliveryProblems              DeliveryProblem[]
   courierProfiles               CourierProfile[]
   writeOffDocuments             WriteOffDocument[]
   writeOffItems                 WriteOffItem[]
-  inventoryCounts               InventoryCount[]
-  inventoryCountItems           InventoryCountItem[]
-  transferDocuments             TransferDocument[]
-  transferItems                 TransferItem[]
-  transferAllocations           TransferAllocation[]
   memberships                   OrganizationMembership[]
   roles                         Role[]
   integrationSettings           OrganizationIntegrationSettings?
@@ -157,14 +150,10 @@ model Store {
   orders                Order[]
   inventoryReservations InventoryReservation[]
   sales                 Sale[]
-  cashAccounts          CashAccount[]
   payments              Payment[]
   paymentRefunds        PaymentRefund[]
-  cashOperations        CashOperation[]
   deliveryJobs          DeliveryJob[]
   writeOffDocuments     WriteOffDocument[]
-  inventoryCounts       InventoryCount[]
-  transferDocuments     TransferDocument[]
 
   @@unique([organizationId, code])
   @@index([organizationId])
@@ -195,9 +184,6 @@ model Warehouse {
   inventoryReservations InventoryReservation[]
   sales                 Sale[]
   writeOffDocuments     WriteOffDocument[]
-  inventoryCounts       InventoryCount[]
-  transferDocumentsFrom TransferDocument[]     @relation("TransferFromWarehouse")
-  transferDocumentsTo   TransferDocument[]     @relation("TransferToWarehouse")
 
   @@unique([storeId, code])
   @@index([organizationId])
@@ -360,10 +346,6 @@ model Item {
   actualCompositionItems  ActualCompositionItem[]
   reservations            InventoryReservation[]
   writeOffItems           WriteOffItem[]
-  inventoryCountItems     InventoryCountItem[]
-  transferItems           TransferItem[]
-  transferAllocationsFrom TransferAllocation[]    @relation("TransferAllocationFromItem")
-  transferAllocationsTo   TransferAllocation[]    @relation("TransferAllocationToItem")
   retailPrices            ItemRetailPrice[]
 
   @@unique([organizationId, code])
@@ -532,8 +514,6 @@ enum InventoryBatchStatus {
 
 enum InventoryBatchSourceType {
   GOODS_RECEIPT
-  TRANSFER_IN
-  COUNT_ADJUSTMENT
 }
 
 enum InventoryMovementType {
@@ -543,10 +523,6 @@ enum InventoryMovementType {
   ISSUE_REVERSAL
   WRITE_OFF
   WRITE_OFF_REVERSAL
-  TRANSFER_OUT
-  TRANSFER_OUT_REVERSAL
-  TRANSFER_IN
-  TRANSFER_IN_REVERSAL
   COUNT_ADJUSTMENT_OUT
   COUNT_ADJUSTMENT_IN
 }
@@ -559,8 +535,6 @@ model InventoryBatch {
   itemId               String                   @map("item_id") @db.Uuid
   goodsReceiptItemId   String?                  @unique @map("goods_receipt_item_id") @db.Uuid
   batchSourceType      InventoryBatchSourceType @default(GOODS_RECEIPT) @map("batch_source_type")
-  transferAllocationId String?                  @unique @map("transfer_allocation_id") @db.Uuid
-  inventoryCountItemId String?                  @unique @map("inventory_count_item_id") @db.Uuid
   receivedAt           DateTime                 @map("received_at")
   initialQuantity      Decimal                  @map("initial_quantity") @db.Decimal(18, 3)
   remainingQuantity    Decimal                  @map("remaining_quantity") @db.Decimal(18, 3)
@@ -574,9 +548,6 @@ model InventoryBatch {
   warehouse                 Warehouse              @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
   item                      Item                   @relation(fields: [itemId], references: [id], onDelete: Restrict)
   goodsReceiptItem          GoodsReceiptItem?      @relation(fields: [goodsReceiptItemId], references: [id], onDelete: Restrict)
-  transferAllocation        TransferAllocation?    @relation("TransferInboundBatch", fields: [transferAllocationId], references: [id], onDelete: Restrict)
-  inventoryCountItem        InventoryCountItem?    @relation("CountAdjustmentBatch", fields: [inventoryCountItemId], references: [id], onDelete: Restrict)
-  transferSourceAllocations TransferAllocation[]   @relation("TransferSourceBatch")
   movements                 InventoryMovement[]
   reservations              InventoryReservation[]
 
@@ -984,159 +955,6 @@ model WriteOffItem {
   @@map("write_off_items")
 }
 
-enum InventoryCountStatus {
-  DRAFT
-  COUNTED
-  POSTED
-  CANCELLED
-}
-
-model InventoryCount {
-  id                    String               @id @default(uuid()) @db.Uuid
-  organizationId        String               @map("organization_id") @db.Uuid
-  storeId               String               @map("store_id") @db.Uuid
-  warehouseId           String               @map("warehouse_id") @db.Uuid
-  number                String
-  status                InventoryCountStatus @default(DRAFT)
-  cutoffAt              DateTime             @map("cutoff_at")
-  version               Int                  @default(1)
-  countedAt             DateTime?            @map("counted_at")
-  postedAt              DateTime?            @map("posted_at")
-  cancelledAt           DateTime?            @map("cancelled_at")
-  comment               String?
-  createdByMembershipId String?              @map("created_by_membership_id") @db.Uuid
-  createdAt             DateTime             @default(now()) @map("created_at")
-  updatedAt             DateTime             @updatedAt @map("updated_at")
-
-  organization Organization         @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  store        Store                @relation(fields: [storeId], references: [id], onDelete: Restrict)
-  warehouse    Warehouse            @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
-  items        InventoryCountItem[]
-
-  @@unique([organizationId, number])
-  @@index([organizationId, storeId])
-  @@index([organizationId, warehouseId])
-  @@index([organizationId, status])
-  @@map("inventory_counts")
-}
-
-model InventoryCountItem {
-  id               String   @id @default(uuid()) @db.Uuid
-  organizationId   String   @map("organization_id") @db.Uuid
-  inventoryCountId String   @map("inventory_count_id") @db.Uuid
-  itemId           String   @map("item_id") @db.Uuid
-  expectedQuantity Decimal  @map("expected_quantity") @db.Decimal(18, 3)
-  countedQuantity  Decimal? @map("counted_quantity") @db.Decimal(18, 3)
-  varianceQuantity Decimal? @map("variance_quantity") @db.Decimal(18, 3)
-  createdAt        DateTime @default(now()) @map("created_at")
-  updatedAt        DateTime @updatedAt @map("updated_at")
-
-  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  inventoryCount InventoryCount  @relation(fields: [inventoryCountId], references: [id], onDelete: Restrict)
-  item           Item            @relation(fields: [itemId], references: [id], onDelete: Restrict)
-  createdBatch   InventoryBatch? @relation("CountAdjustmentBatch")
-
-  @@unique([inventoryCountId, itemId])
-  @@index([organizationId])
-  @@index([inventoryCountId])
-  @@index([itemId])
-  @@map("inventory_count_items")
-}
-
-enum TransferStatus {
-  DRAFT
-  DISPATCHED
-  RECEIVED
-  CANCELLED
-  REVERSED
-}
-
-model TransferDocument {
-  id                    String         @id @default(uuid()) @db.Uuid
-  organizationId        String         @map("organization_id") @db.Uuid
-  storeId               String         @map("store_id") @db.Uuid
-  fromWarehouseId       String         @map("from_warehouse_id") @db.Uuid
-  toWarehouseId         String         @map("to_warehouse_id") @db.Uuid
-  number                String
-  status                TransferStatus @default(DRAFT)
-  version               Int            @default(1)
-  dispatchedAt          DateTime?      @map("dispatched_at")
-  receivedAt            DateTime?      @map("received_at")
-  cancelledAt           DateTime?      @map("cancelled_at")
-  reversedAt            DateTime?      @map("reversed_at")
-  comment               String?
-  createdByMembershipId String?        @map("created_by_membership_id") @db.Uuid
-  createdAt             DateTime       @default(now()) @map("created_at")
-  updatedAt             DateTime       @updatedAt @map("updated_at")
-
-  organization  Organization         @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  store         Store                @relation(fields: [storeId], references: [id], onDelete: Restrict)
-  fromWarehouse Warehouse            @relation("TransferFromWarehouse", fields: [fromWarehouseId], references: [id], onDelete: Restrict)
-  toWarehouse   Warehouse            @relation("TransferToWarehouse", fields: [toWarehouseId], references: [id], onDelete: Restrict)
-  items         TransferItem[]
-  allocations   TransferAllocation[]
-
-  @@unique([organizationId, number])
-  @@index([organizationId, storeId])
-  @@index([organizationId, fromWarehouseId])
-  @@index([organizationId, toWarehouseId])
-  @@index([organizationId, status])
-  @@map("transfer_documents")
-}
-
-model TransferItem {
-  id                 String   @id @default(uuid()) @db.Uuid
-  organizationId     String   @map("organization_id") @db.Uuid
-  transferDocumentId String   @map("transfer_document_id") @db.Uuid
-  itemId             String   @map("item_id") @db.Uuid
-  requestedQuantity  Decimal  @map("requested_quantity") @db.Decimal(18, 3)
-  dispatchedQuantity Decimal? @map("dispatched_quantity") @db.Decimal(18, 3)
-  receivedQuantity   Decimal? @map("received_quantity") @db.Decimal(18, 3)
-  damagedQuantity    Decimal? @map("damaged_quantity") @db.Decimal(18, 3)
-  createdAt          DateTime @default(now()) @map("created_at")
-  updatedAt          DateTime @updatedAt @map("updated_at")
-
-  organization     Organization         @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  transferDocument TransferDocument     @relation(fields: [transferDocumentId], references: [id], onDelete: Restrict)
-  item             Item                 @relation(fields: [itemId], references: [id], onDelete: Restrict)
-  allocations      TransferAllocation[]
-
-  @@index([organizationId])
-  @@index([transferDocumentId])
-  @@index([itemId])
-  @@map("transfer_items")
-}
-
-model TransferAllocation {
-  id                 String   @id @default(uuid()) @db.Uuid
-  organizationId     String   @map("organization_id") @db.Uuid
-  transferDocumentId String   @map("transfer_document_id") @db.Uuid
-  transferItemId     String   @map("transfer_item_id") @db.Uuid
-  fromItemId         String   @map("from_item_id") @db.Uuid
-  batchId            String   @map("batch_id") @db.Uuid
-  quantityDispatched Decimal  @map("quantity_dispatched") @db.Decimal(18, 3)
-  quantityReceived   Decimal? @map("quantity_received") @db.Decimal(18, 3)
-  quantityDamaged    Decimal? @map("quantity_damaged") @db.Decimal(18, 3)
-  unitCost           Decimal  @map("unit_cost") @db.Decimal(18, 4)
-  toItemId           String?  @map("to_item_id") @db.Uuid
-  createdAt          DateTime @default(now()) @map("created_at")
-  updatedAt          DateTime @updatedAt @map("updated_at")
-
-  organization     Organization     @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  transferDocument TransferDocument @relation(fields: [transferDocumentId], references: [id], onDelete: Restrict)
-  transferItem     TransferItem     @relation(fields: [transferItemId], references: [id], onDelete: Restrict)
-  fromItem         Item             @relation("TransferAllocationFromItem", fields: [fromItemId], references: [id], onDelete: Restrict)
-  toItem           Item?            @relation("TransferAllocationToItem", fields: [toItemId], references: [id], onDelete: Restrict)
-  batch            InventoryBatch   @relation("TransferSourceBatch", fields: [batchId], references: [id], onDelete: Restrict)
-  createdBatch     InventoryBatch?  @relation("TransferInboundBatch")
-
-  @@index([organizationId])
-  @@index([transferDocumentId])
-  @@index([transferItemId])
-  @@index([batchId])
-  @@map("transfer_allocations")
-}
-
 // ─── Sales bounded context (owned by sales module) — ADR-016/017/018 ─────────
 
 enum SaleType {
@@ -1347,30 +1165,6 @@ enum PaymentRefundStatus {
   ANNULLED
 }
 
-enum CashAccountType {
-  CASH_REGISTER
-  BANK
-  OTHER
-}
-
-enum CashAccountStatus {
-  ACTIVE
-  ARCHIVED
-}
-
-enum CashOperationType {
-  PAYMENT_RECEIPT
-  REFUND_PAYMENT
-  MANUAL_INCOME
-  MANUAL_EXPENSE
-  PAYMENT_ANNULMENT_REVERSAL
-}
-
-enum CashOperationDirection {
-  IN
-  OUT
-}
-
 model PaymentMethod {
   id                           String            @id @default(uuid()) @db.Uuid
   organizationId               String            @map("organization_id") @db.Uuid
@@ -1418,7 +1212,6 @@ model Payment {
   method         PaymentMethod       @relation(fields: [methodId], references: [id], onDelete: Restrict)
   allocations    PaymentAllocation[]
   refunds        PaymentRefund[]
-  cashOperations CashOperation[]
 
   @@unique([organizationId, number])
   @@index([organizationId, storeId, status])
@@ -1467,57 +1260,10 @@ model PaymentRefund {
   store           Store           @relation(fields: [storeId], references: [id], onDelete: Restrict)
   originalPayment Payment         @relation(fields: [originalPaymentId], references: [id], onDelete: Restrict)
   method          PaymentMethod   @relation(fields: [methodId], references: [id], onDelete: Restrict)
-  cashOperations  CashOperation[]
 
   @@index([organizationId, storeId, status])
   @@index([originalPaymentId, status])
   @@map("payment_refunds")
-}
-
-model CashAccount {
-  id             String            @id @default(uuid()) @db.Uuid
-  organizationId String            @map("organization_id") @db.Uuid
-  storeId        String            @map("store_id") @db.Uuid
-  name           String
-  type           CashAccountType
-  status         CashAccountStatus @default(ACTIVE)
-  createdAt      DateTime          @default(now()) @map("created_at")
-  updatedAt      DateTime          @updatedAt @map("updated_at")
-
-  organization Organization    @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  store        Store           @relation(fields: [storeId], references: [id], onDelete: Restrict)
-  operations   CashOperation[]
-
-  @@index([organizationId, storeId, status])
-  @@map("cash_accounts")
-}
-
-model CashOperation {
-  id                    String                 @id @default(uuid()) @db.Uuid
-  organizationId        String                 @map("organization_id") @db.Uuid
-  storeId               String                 @map("store_id") @db.Uuid
-  cashAccountId         String                 @map("cash_account_id") @db.Uuid
-  paymentId             String?                @map("payment_id") @db.Uuid
-  refundId              String?                @map("refund_id") @db.Uuid
-  type                  CashOperationType
-  direction             CashOperationDirection
-  amount                Decimal                @db.Decimal(19, 4)
-  occurredAt            DateTime               @map("occurred_at")
-  comment               String?
-  createdByMembershipId String?                @map("created_by_membership_id") @db.Uuid
-  createdAt             DateTime               @default(now()) @map("created_at")
-
-  organization Organization   @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  store        Store          @relation(fields: [storeId], references: [id], onDelete: Restrict)
-  cashAccount  CashAccount    @relation(fields: [cashAccountId], references: [id], onDelete: Restrict)
-  payment      Payment?       @relation(fields: [paymentId], references: [id], onDelete: Restrict)
-  refund       PaymentRefund? @relation(fields: [refundId], references: [id], onDelete: Restrict)
-
-  @@index([organizationId, storeId, occurredAt])
-  @@index([cashAccountId, occurredAt])
-  @@index([paymentId])
-  @@index([refundId])
-  @@map("cash_operations")
 }
 
 // ─── Identity & Access (owned by identity/auth modules) ──────────────────────

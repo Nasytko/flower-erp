@@ -1,8 +1,8 @@
 ﻿'use client';
 
 import Link from 'next/link';
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useEffect, useState, type FormEvent } from 'react';
+import { useParams } from 'next/navigation';
 import { Button, Card, Input } from '@flower/ui';
 import { ApiClientError } from '@flower/api-client';
 import { getApiClient } from '@/lib/api-client';
@@ -11,7 +11,6 @@ import { DocRef } from '@/components/layout/doc-ref';
 import { PageContainer } from '@/components/layout/page-container';
 import { PageHeader } from '@/components/layout/page-header';
 import { Section } from '@/components/layout/section';
-import { SettingsLinks } from '@/components/layout/settings-links';
 import { EmptyState, ErrorState, LoadingState } from '@/components/layout/states';
 import { StatusBadge } from '@/components/layout/status-badge';
 
@@ -27,7 +26,6 @@ type Store = {
 
 export default function OrganizationDetailPage() {
   const params = useParams<{ organizationId: string }>();
-  const router = useRouter();
   const auth = useAuth();
   const organizationId = params.organizationId;
 
@@ -40,33 +38,6 @@ export default function OrganizationDetailPage() {
   const [creating, setCreating] = useState(false);
 
   const base = `/organizations/${organizationId}`;
-  const adminLinks = useMemo(
-    () =>
-      [
-        auth.hasPermission('users:read')
-          ? {
-              href: `${base}/users`,
-              label: 'Пользователи',
-              description: 'Роли, доступ к магазинам, блокировки',
-            }
-          : null,
-        auth.hasPermission('organization:read')
-          ? {
-              href: `${base}/integrations`,
-              label: 'Карты и навигация',
-              description: 'Яндекс.Карты и подсказки адресов',
-            }
-          : null,
-        auth.hasPermission('audit:read')
-          ? {
-              href: `${base}/audit`,
-              label: 'Журнал действий',
-              description: 'Аудит изменений',
-            }
-          : null,
-      ].filter((item): item is { href: string; label: string; description: string } => item != null),
-    [auth, base],
-  );
 
   async function load() {
     setLoading(true);
@@ -116,31 +87,11 @@ export default function OrganizationDetailPage() {
         <PageHeader
           title={org?.name ?? 'Организация'}
           breadcrumbs={[
-            { label: 'Организации', href: '/organizations' },
-            { label: org?.name ?? 'Подробности' },
+            { label: 'Настройки', href: `${base}/settings` },
+            { label: org?.name ?? 'Магазины' },
           ]}
           actions={org ? <StatusBadge status={org.status} /> : undefined}
         />
-
-        {adminLinks.length > 0 ? (
-          <Section>
-            <SettingsLinks links={adminLinks} title="Администрирование" />
-          </Section>
-        ) : null}
-
-        {!loading && !error ? (
-          <Section>
-            <Card title="Справочники">
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={() => router.push(`${base}/master-data`)}
-              >
-                Открыть справочники
-              </Button>
-            </Card>
-          </Section>
-        ) : null}
 
         {loading ? <LoadingState message="Загрузка организации…" /> : null}
         {error ? <ErrorState message={error} /> : null}
