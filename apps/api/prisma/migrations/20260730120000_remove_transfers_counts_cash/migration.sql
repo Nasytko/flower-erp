@@ -13,6 +13,8 @@ WHERE "batch_source_type" IN ('TRANSFER_IN', 'COUNT_ADJUSTMENT')
    OR "transfer_allocation_id" IS NOT NULL
    OR "inventory_count_item_id" IS NOT NULL;
 
+DELETE FROM "transfer_allocations";
+
 DELETE FROM "role_permissions"
 WHERE "permission_id" IN (
   SELECT "id" FROM "permissions"
@@ -52,16 +54,21 @@ WHERE "code" IN (
 
 DROP TABLE IF EXISTS "cash_operations";
 DROP TABLE IF EXISTS "cash_accounts";
+
+-- Break circular FK between inventory_batches and transfer_allocations before dropping tables.
+ALTER TABLE "inventory_batches" DROP CONSTRAINT IF EXISTS "inventory_batches_transfer_allocation_id_fkey";
+ALTER TABLE "inventory_batches" DROP CONSTRAINT IF EXISTS "inventory_batches_inventory_count_item_id_fkey";
+DROP INDEX IF EXISTS "inventory_batches_transfer_allocation_id_key";
+DROP INDEX IF EXISTS "inventory_batches_inventory_count_item_id_key";
+ALTER TABLE "inventory_batches" DROP COLUMN IF EXISTS "transfer_allocation_id";
+ALTER TABLE "inventory_batches" DROP COLUMN IF EXISTS "inventory_count_item_id";
+
+ALTER TABLE "transfer_allocations" DROP CONSTRAINT IF EXISTS "transfer_allocations_batch_id_fkey";
 DROP TABLE IF EXISTS "transfer_allocations";
 DROP TABLE IF EXISTS "transfer_items";
 DROP TABLE IF EXISTS "transfer_documents";
 DROP TABLE IF EXISTS "inventory_count_items";
 DROP TABLE IF EXISTS "inventory_counts";
-
-ALTER TABLE "inventory_batches" DROP CONSTRAINT IF EXISTS "inventory_batches_transfer_allocation_id_fkey";
-ALTER TABLE "inventory_batches" DROP CONSTRAINT IF EXISTS "inventory_batches_inventory_count_item_id_fkey";
-ALTER TABLE "inventory_batches" DROP COLUMN IF EXISTS "transfer_allocation_id";
-ALTER TABLE "inventory_batches" DROP COLUMN IF EXISTS "inventory_count_item_id";
 
 DROP TYPE IF EXISTS "CashOperationDirection";
 DROP TYPE IF EXISTS "CashOperationType";
