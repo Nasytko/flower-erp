@@ -243,6 +243,21 @@ git pull   # or rsync new release
 ./deploy/scripts/deploy.sh
 ```
 
+**Dry run (no changes):**
+
+```bash
+DRY_RUN=1 ./deploy/scripts/deploy.sh
+```
+
+**First deploy after Stage C** (destructive migrations pending):
+
+```bash
+RUN_STAGE_C_AUDIT=1 \
+RUN_STAGE_C_BACKUP=1 \
+ALLOW_DESTRUCTIVE_MIGRATIONS=1 \
+  ./deploy/scripts/deploy.sh
+```
+
 `deploy.sh` always runs migrations **before** recreating the API container.
 
 Manual migration only:

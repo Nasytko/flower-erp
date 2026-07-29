@@ -102,21 +102,9 @@ export const USER_STATUS_LABELS_RU: Record<string, string> = {
 
 const DELIVERY_STATUS_CODES = new Set(Object.keys(DELIVERY_STATUS_LABELS));
 
-const TIMELINE_MESSAGE_RU: Record<string, string> = {
-  'Sale created from order': 'Продажа создана из заказа',
-  'Direct sale created': 'Создана продажа',
-  'Sale completed': 'Продажа завершена',
-  'Sale annulled': 'Продажа аннулирована',
-};
-
 export function statusLabelRu(status: string): string {
   if (DELIVERY_STATUS_CODES.has(status)) {
     return DELIVERY_STATUS_LABELS[status] ?? status;
   }
   return USER_STATUS_LABELS_RU[status] ?? STATUS_LABELS_RU[status] ?? status;
-}
-
-export function timelineMessageRu(message: string | null | undefined): string | null {
-  if (!message) return null;
-  return TIMELINE_MESSAGE_RU[message] ?? message;
 }

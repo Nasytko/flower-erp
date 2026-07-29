@@ -49,7 +49,6 @@
 | delivery:report-problem | ✓ | ✓ |
 | delivery:resolve-problem | ✓ | — |
 | delivery:manage-couriers | ✓ | — |
-| delivery:manage-routes | ✓ | — |
 | delivery:view-payment-summary | ✓ | — |
 | audit:read | ✓ | — |
 | users:* / roles:manage | ✓ | — |
