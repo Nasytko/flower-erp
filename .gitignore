@@ -25,6 +25,7 @@ yarn-error.log*
 *.dump
 *.sql
 !apps/api/prisma/migrations/**/*.sql
+!scripts/audit-removable-data.sql
 *.backup
 backups/
 
