@@ -25,6 +25,19 @@ assert_eq() {
   fi
 }
 
+assert_eq "$(pg_prisma_url_for_psql 'postgresql://u:p@h:5432/db?schema=public')" \
+  "postgresql://u:p@h:5432/db" "schema only removed"
+assert_eq "$(pg_prisma_url_for_psql 'postgresql://u:p@h:5432/db?sslmode=require&schema=public')" \
+  "postgresql://u:p@h:5432/db?sslmode=require" "schema last removed"
+assert_eq "$(pg_prisma_url_for_psql 'postgresql://u:p@h:5432/db?schema=public&sslmode=require')" \
+  "postgresql://u:p@h:5432/db?sslmode=require" "schema first removed"
+assert_eq "$(pg_prisma_url_for_psql 'postgresql://u:p@h:5432/db?connect_timeout=10&schema=public&sslmode=require')" \
+  "postgresql://u:p@h:5432/db?connect_timeout=10&sslmode=require" "schema middle removed"
+assert_eq "$(pg_prisma_url_for_psql 'postgresql://u:p@h:5432/db?sslmode=require')" \
+  "postgresql://u:p@h:5432/db?sslmode=require" "no schema unchanged"
+assert_eq "$(pg_prisma_url_for_psql 'postgres://u:p@h:5432/db?schema=public')" \
+  "postgres://u:p@h:5432/db" "postgres:// scheme supported"
+
 assert_not_contains() {
   local haystack="$1" needle="$2" msg="$3"
   if printf '%s' "${haystack}" | grep -qF "${needle}"; then

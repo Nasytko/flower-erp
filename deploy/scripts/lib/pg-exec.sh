@@ -3,6 +3,52 @@
 
 PG_MIGRATE_IMAGE_BUILT=0
 PG_USING_DATABASE_URL_FALLBACK=0
+PG_PSQL_CONNECTION_URL=""
+
+# Remove Prisma-only `schema` query param; libpq/psql rejects it. Does not decode URL
+# or extract credentials — only strips query segments named schema from the query string.
+pg_prisma_url_for_psql() {
+  local url="$1"
+  local base query part result="" first=1
+
+  case "${url}" in
+    *[\?]*)
+      base="${url%%\?*}"
+      query="${url#*\?}"
+      ;;
+    *)
+      printf '%s' "${url}"
+      return 0
+      ;;
+  esac
+
+  local IFS='&'
+  read -r -a params <<< "${query}"
+  for part in "${params[@]}"; do
+    [[ "${part}" == schema=* ]] && continue
+    [[ -z "${part}" ]] && continue
+    if [[ "${first}" -eq 1 ]]; then
+      result="${part}"
+      first=0
+    else
+      result="${result}&${part}"
+    fi
+  done
+
+  if [[ -z "${result}" ]]; then
+    printf '%s' "${base}"
+  else
+    printf '%s?%s' "${base}" "${result}"
+  fi
+}
+
+pg_psql_connection_url() {
+  if [[ -z "${PG_PSQL_CONNECTION_URL}" ]]; then
+    : "${DATABASE_MIGRATE_URL:?DATABASE_MIGRATE_URL is required}"
+    PG_PSQL_CONNECTION_URL="$(pg_prisma_url_for_psql "${DATABASE_MIGRATE_URL}")"
+  fi
+  printf '%s' "${PG_PSQL_CONNECTION_URL}"
+}
 
 pg_load_env() {
   : "${DEPLOY_ROOT:?DEPLOY_ROOT required for pg_load_env}"
@@ -25,6 +71,7 @@ pg_load_env() {
   else
     deploy_die "DATABASE_MIGRATE_URL or DATABASE_URL is required."
   fi
+  PG_PSQL_CONNECTION_URL=""
 }
 
 pg_assert_ddl_privileges() {
@@ -55,8 +102,10 @@ pg_assert_psql_in_migrate_image() {
 
 pg_psql_via_migrate() {
   local -a psql_args=("$@")
-  local -a compose_args=(run --rm --no-deps -i --entrypoint sh migrate)
-  local file_arg="" file_path="" file_idx=-1 arg i=0
+  local psql_url
+  psql_url="$(pg_psql_connection_url)"
+  local -a compose_args=(run --rm --no-deps -i -e "DATABASE_URL=${psql_url}" --entrypoint sh migrate)
+  local file_path="" file_idx=-1 file_arg="" arg i=0
 
   pg_ensure_migrate_image
 
@@ -96,7 +145,7 @@ pg_psql_via_migrate() {
 pg_psql_via_explicit_container() {
   local container="${FLOWER_POSTGRES_CONTAINER:-}"
   [[ -n "${container}" ]] || return 1
-  docker exec -i "${container}" psql "${DATABASE_MIGRATE_URL}" "$@"
+  docker exec -i "${container}" psql "$(pg_psql_connection_url)" "$@"
 }
 
 pg_run_sql() {
