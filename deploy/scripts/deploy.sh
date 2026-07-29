@@ -170,33 +170,144 @@ check_prerequisites() {
   export COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-flower-erp}"
 }
 
-run_prisma_migrate_status() {
-  local output
+# Migrate container ENTRYPOINT runs `prisma "$@"` (see apps/api/Dockerfile).
+# Always pass the full `migrate <subcommand>` prefix, e.g. `migrate status`, not `status`.
+PRISMA_MIGRATE_STATUS_OUTPUT=""
+
+compose_migrate_prisma_cmd() {
+  printf 'docker compose -f %q --env-file %q --profile migrate run --rm migrate migrate' \
+    "${COMPOSE_FILE}" "${ENV_FILE}"
+}
+
+run_prisma_migrate() {
+  local output exit_code
   if [[ "${DRY_RUN}" == "1" ]]; then
-    log "[dry-run] Checking migration status via: docker compose ... run --rm migrate status"
+    log "[dry-run] $(compose_migrate_prisma_cmd) $*"
   fi
-  output="$(compose_migrate run --rm migrate status 2>&1)" || {
+  set +e
+  output="$(compose_migrate run --rm migrate migrate "$@" 2>&1)"
+  exit_code=$?
+  set -e
+
+  if [[ -z "${output}" && "${exit_code}" -ne 0 ]]; then
     cat >&2 <<EOF
 ERROR:
 Unable to determine Prisma migration status.
 
 Deployment aborted.
 EOF
-    printf '%s\n' "${output:-}" >&2
     exit 1
-  }
+  fi
+
+  if printf '%s' "${output}" | grep -q 'Unknown command'; then
+    cat >&2 <<EOF
+ERROR:
+Prisma CLI rejected the command (got: Unknown command).
+
+Deployment aborted.
+Prisma output:
+${output}
+EOF
+    exit 1
+  fi
+
+  if [[ "${exit_code}" -ne 0 ]] \
+    && ! printf '%s' "${output}" | grep -qiE 'Prisma schema|Datasource|migration|Database schema'; then
+    cat >&2 <<EOF
+ERROR:
+Unable to determine Prisma migration status.
+
+Deployment aborted.
+Prisma output:
+${output}
+EOF
+    exit 1
+  fi
+
   printf '%s' "${output}"
+}
+
+query_prisma_migrate_status() {
+  if [[ -n "${PRISMA_MIGRATE_STATUS_OUTPUT}" ]]; then
+    printf '%s' "${PRISMA_MIGRATE_STATUS_OUTPUT}"
+    return 0
+  fi
+  PRISMA_MIGRATE_STATUS_OUTPUT="$(run_prisma_migrate status)"
+  printf '%s' "${PRISMA_MIGRATE_STATUS_OUTPUT}"
+}
+
+invalidate_prisma_migrate_status_cache() {
+  PRISMA_MIGRATE_STATUS_OUTPUT=""
+}
+
+extract_migration_names_from_section() {
+  local section_header="$1"
+  local output="$2"
+  printf '%s\n' "${output}" | awk -v header="${section_header}" '
+    BEGIN { IGNORECASE = 1 }
+    $0 ~ header { in_section = 1; next }
+    in_section && /^[0-9]{14}_[a-zA-Z0-9_]+$/ { print }
+    in_section && /^[[:space:]]*$/ { in_section = 0 }
+  '
+}
+
+check_failed_migrations() {
+  local output failed_names name resolve_cmd
+  output="$(query_prisma_migrate_status)"
+  failed_names="$(extract_migration_names_from_section 'have failed' "${output}")"
+
+  if [[ -z "${failed_names}" ]]; then
+    return 0
+  fi
+
+  cat >&2 <<EOF
+ERROR:
+Prisma found failed migration(s) in the database. Deploy is blocked (P3009).
+
+Failed migration(s):
+${failed_names}
+
+Inspect schema state (read-only), then mark each failed migration with Prisma resolve.
+If the migration SQL did not apply (PostgreSQL rolled back the transaction), use --rolled-back.
+If you completed the SQL manually and schema matches migration.sql, use --applied.
+
+Example (rolled back — typical after a failed enum migration):
+  $(compose_migrate_prisma_cmd) resolve --rolled-back "MIGRATION_NAME"
+
+Then redeploy with ./deploy/scripts/deploy.sh
+
+Prisma migrate status output:
+${output}
+EOF
+  exit 1
+}
+
+run_prisma_migrate_status() {
+  query_prisma_migrate_status
 }
 
 get_pending_stage_c_migrations() {
   local output pending="" mig
-  output="$(run_prisma_migrate_status)"
+  output="$(query_prisma_migrate_status)"
   for mig in "${STAGE_C_MIGRATIONS[@]}"; do
     if printf '%s\n' "${output}" | grep -A50 'not yet been applied' | grep -q "${mig}"; then
       pending="${pending} ${mig}"
     fi
   done
   printf '%s' "${pending# }"
+}
+
+check_prisma_migration_state() {
+  log "Checking Prisma migration state..."
+  check_failed_migrations
+
+  local pending
+  pending="$(get_pending_stage_c_migrations || true)"
+  if [[ -n "${pending}" ]]; then
+    log "Pending migrations:${pending}"
+  else
+    log "No pending Stage C migrations detected."
+  fi
 }
 
 check_stage_c_safety_gate() {
@@ -270,7 +381,7 @@ build_images() {
 run_migrations() {
   log "[2/5] Running database migrations..."
   if [[ "${DRY_RUN}" == "1" ]]; then
-    run compose_migrate run --rm migrate deploy
+    run compose_migrate run --rm migrate migrate deploy
     return 0
   fi
   run "${SCRIPT_DIR}/migrate.sh"
@@ -319,8 +430,14 @@ verify_health() {
   bo_code="$(curl -sf -o /dev/null -w '%{http_code}' "http://127.0.0.1:${bo_port}/" || echo 000)"
   [[ "${bo_code}" =~ ^[23] ]] || die "Backoffice HTTP check failed (status ${bo_code})."
 
-  # Migration status must be readable after deploy
-  run_prisma_migrate_status >/dev/null
+  # Migration status must be readable after deploy (fresh check)
+  invalidate_prisma_migrate_status_cache
+  check_failed_migrations
+  local post_status
+  post_status="$(query_prisma_migrate_status)"
+  if printf '%s\n' "${post_status}" | grep -qi 'not yet been applied'; then
+    die "Pending migrations remain after deploy."
+  fi
 
   # Restart loop check
   local restarting
@@ -387,6 +504,7 @@ main() {
     log "DRY RUN — no build, migrate, restart, or cleanup will be executed."
   fi
 
+  check_prisma_migration_state
   check_stage_c_safety_gate
   run_stage_c_audit
   run_stage_c_backup

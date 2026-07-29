@@ -266,6 +266,43 @@ Manual migration only:
 ./deploy/scripts/migrate.sh
 ```
 
+### Failed migration recovery (P3009)
+
+If `prisma migrate deploy` fails, Prisma records the migration as **failed** in `_prisma_migrations` and blocks further deploys until resolved.
+
+**Do not** delete rows from `_prisma_migrations` or run `migrate reset`.
+
+1. Check status (migrate container ENTRYPOINT is `prisma "$@"` — subcommand must be `migrate status`):
+
+```bash
+docker compose -f docker-compose.production.yml --env-file .env.production \
+  --profile migrate run --rm migrate migrate status
+```
+
+2. If the migration **did not apply** (typical when PostgreSQL rolled back the transaction), mark it rolled back:
+
+```bash
+docker compose -f docker-compose.production.yml --env-file .env.production \
+  --profile migrate run --rm migrate \
+  migrate resolve --rolled-back "20260729150000_remove_unused_enum_values"
+```
+
+3. Redeploy (with Stage C flags if migrations are still pending):
+
+```bash
+RUN_STAGE_C_AUDIT=1 RUN_STAGE_C_BACKUP=1 ALLOW_DESTRUCTIVE_MIGRATIONS=1 \
+  ./deploy/scripts/deploy.sh
+```
+
+Use `--applied` only if you manually completed the migration SQL and the schema already matches `migration.sql`.
+
+Read-only checks before resolve (optional):
+
+```bash
+psql "$DATABASE_MIGRATE_URL" -c "SELECT typname FROM pg_type WHERE typname LIKE '%_new';"
+psql "$DATABASE_MIGRATE_URL" -c "SELECT migration_name, finished_at, rolled_back_at, logs FROM _prisma_migrations WHERE finished_at IS NULL;"
+```
+
 ---
 
 ## 4. Rollback
