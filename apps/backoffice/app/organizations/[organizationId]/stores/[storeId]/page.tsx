@@ -102,15 +102,6 @@ export default function StoreDetailPage() {
                     Смена
                   </Button>
                 ) : null}
-                {auth.hasPermission('operations:read') ? (
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    onClick={() => router.push(`${base}/operations`)}
-                  >
-                    Операции
-                  </Button>
-                ) : null}
                 <Button type="button" variant="secondary" onClick={() => router.push(`${base}/orders`)}>
                   Заказы
                 </Button>

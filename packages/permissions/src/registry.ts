@@ -113,8 +113,6 @@ export const PERMISSION_REGISTRY: readonly PermissionDefinition[] = [
   { code: 'payments:annul', description: 'Annul completed payments' },
   { code: 'payments:refund', description: 'Create, complete, and annul refunds' },
   { code: 'payments:manage-methods', description: 'Manage payment methods' },
-  { code: 'payments:view-cash', description: 'View cash accounts and operations' },
-  { code: 'payments:manual-adjustment', description: 'Create manual cash adjustments' },
   { code: 'delivery:read', description: 'View deliveries, board, map, and calendar' },
   { code: 'delivery:create', description: 'Create delivery jobs from orders' },
   { code: 'delivery:update', description: 'Plan deliveries and update address/coordinates' },
