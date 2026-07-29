@@ -1219,13 +1219,6 @@ export function createApiClient(options: ApiClientOptions) {
           assignedAt: string;
           releasedAt: string | null;
         } | null;
-        timeline: Array<{
-          id: string;
-          type: string;
-          message: string | null;
-          actorMembershipId: string | null;
-          occurredAt: string;
-        }>;
         comments: Array<{
           id: string;
           authorMembershipId: string;

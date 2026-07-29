@@ -23,7 +23,6 @@ import {
   PaymentRefundStatus,
   PaymentStatus,
   PaymentStatusProjection,
-  PaymentTimelineEventType,
   PaymentType,
   assertAllocationsEqualPayment,
   assertAmountPositive,
@@ -333,22 +332,6 @@ export class PaymentUseCases {
           })),
         });
 
-        await this.appendTimeline(
-          payment,
-          PaymentTimelineEventType.PAYMENT_CREATED,
-          'Payment created',
-          null,
-        );
-        for (const allocation of payment.allocations) {
-          await this.appendTimeline(
-            payment,
-            allocation.targetType === PaymentAllocationTargetType.ORDER
-              ? PaymentTimelineEventType.PAYMENT_ALLOCATED_TO_ORDER
-              : PaymentTimelineEventType.PAYMENT_ALLOCATED_TO_SALE,
-            `Allocated to ${allocation.targetType.toLowerCase()}`,
-            { allocationId: allocation.id, targetId: allocation.targetId },
-          );
-        }
         await this.auditPayment(payment, 'PAYMENT_CREATED', null, payment);
         return payment;
       });
@@ -498,13 +481,8 @@ export class PaymentUseCases {
         completedAt: now,
       });
 
-      await this.appendTimeline(
-        completed,
-        PaymentTimelineEventType.PAYMENT_COMPLETED,
-        'Payment completed',
-        null,
-      );
-      await this.notifyTargets(completed, PaymentStatus.COMPLETED, now);
+      
+      
       await this.auditPayment(completed, 'PAYMENT_COMPLETED', payment, completed);
       return completed;
     });
@@ -609,13 +587,8 @@ export class PaymentUseCases {
         annulReason: reason,
       });
 
-      await this.appendTimeline(
-        annulled,
-        PaymentTimelineEventType.PAYMENT_ANNULLED,
-        reason,
-        null,
-      );
-      await this.notifyTargets(annulled, PaymentStatus.ANNULLED, now);
+      
+      
       await this.auditPayment(annulled, 'PAYMENT_ANNULLED', payment, annulled, reason);
       return annulled;
     });
@@ -681,12 +654,7 @@ export class PaymentUseCases {
         externalReference: input.externalReference ?? null,
         createdByMembershipId: actorMembershipId(),
       });
-      await this.appendTimeline(
-        payment,
-        PaymentTimelineEventType.REFUND_CREATED,
-        'Refund created',
-        { refundId: refund.id },
-      );
+      
       await this.audit.append({
         organizationId: input.organizationId,
         storeId: input.storeId,
@@ -788,12 +756,7 @@ export class PaymentUseCases {
         completedAt: now,
       });
 
-      await this.appendTimeline(
-        payment,
-        PaymentTimelineEventType.REFUND_COMPLETED,
-        'Refund completed',
-        { refundId: completed.id },
-      );
+      
       await this.audit.append({
         organizationId: input.organizationId,
         storeId: input.storeId,
@@ -892,17 +855,6 @@ export class PaymentUseCases {
         annulReason: reason,
       });
 
-      const payment = await this.requirePayment(
-        input.organizationId,
-        input.storeId,
-        refund.originalPaymentId,
-      );
-      await this.appendTimeline(
-        payment,
-        PaymentTimelineEventType.REFUND_ANNULLED,
-        reason,
-        { refundId: annulled.id },
-      );
       await this.audit.append({
         organizationId: input.organizationId,
         storeId: input.storeId,
@@ -920,128 +872,6 @@ export class PaymentUseCases {
     });
   }
 
-  async allocateOrderPrepaymentsToSale(input: {
-    organizationId: string;
-    storeId: string;
-    orderId: string;
-    saleId?: string;
-    idempotencyKey: string;
-  }): Promise<PaymentView[]> {
-    const idempotencyKey = requireIdempotencyKey(input.idempotencyKey);
-    await this.organizations.getStore(input.organizationId, input.storeId);
-
-    const saleId =
-      input.saleId ??
-      (await this.salesPayment.findActiveSaleIdByOrderId(
-        input.organizationId,
-        input.storeId,
-        input.orderId,
-      ));
-    if (!saleId) {
-      throw new BadRequestException({
-        code: 'SALE_REQUIRED_FOR_TRANSFER',
-        message: 'Active sale is required to allocate order prepayments',
-      });
-    }
-
-    const sale = await this.salesPayment.getSalePaymentTarget(
-      input.organizationId,
-      input.storeId,
-      saleId,
-    );
-    if (!sale || sale.orderId !== input.orderId) {
-      throw new BadRequestException({
-        code: 'SALE_ORDER_MISMATCH',
-        message: 'Sale is not linked to the given order',
-      });
-    }
-
-    return this.uow.runInTransaction(async () => {
-      const replay = await this.claimIdempotency(
-        input.organizationId,
-        'prepayment-transfer',
-        idempotencyKey,
-        saleId,
-      );
-      if (replay) {
-        const existing = await this.payments.listPayments(input.organizationId, input.storeId);
-        return existing.filter((payment) =>
-          payment.allocations.some(
-            (allocation) =>
-              allocation.targetType === PaymentAllocationTargetType.SALE &&
-              allocation.targetId === saleId &&
-              allocation.isActive,
-          ),
-        );
-      }
-
-      const allocations = await this.payments.listActiveOrderAllocations(
-        input.organizationId,
-        input.orderId,
-      );
-      if (allocations.length === 0) {
-        return [];
-      }
-
-      const now = this.clock.now();
-      const touchedPaymentIds = new Set<string>();
-
-      for (const allocation of allocations) {
-        await this.payments.supersedeAllocation(
-          input.organizationId,
-          allocation.id,
-          now,
-        );
-        const toAllocation = await this.payments.createAllocation({
-          id: randomUUID(),
-          organizationId: input.organizationId,
-          paymentId: allocation.paymentId,
-          targetType: PaymentAllocationTargetType.SALE,
-          targetId: saleId,
-          amount: allocation.amount,
-        });
-        await this.payments.createAllocationTransfer({
-          id: randomUUID(),
-          organizationId: input.organizationId,
-          paymentId: allocation.paymentId,
-          fromAllocationId: allocation.id,
-          toAllocationId: toAllocation.id,
-          amount: allocation.amount,
-          fromTargetType: PaymentAllocationTargetType.ORDER,
-          fromTargetId: input.orderId,
-          toTargetType: PaymentAllocationTargetType.SALE,
-          toTargetId: saleId,
-          actorMembershipId: actorMembershipId(),
-          occurredAt: now,
-        });
-        touchedPaymentIds.add(allocation.paymentId);
-      }
-
-      const payments: PaymentView[] = [];
-      for (const paymentId of touchedPaymentIds) {
-        const payment = await this.requirePayment(
-          input.organizationId,
-          input.storeId,
-          paymentId,
-        );
-        await this.appendTimeline(
-          payment,
-          PaymentTimelineEventType.PREPAYMENT_TRANSFERRED,
-          'Order prepayment allocated to sale',
-          { orderId: input.orderId, saleId },
-        );
-        await this.auditPayment(
-          payment,
-          'PREPAYMENT_TRANSFERRED',
-          null,
-          { orderId: input.orderId, saleId, paymentId },
-        );
-        payments.push(payment);
-      }
-      return payments;
-    });
-  }
-
   async getPayment(organizationId: string, storeId: string, paymentId: string) {
     return this.requirePayment(organizationId, storeId, paymentId);
   }
@@ -1055,10 +885,7 @@ export class PaymentUseCases {
     return this.payments.listPayments(organizationId, storeId, filter);
   }
 
-  async getTimeline(organizationId: string, storeId: string, paymentId: string) {
-    await this.requirePayment(organizationId, storeId, paymentId);
-    return this.payments.listTimeline(organizationId, paymentId);
-  }
+
 
   async getOrderPaymentSummary(
     organizationId: string,
@@ -1271,32 +1098,7 @@ export class PaymentUseCases {
     }
   }
 
-  private async notifyTargets(
-    payment: PaymentView,
-    status: PaymentStatus,
-    occurredAt: Date,
-  ): Promise<void> {
-    for (const allocation of payment.allocations) {
-      if (allocation.targetType === PaymentAllocationTargetType.ORDER) {
-        if (status === PaymentStatus.COMPLETED) {
-          await this.ordersPayment.appendTimelineEvent({
-            organizationId: payment.organizationId,
-            orderId: allocation.targetId,
-            paymentId: payment.id,
-            occurredAt,
-          });
-        }
-      } else {
-        await this.salesPayment.appendTimelineEvent({
-          organizationId: payment.organizationId,
-          saleId: allocation.targetId,
-          paymentId: payment.id,
-          status,
-          occurredAt,
-        });
-      }
-    }
-  }
+
 
   /** @returns true when the key was already claimed for this document (safe replay). */
   private async claimIdempotency(
@@ -1349,23 +1151,7 @@ export class PaymentUseCases {
     return refund;
   }
 
-  private async appendTimeline(
-    payment: PaymentView,
-    type: PaymentTimelineEventType,
-    message: string | null,
-    payload: unknown,
-  ): Promise<void> {
-    await this.payments.appendTimeline({
-      id: randomUUID(),
-      organizationId: payment.organizationId,
-      paymentId: payment.id,
-      type,
-      message,
-      actorMembershipId: actorMembershipId(),
-      payload,
-      occurredAt: this.clock.now(),
-    });
-  }
+
 
   private async auditPayment(
     payment: PaymentView,

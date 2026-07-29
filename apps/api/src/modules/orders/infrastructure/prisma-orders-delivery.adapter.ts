@@ -1,5 +1,4 @@
 import { Injectable } from '@nestjs/common';
-import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../../../infrastructure/prisma/prisma.service';
 import { resolvePrismaClient } from '../../../infrastructure/persistence/prisma-transaction-context';
 import type {
@@ -58,28 +57,6 @@ export class PrismaOrdersDeliveryAdapter implements OrdersDeliveryPort {
         code: 'FULFILLMENT_CHANGE_FORBIDDEN',
       });
     }
-  }
-
-  async appendOrderTimeline(input: {
-    organizationId: string;
-    orderId: string;
-    type: 'DELIVERY_CREATED' | 'DELIVERY_COMPLETED' | 'DELIVERY_CANCELLED';
-    message: string;
-    payload?: Record<string, unknown> | null;
-    occurredAt: Date;
-  }): Promise<void> {
-    await resolvePrismaClient(this.prisma).orderTimelineEvent.create({
-      data: {
-        id: randomUUID(),
-        organizationId: input.organizationId,
-        orderId: input.orderId,
-        type: input.type,
-        message: input.message,
-        actorMembershipId: null,
-        payload: (input.payload ?? undefined) as import('@prisma/client').Prisma.InputJsonValue | undefined,
-        occurredAt: input.occurredAt,
-      },
-    });
   }
 
   isOrderReady(order: OrderDeliverySnapshot): boolean {

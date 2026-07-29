@@ -94,18 +94,6 @@ export type AssignmentView = {
   createdAt: Date;
 };
 
-export type TimelineEventView = {
-  id: string;
-  organizationId: string;
-  orderId: string;
-  type: string;
-  message: string | null;
-  actorMembershipId: string | null;
-  payload: unknown;
-  occurredAt: Date;
-  createdAt: Date;
-};
-
 export type CommentView = {
   id: string;
   organizationId: string;
@@ -148,7 +136,6 @@ export type OrderView = {
   composition: CompositionView | null;
   actualComposition: ActualCompositionView | null;
   activeAssignment: AssignmentView | null;
-  timeline: TimelineEventView[];
   comments: CommentView[];
   /** Populated by use-cases enrichment */
   hasDeficit?: boolean;
@@ -219,26 +206,6 @@ export type ActualCompositionItemInput = {
   batchId: string | null;
   comment: string | null;
   sortOrder: number;
-};
-
-export type CompositionReplacementReason =
-  | 'OUT_OF_STOCK'
-  | 'QUALITY'
-  | 'CUSTOMER_REQUEST'
-  | 'FLORIST_DECISION'
-  | 'OTHER';
-
-export type CompositionReplacementView = {
-  id: string;
-  organizationId: string;
-  orderId: string;
-  fromItemId: string;
-  toItemId: string;
-  quantity: string;
-  reason: CompositionReplacementReason;
-  comment: string | null;
-  actorMembershipId: string | null;
-  createdAt: Date;
 };
 
 export interface OrderRepository {
@@ -389,17 +356,6 @@ export interface OrderRepository {
     orderId: string,
     frozenAt: Date,
   ): Promise<ActualCompositionView>;
-  createCompositionReplacement(input: {
-    id: string;
-    organizationId: string;
-    orderId: string;
-    fromItemId: string;
-    toItemId: string;
-    quantity: string;
-    reason: CompositionReplacementReason;
-    comment: string | null;
-    actorMembershipId: string | null;
-  }): Promise<CompositionReplacementView>;
 
   // ─── Assignment (one active via partial unique index) ──────────────────────
   createActiveAssignment(input: {
@@ -418,19 +374,6 @@ export interface OrderRepository {
     organizationId: string,
     orderId: string,
   ): Promise<AssignmentView | null>;
-
-  // ─── Timeline ──────────────────────────────────────────────────────────────
-  appendTimeline(input: {
-    id: string;
-    organizationId: string;
-    orderId: string;
-    type: string;
-    message: string | null;
-    actorMembershipId: string | null;
-    payload: unknown;
-    occurredAt: Date;
-  }): Promise<TimelineEventView>;
-  listTimeline(organizationId: string, orderId: string): Promise<TimelineEventView[]>;
 
   // ─── Comments ──────────────────────────────────────────────────────────────
   addComment(input: {

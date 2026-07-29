@@ -10,7 +10,6 @@ import type {
   DeliveryProblemStatus,
   DeliveryProblemType,
   DeliveryStatus,
-  DeliveryTimelineEventType,
   GeocodingStatus,
 } from '../domain/delivery-rules';
 import type {
@@ -20,7 +19,6 @@ import type {
   DeliveryJobView,
   DeliveryProblemView,
   DeliveryRepository,
-  DeliveryTimelineEventView,
   IdempotencyRecord,
 } from '../application/ports/delivery.repository';
 
@@ -349,42 +347,6 @@ export class PrismaDeliveryRepository implements DeliveryRepository {
       orderBy: { reportedAt: 'asc' },
     });
     return rows as DeliveryProblemView[];
-  }
-
-  async appendTimeline(input: {
-    id: string;
-    organizationId: string;
-    deliveryJobId: string;
-    type: DeliveryTimelineEventType;
-    message: string | null;
-    actorMembershipId: string | null;
-    payload: Record<string, unknown> | null;
-    occurredAt: Date;
-  }): Promise<DeliveryTimelineEventView> {
-    const row = await this.client().deliveryTimelineEvent.create({
-      data: {
-        id: input.id,
-        organizationId: input.organizationId,
-        deliveryJobId: input.deliveryJobId,
-        type: input.type,
-        message: input.message,
-        actorMembershipId: input.actorMembershipId,
-        payload: (input.payload ?? undefined) as Prisma.InputJsonValue | undefined,
-        occurredAt: input.occurredAt,
-      },
-    });
-    return row as DeliveryTimelineEventView;
-  }
-
-  async listTimeline(
-    organizationId: string,
-    deliveryJobId: string,
-  ): Promise<DeliveryTimelineEventView[]> {
-    const rows = await this.client().deliveryTimelineEvent.findMany({
-      where: { organizationId, deliveryJobId },
-      orderBy: { occurredAt: 'asc' },
-    });
-    return rows as DeliveryTimelineEventView[];
   }
 
   async createCourier(input: {

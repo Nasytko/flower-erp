@@ -1,5 +1,4 @@
 import { Injectable } from '@nestjs/common';
-import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../../../infrastructure/prisma/prisma.service';
 import { resolvePrismaClient } from '../../../infrastructure/persistence/prisma-transaction-context';
 import type {
@@ -35,25 +34,5 @@ export class PrismaOrdersPaymentAdapter implements OrdersPaymentPort {
         code: 'ORDER_DOES_NOT_ACCEPT_PREPAYMENT',
       });
     }
-  }
-
-  async appendTimelineEvent(input: {
-    organizationId: string;
-    orderId: string;
-    paymentId: string;
-    occurredAt: Date;
-  }): Promise<void> {
-    await resolvePrismaClient(this.prisma).orderTimelineEvent.create({
-      data: {
-        id: randomUUID(),
-        organizationId: input.organizationId,
-        orderId: input.orderId,
-        type: 'PAYMENT_RECEIVED',
-        message: 'Payment received',
-        actorMembershipId: null,
-        payload: { paymentId: input.paymentId },
-        occurredAt: input.occurredAt,
-      },
-    });
   }
 }

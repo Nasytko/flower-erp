@@ -1,5 +1,4 @@
 import { Injectable, Inject } from '@nestjs/common';
-import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../../../infrastructure/prisma/prisma.service';
 import { resolvePrismaClient } from '../../../infrastructure/persistence/prisma-transaction-context';
 import {
@@ -108,19 +107,6 @@ export class PrismaOrdersSalesAdapter implements OrdersSalesPort {
       if (existing?.status === 'COMPLETED') return;
       throw new Error('Order is not READY for sale completion');
     }
-
-    await client.orderTimelineEvent.create({
-      data: {
-        id: randomUUID(),
-        organizationId: input.organizationId,
-        orderId: input.orderId,
-        type: 'SALE_COMPLETED' as const,
-        message: 'Sale completed',
-        actorMembershipId: null,
-        payload: { saleId: input.saleId },
-        occurredAt: now,
-      },
-    });
   }
 
   async revertOrderToReadyFromSaleAnnul(input: {
@@ -130,7 +116,6 @@ export class PrismaOrdersSalesAdapter implements OrdersSalesPort {
     saleId: string;
   }): Promise<void> {
     const client = this.client();
-    const now = new Date();
     const updated = await client.order.updateMany({
       where: {
         id: input.orderId,
@@ -154,19 +139,6 @@ export class PrismaOrdersSalesAdapter implements OrdersSalesPort {
       if (existing?.status === 'READY') return;
       throw new Error('Order is not COMPLETED for sale annulment');
     }
-
-    await client.orderTimelineEvent.create({
-      data: {
-        id: randomUUID(),
-        organizationId: input.organizationId,
-        orderId: input.orderId,
-        type: 'SALE_ANNULLED' as const,
-        message: 'Sale annulled',
-        actorMembershipId: null,
-        payload: { saleId: input.saleId },
-        occurredAt: now,
-      },
-    });
   }
 
   async reReserveOrderAfterSaleAnnul(input: {

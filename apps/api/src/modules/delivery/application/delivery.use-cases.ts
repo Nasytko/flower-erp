@@ -20,7 +20,6 @@ import {
   DeliveryMethod,
   DeliveryProblemType,
   DeliveryStatus,
-  DeliveryTimelineEventType,
   DomainError,
   GeocodingStatus,
   assertCanAssign,
@@ -164,23 +163,7 @@ export class DeliveryUseCases implements DeliveryReadinessPort, DeliveryFulfillm
     return false;
   }
 
-  private async timeline(
-    job: DeliveryJobView,
-    type: DeliveryTimelineEventType,
-    message: string,
-    payload: Record<string, unknown> | null = null,
-  ) {
-    await this.deliveries.appendTimeline({
-      id: randomUUID(),
-      organizationId: job.organizationId,
-      deliveryJobId: job.id,
-      type,
-      message,
-      actorMembershipId: actorMembershipId(),
-      payload,
-      occurredAt: this.clock.now(),
-    });
-  }
+
 
   private async bump(
     job: DeliveryJobView,
@@ -314,15 +297,8 @@ export class DeliveryUseCases implements DeliveryReadinessPort, DeliveryFulfillm
         providerName: input.providerName ?? null,
         createdByMembershipId: actorMembershipId(),
       });
-      await this.timeline(job, DeliveryTimelineEventType.DELIVERY_CREATED, 'Delivery created');
-      await this.orders.appendOrderTimeline({
-        organizationId: input.organizationId,
-        orderId: input.orderId,
-        type: 'DELIVERY_CREATED',
-        message: `Delivery ${job.number} created`,
-        payload: { deliveryId: job.id },
-        occurredAt: this.clock.now(),
-      });
+      
+      
       await this.audit.append({
         organizationId: input.organizationId,
         storeId: input.storeId,
@@ -393,7 +369,7 @@ export class DeliveryUseCases implements DeliveryReadinessPort, DeliveryFulfillm
         },
         input.expectedVersion,
       );
-      await this.timeline(updated, DeliveryTimelineEventType.DELIVERY_PLANNED, 'Delivery planned');
+      
       return updated;
     });
   }
@@ -456,7 +432,7 @@ export class DeliveryUseCases implements DeliveryReadinessPort, DeliveryFulfillm
         },
         input.expectedVersion,
       );
-      await this.timeline(updated, DeliveryTimelineEventType.ADDRESS_UPDATED, 'Address updated');
+      
       return updated;
     });
   }
@@ -488,12 +464,7 @@ export class DeliveryUseCases implements DeliveryReadinessPort, DeliveryFulfillm
         geocodingStatus: GeocodingStatus.RESOLVED,
         addressSource: AddressSource.GEOCODED,
       });
-      await this.timeline(
-        updated,
-        DeliveryTimelineEventType.COORDINATES_RESOLVED,
-        'Coordinates resolved',
-        { provider: result.provider },
-      );
+      
       return updated;
     });
   }
@@ -518,11 +489,7 @@ export class DeliveryUseCases implements DeliveryReadinessPort, DeliveryFulfillm
         },
         input.expectedVersion,
       );
-      await this.timeline(
-        updated,
-        DeliveryTimelineEventType.COORDINATES_SET_MANUALLY,
-        'Coordinates set manually',
-      );
+      
       return updated;
     });
   }
@@ -573,12 +540,7 @@ export class DeliveryUseCases implements DeliveryReadinessPort, DeliveryFulfillm
         { assignedCourierId: courier.id, status: nextStatus },
         input.expectedVersion,
       );
-      await this.timeline(
-        updated,
-        DeliveryTimelineEventType.COURIER_ASSIGNED,
-        'Courier assigned',
-        { courierProfileId: courier.id },
-      );
+      
       return updated;
     });
   }
@@ -591,12 +553,7 @@ export class DeliveryUseCases implements DeliveryReadinessPort, DeliveryFulfillm
     expectedVersion: number;
   }) {
     const result = await this.assignCourier(input);
-    await this.timeline(
-      result,
-      DeliveryTimelineEventType.COURIER_REASSIGNED,
-      'Courier reassigned',
-      { courierProfileId: input.courierProfileId },
-    );
+    
     return result;
   }
 
@@ -626,7 +583,7 @@ export class DeliveryUseCases implements DeliveryReadinessPort, DeliveryFulfillm
         },
         input.expectedVersion,
       );
-      await this.timeline(updated, DeliveryTimelineEventType.COURIER_RELEASED, 'Courier released');
+      
       return updated;
     });
   }
@@ -660,11 +617,7 @@ export class DeliveryUseCases implements DeliveryReadinessPort, DeliveryFulfillm
         { status: statusAfterReadyForDispatch(job.status as DeliveryStatus) },
         input.expectedVersion,
       );
-      await this.timeline(
-        updated,
-        DeliveryTimelineEventType.READY_FOR_DISPATCH,
-        'Ready for dispatch',
-      );
+      
       return updated;
     });
   }
@@ -695,7 +648,7 @@ export class DeliveryUseCases implements DeliveryReadinessPort, DeliveryFulfillm
         { handedOverAt: this.clock.now() },
         input.expectedVersion,
       );
-      await this.timeline(updated, DeliveryTimelineEventType.HANDED_OVER, 'Handed over to courier');
+      
       return updated;
     });
   }
@@ -731,7 +684,7 @@ export class DeliveryUseCases implements DeliveryReadinessPort, DeliveryFulfillm
         },
         input.expectedVersion,
       );
-      await this.timeline(updated, DeliveryTimelineEventType.IN_TRANSIT, 'In transit');
+      
       return updated;
     });
   }
@@ -763,15 +716,8 @@ export class DeliveryUseCases implements DeliveryReadinessPort, DeliveryFulfillm
         { status: DeliveryStatus.DELIVERED, deliveredAt: this.clock.now() },
         input.expectedVersion,
       );
-      await this.timeline(updated, DeliveryTimelineEventType.DELIVERED, 'Delivered');
-      await this.orders.appendOrderTimeline({
-        organizationId: input.organizationId,
-        orderId: job.orderId,
-        type: 'DELIVERY_COMPLETED',
-        message: `Delivery ${job.number} completed`,
-        payload: { deliveryId: job.id },
-        occurredAt: this.clock.now(),
-      });
+      
+      
       return updated;
     });
   }
@@ -814,15 +760,8 @@ export class DeliveryUseCases implements DeliveryReadinessPort, DeliveryFulfillm
         },
         input.expectedVersion,
       );
-      await this.timeline(updated, DeliveryTimelineEventType.CANCELLED, input.reason ?? 'Cancelled');
-      await this.orders.appendOrderTimeline({
-        organizationId: input.organizationId,
-        orderId: job.orderId,
-        type: 'DELIVERY_CANCELLED',
-        message: `Delivery ${job.number} cancelled`,
-        payload: { deliveryId: job.id, reason: input.reason ?? null },
-        occurredAt: this.clock.now(),
-      });
+      
+      
       return updated;
     });
   }
@@ -856,12 +795,7 @@ export class DeliveryUseCases implements DeliveryReadinessPort, DeliveryFulfillm
         { status: DeliveryStatus.PROBLEM },
         input.expectedVersion,
       );
-      await this.timeline(
-        updated,
-        DeliveryTimelineEventType.PROBLEM_REPORTED,
-        input.description,
-        { problemId: problem.id, type: input.type },
-      );
+      
       return { job: updated, problem };
     });
   }
@@ -924,12 +858,7 @@ export class DeliveryUseCases implements DeliveryReadinessPort, DeliveryFulfillm
         },
         input.expectedVersion,
       );
-      await this.timeline(
-        updated,
-        DeliveryTimelineEventType.PROBLEM_RESOLVED,
-        input.resolution,
-        { problemId: input.problemId, resolveToStatus: input.resolveToStatus },
-      );
+      
       return { job: updated, problem: resolved };
     });
   }
@@ -1185,14 +1114,9 @@ export class DeliveryUseCases implements DeliveryReadinessPort, DeliveryFulfillm
       ) {
         return;
       }
-      const updated = await this.bump(fresh, {
+      await this.bump(fresh, {
         status: DeliveryStatus.READY_FOR_DISPATCH,
       });
-      await this.timeline(
-        updated,
-        DeliveryTimelineEventType.READY_FOR_DISPATCH,
-        'Synced ready for dispatch from order READY',
-      );
     });
   }
 

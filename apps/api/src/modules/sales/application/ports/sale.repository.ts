@@ -56,18 +56,6 @@ export type SaleConsumptionView = {
   lines: SaleConsumptionLineView[];
 };
 
-export type SaleTimelineEventView = {
-  id: string;
-  organizationId: string;
-  saleId: string;
-  type: string;
-  message: string | null;
-  actorMembershipId: string | null;
-  payload: unknown;
-  occurredAt: Date;
-  createdAt: Date;
-};
-
 export type SaleAnnulmentView = {
   id: string;
   organizationId: string;
@@ -211,22 +199,6 @@ export interface SaleRepository {
     organizationId: string,
     saleId: string,
   ): Promise<SaleConsumptionView | null>;
-
-  appendTimeline(input: {
-    id: string;
-    organizationId: string;
-    saleId: string;
-    type: string;
-    message: string | null;
-    actorMembershipId: string | null;
-    payload: unknown;
-    occurredAt: Date;
-  }): Promise<SaleTimelineEventView>;
-
-  listTimeline(
-    organizationId: string,
-    saleId: string,
-  ): Promise<SaleTimelineEventView[]>;
 
   createAnnulment(input: {
     id: string;

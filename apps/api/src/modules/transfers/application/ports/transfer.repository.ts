@@ -31,18 +31,6 @@ export type TransferAllocationView = {
   updatedAt: Date;
 };
 
-export type TransferTimelineEventView = {
-  id: string;
-  organizationId: string;
-  transferDocumentId: string;
-  type: string;
-  message: string | null;
-  actorMembershipId: string | null;
-  payload: unknown;
-  occurredAt: Date;
-  createdAt: Date;
-};
-
 export type TransferDocumentView = {
   id: string;
   organizationId: string;
@@ -104,15 +92,4 @@ export interface TransferRepository {
     }>,
     expectedVersion?: number,
   ): Promise<TransferDocumentView | null>;
-  listTimeline(organizationId: string, transferId: string): Promise<TransferTimelineEventView[]>;
-  appendTimeline(input: {
-    id: string;
-    organizationId: string;
-    transferDocumentId: string;
-    type: string;
-    message: string | null;
-    actorMembershipId: string | null;
-    payload: Record<string, unknown> | null;
-    occurredAt: Date;
-  }): Promise<TransferTimelineEventView>;
 }

@@ -8,7 +8,6 @@ import type {
   PaymentMethodType,
   PaymentRefundStatus,
   PaymentStatus,
-  PaymentTimelineEventType,
   PaymentType,
 } from '../../domain/payment-rules';
 
@@ -80,18 +79,6 @@ export type PaymentRefundView = {
   updatedAt: Date;
 };
 
-export type PaymentTimelineEventView = {
-  id: string;
-  organizationId: string;
-  paymentId: string;
-  type: PaymentTimelineEventType | string;
-  message: string | null;
-  actorMembershipId: string | null;
-  payload: unknown;
-  occurredAt: Date;
-  createdAt: Date;
-};
-
 export type CashAccountView = {
   id: string;
   organizationId: string;
@@ -116,22 +103,6 @@ export type CashOperationView = {
   occurredAt: Date;
   comment: string | null;
   createdByMembershipId: string | null;
-  createdAt: Date;
-};
-
-export type AllocationTransferView = {
-  id: string;
-  organizationId: string;
-  paymentId: string;
-  fromAllocationId: string;
-  toAllocationId: string;
-  amount: string;
-  fromTargetType: PaymentAllocationTargetType;
-  fromTargetId: string;
-  toTargetType: PaymentAllocationTargetType;
-  toTargetId: string;
-  actorMembershipId: string | null;
-  occurredAt: Date;
   createdAt: Date;
 };
 
@@ -253,20 +224,6 @@ export interface PaymentRepository {
     targetId: string;
     amount: string;
   }): Promise<PaymentAllocationView>;
-  createAllocationTransfer(input: {
-    id: string;
-    organizationId: string;
-    paymentId: string;
-    fromAllocationId: string;
-    toAllocationId: string;
-    amount: string;
-    fromTargetType: PaymentAllocationTargetType;
-    fromTargetId: string;
-    toTargetType: PaymentAllocationTargetType;
-    toTargetId: string;
-    actorMembershipId: string | null;
-    occurredAt: Date;
-  }): Promise<AllocationTransferView>;
 
   createRefund(input: CreateRefundInput): Promise<PaymentRefundView>;
   getRefund(organizationId: string, storeId: string, refundId: string): Promise<PaymentRefundView | null>;
@@ -288,21 +245,6 @@ export interface PaymentRepository {
     annulledAt: Date;
     annulReason: string;
   }): Promise<PaymentRefundView>;
-
-  appendTimeline(input: {
-    id: string;
-    organizationId: string;
-    paymentId: string;
-    type: PaymentTimelineEventType | string;
-    message: string | null;
-    actorMembershipId: string | null;
-    payload: unknown;
-    occurredAt: Date;
-  }): Promise<PaymentTimelineEventView>;
-  listTimeline(
-    organizationId: string,
-    paymentId: string,
-  ): Promise<PaymentTimelineEventView[]>;
 
   ensureDefaultCashAccount(input: {
     id: string;

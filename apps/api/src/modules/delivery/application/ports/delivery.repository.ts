@@ -5,7 +5,6 @@ import type {
   DeliveryProblemStatus,
   DeliveryProblemType,
   DeliveryStatus,
-  DeliveryTimelineEventType,
   GeocodingStatus,
 } from '../../domain/delivery-rules';
 
@@ -80,18 +79,6 @@ export type DeliveryProblemView = {
   resolveToStatus: DeliveryStatus | null;
   createdAt: Date;
   updatedAt: Date;
-};
-
-export type DeliveryTimelineEventView = {
-  id: string;
-  organizationId: string;
-  deliveryJobId: string;
-  type: DeliveryTimelineEventType | string;
-  message: string | null;
-  actorMembershipId: string | null;
-  payload: unknown;
-  occurredAt: Date;
-  createdAt: Date;
 };
 
 export type CourierProfileView = {
@@ -256,21 +243,6 @@ export interface DeliveryRepository {
     organizationId: string,
     deliveryJobId: string,
   ): Promise<DeliveryProblemView[]>;
-
-  appendTimeline(input: {
-    id: string;
-    organizationId: string;
-    deliveryJobId: string;
-    type: DeliveryTimelineEventType;
-    message: string | null;
-    actorMembershipId: string | null;
-    payload: Record<string, unknown> | null;
-    occurredAt: Date;
-  }): Promise<DeliveryTimelineEventView>;
-  listTimeline(
-    organizationId: string,
-    deliveryJobId: string,
-  ): Promise<DeliveryTimelineEventView[]>;
 
   createCourier(input: {
     id: string;

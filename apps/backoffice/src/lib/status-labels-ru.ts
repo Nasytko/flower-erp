@@ -48,7 +48,6 @@ export const STATUS_LABELS_RU: Record<string, string> = {
   STORE: 'Магазин',
   WEBSITE: 'Сайт',
   PHONE: 'Телефон',
-  TELEGRAM: 'Телеграм',
   OTHER: 'Другое',
   POS: 'Касса',
   PROMOTION: 'Акция',

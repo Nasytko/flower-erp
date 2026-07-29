@@ -1,6 +1,5 @@
 import { Type } from 'class-transformer';
 import {
-  IsArray,
   IsEnum,
   IsInt,
   IsISO8601,
@@ -15,7 +14,6 @@ import {
   DeliveryMethod,
   DeliveryProblemType,
   DeliveryStatus,
-  RoutePlanStatus,
 } from '../domain/delivery-rules';
 
 export class StoreParamsDto {
@@ -269,31 +267,6 @@ export class CreateCourierDto {
   vehicleDescription?: string | null;
 }
 
-export class CreateRouteDto {
-  @IsISO8601()
-  serviceDate!: string;
-
-  @IsString()
-  @MinLength(1)
-  name!: string;
-
-  @IsOptional()
-  @IsUUID()
-  courierProfileId?: string | null;
-}
-
-export class AddRouteStopsDto extends ExpectedVersionDto {
-  @IsArray()
-  @IsUUID('4', { each: true })
-  deliveryJobIds!: string[];
-}
-
-export class ReorderRouteDto extends ExpectedVersionDto {
-  @IsArray()
-  @IsUUID('4', { each: true })
-  orderedDeliveryJobIds!: string[];
-}
-
 export class ListDeliveriesQueryDto {
   @IsOptional()
   @IsEnum(DeliveryStatus)
@@ -328,14 +301,4 @@ export class ListCouriersQueryDto {
   @IsOptional()
   @IsEnum(CourierStatus)
   status?: CourierStatus;
-}
-
-export class ListRoutesQueryDto {
-  @IsOptional()
-  @IsISO8601()
-  serviceDate?: string;
-
-  @IsOptional()
-  @IsEnum(RoutePlanStatus)
-  status?: RoutePlanStatus;
 }

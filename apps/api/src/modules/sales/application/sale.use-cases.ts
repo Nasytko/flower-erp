@@ -186,15 +186,6 @@ export class SaleUseCases {
           discount: discount.record,
         });
 
-        await this.appendTimeline(sale, 'SALE_CREATED', 'Sale created from order', {
-          orderId: order.id,
-        });
-        if (discount.record && discount.record.type !== DiscountType.NONE) {
-          await this.appendTimeline(sale, 'DISCOUNT_APPLIED', 'Discount applied', {
-            type: discount.record.type,
-            value: discount.record.value,
-          });
-        }
         await this.auditSale(sale, 'SALE_CREATED', null, sale);
         return sale;
       });
@@ -305,13 +296,6 @@ export class SaleUseCases {
           discount: discount.record,
         });
 
-        await this.appendTimeline(sale, 'SALE_CREATED', 'Direct sale created', null);
-        if (discount.record && discount.record.type !== DiscountType.NONE) {
-          await this.appendTimeline(sale, 'DISCOUNT_APPLIED', 'Discount applied', {
-            type: discount.record.type,
-            value: discount.record.value,
-          });
-        }
         await this.auditSale(sale, 'SALE_CREATED', null, sale);
         return sale;
       });
@@ -483,11 +467,8 @@ export class SaleUseCases {
         });
       }
 
-      await this.appendTimeline(completed, 'INVENTORY_ISSUED', 'Inventory issued for sale', {
-        totalCostAmount: costAmount,
-        idempotentReplay: issueResult.idempotentReplay,
-      });
-      await this.appendTimeline(completed, 'SALE_COMPLETED', 'Sale completed', null);
+      
+      
       await this.auditSale(completed, 'SALE_COMPLETED', sale, completed);
       return completed;
     });
@@ -545,7 +526,7 @@ export class SaleUseCases {
       }
 
       const now = this.clock.now();
-      const reverse = await this.inventoryIssue.reverseIssue({
+      await this.inventoryIssue.reverseIssue({
         organizationId: input.organizationId,
         storeId: input.storeId,
         warehouseId: sale.warehouseId,
@@ -583,10 +564,8 @@ export class SaleUseCases {
         });
       }
 
-      await this.appendTimeline(annulled, 'INVENTORY_REVERSED', 'Inventory issue reversed', {
-        idempotentReplay: reverse.idempotentReplay,
-      });
-      await this.appendTimeline(annulled, 'SALE_ANNULLED', 'Sale annulled', { reason });
+      
+      
       await this.auditSale(annulled, 'SALE_ANNULLED', sale, annulled);
       return annulled;
     });
@@ -605,10 +584,7 @@ export class SaleUseCases {
     return this.sales.listSales(organizationId, storeId, filter);
   }
 
-  async getTimeline(organizationId: string, storeId: string, saleId: string) {
-    await this.requireSale(organizationId, storeId, saleId);
-    return this.sales.listTimeline(organizationId, saleId);
-  }
+
 
   async getConsumption(organizationId: string, storeId: string, saleId: string) {
     await this.requireSale(organizationId, storeId, saleId);
@@ -730,23 +706,7 @@ export class SaleUseCases {
     return sale;
   }
 
-  private async appendTimeline(
-    sale: SaleView,
-    type: string,
-    message: string | null,
-    payload: unknown,
-  ): Promise<void> {
-    await this.sales.appendTimeline({
-      id: randomUUID(),
-      organizationId: sale.organizationId,
-      saleId: sale.id,
-      type,
-      message,
-      actorMembershipId: actorMembershipId(),
-      payload,
-      occurredAt: this.clock.now(),
-    });
-  }
+
 
   private async auditSale(
     sale: SaleView,

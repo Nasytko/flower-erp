@@ -1,5 +1,4 @@
 import { Injectable } from '@nestjs/common';
-import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../../../infrastructure/prisma/prisma.service';
 import { resolvePrismaClient } from '../../../infrastructure/persistence/prisma-transaction-context';
 import type {
@@ -48,27 +47,5 @@ export class PrismaSalesPaymentAdapter implements SalesPaymentPort {
         code: 'SALE_DOES_NOT_ACCEPT_PAYMENT',
       });
     }
-  }
-
-  async appendTimelineEvent(input: {
-    organizationId: string;
-    saleId: string;
-    paymentId: string;
-    status: string;
-    occurredAt: Date;
-  }): Promise<void> {
-    const isReceived = input.status === 'COMPLETED';
-    await resolvePrismaClient(this.prisma).saleTimelineEvent.create({
-      data: {
-        id: randomUUID(),
-        organizationId: input.organizationId,
-        saleId: input.saleId,
-        type: isReceived ? 'PAYMENT_RECEIVED' : 'PAYMENT_STATUS_CHANGED',
-        message: isReceived ? 'Payment received' : `Payment ${input.status.toLowerCase()}`,
-        actorMembershipId: null,
-        payload: { paymentId: input.paymentId, status: input.status },
-        occurredAt: input.occurredAt,
-      },
-    });
   }
 }

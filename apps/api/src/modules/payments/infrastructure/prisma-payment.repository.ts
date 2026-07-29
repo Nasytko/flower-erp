@@ -5,10 +5,8 @@ import type {
   CashOperation as PrismaCashOperation,
   Payment as PrismaPayment,
   PaymentAllocation as PrismaAllocation,
-  PaymentAllocationTransfer as PrismaTransfer,
   PaymentMethod as PrismaMethod,
   PaymentRefund as PrismaRefund,
-  PaymentTimelineEvent as PrismaTimeline,
 } from '@prisma/client';
 import { PrismaService } from '../../../infrastructure/prisma/prisma.service';
 import { resolvePrismaClient } from '../../../infrastructure/persistence/prisma-transaction-context';
@@ -25,7 +23,6 @@ import type {
   PaymentType,
 } from '../domain/payment-rules';
 import type {
-  AllocationTransferView,
   CashAccountView,
   CashOperationView,
   CreateCashOperationInput,
@@ -36,7 +33,6 @@ import type {
   PaymentMethodView,
   PaymentRefundView,
   PaymentRepository,
-  PaymentTimelineEventView,
   PaymentView,
 } from '../application/ports/payment.repository';
 
@@ -119,20 +115,6 @@ function mapRefund(row: PrismaRefund): PaymentRefundView {
   };
 }
 
-function mapTimeline(row: PrismaTimeline): PaymentTimelineEventView {
-  return {
-    id: row.id,
-    organizationId: row.organizationId,
-    paymentId: row.paymentId,
-    type: row.type,
-    message: row.message,
-    actorMembershipId: row.actorMembershipId,
-    payload: row.payload,
-    occurredAt: row.occurredAt,
-    createdAt: row.createdAt,
-  };
-}
-
 function mapCashAccount(row: PrismaCashAccount): CashAccountView {
   return {
     id: row.id,
@@ -160,24 +142,6 @@ function mapCashOperation(row: PrismaCashOperation): CashOperationView {
     occurredAt: row.occurredAt,
     comment: row.comment,
     createdByMembershipId: row.createdByMembershipId,
-    createdAt: row.createdAt,
-  };
-}
-
-function mapTransfer(row: PrismaTransfer): AllocationTransferView {
-  return {
-    id: row.id,
-    organizationId: row.organizationId,
-    paymentId: row.paymentId,
-    fromAllocationId: row.fromAllocationId,
-    toAllocationId: row.toAllocationId,
-    amount: money(row.amount),
-    fromTargetType: row.fromTargetType as PaymentAllocationTargetType,
-    fromTargetId: row.fromTargetId,
-    toTargetType: row.toTargetType as PaymentAllocationTargetType,
-    toTargetId: row.toTargetId,
-    actorMembershipId: row.actorMembershipId,
-    occurredAt: row.occurredAt,
     createdAt: row.createdAt,
   };
 }
@@ -440,39 +404,6 @@ export class PrismaPaymentRepository implements PaymentRepository {
     return mapAllocation(row);
   }
 
-  async createAllocationTransfer(input: {
-    id: string;
-    organizationId: string;
-    paymentId: string;
-    fromAllocationId: string;
-    toAllocationId: string;
-    amount: string;
-    fromTargetType: PaymentAllocationTargetType;
-    fromTargetId: string;
-    toTargetType: PaymentAllocationTargetType;
-    toTargetId: string;
-    actorMembershipId: string | null;
-    occurredAt: Date;
-  }): Promise<AllocationTransferView> {
-    const row = await this.client().paymentAllocationTransfer.create({
-      data: {
-        id: input.id,
-        organizationId: input.organizationId,
-        paymentId: input.paymentId,
-        fromAllocationId: input.fromAllocationId,
-        toAllocationId: input.toAllocationId,
-        amount: new Prisma.Decimal(input.amount),
-        fromTargetType: input.fromTargetType,
-        fromTargetId: input.fromTargetId,
-        toTargetType: input.toTargetType,
-        toTargetId: input.toTargetId,
-        actorMembershipId: input.actorMembershipId,
-        occurredAt: input.occurredAt,
-      },
-    });
-    return mapTransfer(row);
-  }
-
   async createRefund(input: CreateRefundInput): Promise<PaymentRefundView> {
     const row = await this.client().paymentRefund.create({
       data: {
@@ -555,45 +486,6 @@ export class PrismaPaymentRepository implements PaymentRepository {
     const row = await this.getRefund(input.organizationId, input.storeId, input.refundId);
     if (!row) throw new Error('Refund not found after annul');
     return row;
-  }
-
-  async appendTimeline(input: {
-    id: string;
-    organizationId: string;
-    paymentId: string;
-    type: string;
-    message: string | null;
-    actorMembershipId: string | null;
-    payload: unknown;
-    occurredAt: Date;
-  }): Promise<PaymentTimelineEventView> {
-    const row = await this.client().paymentTimelineEvent.create({
-      data: {
-        id: input.id,
-        organizationId: input.organizationId,
-        paymentId: input.paymentId,
-        type: input.type as PrismaTimeline['type'],
-        message: input.message,
-        actorMembershipId: input.actorMembershipId,
-        payload:
-          input.payload === null || input.payload === undefined
-            ? undefined
-            : (input.payload as Prisma.InputJsonValue),
-        occurredAt: input.occurredAt,
-      },
-    });
-    return mapTimeline(row);
-  }
-
-  async listTimeline(
-    organizationId: string,
-    paymentId: string,
-  ): Promise<PaymentTimelineEventView[]> {
-    const rows = await this.client().paymentTimelineEvent.findMany({
-      where: { organizationId, paymentId },
-      orderBy: { occurredAt: 'asc' },
-    });
-    return rows.map(mapTimeline);
   }
 
   async ensureDefaultCashAccount(input: {

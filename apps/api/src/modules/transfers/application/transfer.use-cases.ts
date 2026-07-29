@@ -167,7 +167,7 @@ export class TransferUseCases {
         input.expectedVersion,
       );
       if (!updated) throw versionConflict(doc.version);
-      await this.appendTimeline(updated.id, updated.organizationId, 'TRANSFER_DISPATCHED', 'Transfer dispatched');
+      
       return this.requireTransfer(input.organizationId, input.storeId, input.transferId);
     });
   }
@@ -234,7 +234,7 @@ export class TransferUseCases {
         input.expectedVersion,
       );
       if (!updated) throw versionConflict(doc.version);
-      await this.appendTimeline(updated.id, updated.organizationId, 'TRANSFER_RECEIVED', 'Transfer received');
+      
       return this.requireTransfer(input.organizationId, input.storeId, input.transferId);
     });
   }
@@ -281,7 +281,7 @@ export class TransferUseCases {
         input.expectedVersion,
       );
       if (!updated) throw versionConflict(doc.version);
-      await this.appendTimeline(updated.id, updated.organizationId, 'TRANSFER_CANCELLED', 'Transfer cancelled');
+      
       return this.requireTransfer(input.organizationId, input.storeId, input.transferId);
     });
   }
@@ -326,15 +326,12 @@ export class TransferUseCases {
         input.expectedVersion,
       );
       if (!updated) throw versionConflict(doc.version);
-      await this.appendTimeline(updated.id, updated.organizationId, 'TRANSFER_REVERSED', 'Transfer reversed');
+      
       return this.requireTransfer(input.organizationId, input.storeId, input.transferId);
     });
   }
 
-  async timeline(organizationId: string, storeId: string, transferId: string) {
-    await this.requireTransfer(organizationId, storeId, transferId);
-    return this.transfers.listTimeline(organizationId, transferId);
-  }
+
 
   private async requireTransfer(organizationId: string, storeId: string, transferId: string) {
     const doc = await this.transfers.getDocument(organizationId, storeId, transferId);
@@ -344,23 +341,7 @@ export class TransferUseCases {
     return doc;
   }
 
-  private async appendTimeline(
-    transferId: string,
-    organizationId: string,
-    type: string,
-    message: string,
-  ) {
-    await this.transfers.appendTimeline({
-      id: randomUUID(),
-      organizationId,
-      transferDocumentId: transferId,
-      type,
-      message,
-      actorMembershipId: actorMembershipId(),
-      payload: null,
-      occurredAt: this.clock.now(),
-    });
-  }
+
 }
 
 function actorMembershipId(): string | null {

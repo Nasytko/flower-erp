@@ -14,8 +14,6 @@ import type {
   OrderComment as PrismaComment,
   OrderComposition as PrismaComposition,
   OrderCompositionItem as PrismaCompositionItem,
-  OrderCompositionReplacement as PrismaReplacement,
-  OrderTimelineEvent as PrismaTimeline,
 } from '@prisma/client';
 import { allocateOrgDocumentNumber } from '../../../infrastructure/ids/org-document-number';
 import { PrismaService } from '../../../infrastructure/prisma/prisma.service';
@@ -38,8 +36,6 @@ import {
   type AssignmentView,
   type CommentView,
   type CompositionItemView,
-  type CompositionReplacementReason,
-  type CompositionReplacementView,
   type CompositionView,
   type CustomerView,
   type ItemBriefView,
@@ -49,7 +45,6 @@ import {
   type OrderBoardCardView,
   type OrderBoardPaymentStatus,
   type PlannedCompositionItemInput,
-  type TimelineEventView,
 } from '../application/ports/order.repository';
 
 type ItemRow = PrismaItem;
@@ -64,7 +59,6 @@ type OrderFull = PrismaOrder & {
   composition: CompositionRow | null;
   actualComposition: ActualRow | null;
   assignments: PrismaAssignment[];
-  timeline: PrismaTimeline[];
   comments: PrismaComment[];
 };
 
@@ -74,7 +68,6 @@ const orderInclude = {
     include: { items: { include: { item: true }, orderBy: { sortOrder: 'asc' as const } } },
   },
   assignments: { where: { releasedAt: null }, take: 1 },
-  timeline: { orderBy: { occurredAt: 'asc' as const } },
   comments: { orderBy: { createdAt: 'asc' as const } },
 } satisfies Prisma.OrderInclude;
 
@@ -167,20 +160,6 @@ function mapAssignment(row: PrismaAssignment): AssignmentView {
   };
 }
 
-function mapTimeline(row: PrismaTimeline): TimelineEventView {
-  return {
-    id: row.id,
-    organizationId: row.organizationId,
-    orderId: row.orderId,
-    type: row.type,
-    message: row.message,
-    actorMembershipId: row.actorMembershipId,
-    payload: row.payload,
-    occurredAt: row.occurredAt,
-    createdAt: row.createdAt,
-  };
-}
-
 function mapComment(row: PrismaComment): CommentView {
   return {
     id: row.id,
@@ -188,21 +167,6 @@ function mapComment(row: PrismaComment): CommentView {
     orderId: row.orderId,
     authorMembershipId: row.authorMembershipId,
     message: row.message,
-    createdAt: row.createdAt,
-  };
-}
-
-function mapReplacement(row: PrismaReplacement): CompositionReplacementView {
-  return {
-    id: row.id,
-    organizationId: row.organizationId,
-    orderId: row.orderId,
-    fromItemId: row.fromItemId,
-    toItemId: row.toItemId,
-    quantity: row.quantity.toString(),
-    reason: row.reason,
-    comment: row.comment,
-    actorMembershipId: row.actorMembershipId,
     createdAt: row.createdAt,
   };
 }
@@ -241,7 +205,6 @@ function mapOrder(row: OrderFull): OrderView {
     composition: row.composition ? mapComposition(row.composition) : null,
     actualComposition: row.actualComposition ? mapActual(row.actualComposition) : null,
     activeAssignment: row.assignments[0] ? mapAssignment(row.assignments[0]) : null,
-    timeline: row.timeline.map(mapTimeline),
     comments: row.comments.map(mapComment),
   };
 }
@@ -743,33 +706,6 @@ export class PrismaOrderRepository implements OrderRepository {
     return row;
   }
 
-  async createCompositionReplacement(input: {
-    id: string;
-    organizationId: string;
-    orderId: string;
-    fromItemId: string;
-    toItemId: string;
-    quantity: string;
-    reason: CompositionReplacementReason;
-    comment: string | null;
-    actorMembershipId: string | null;
-  }): Promise<CompositionReplacementView> {
-    const row = await this.client().orderCompositionReplacement.create({
-      data: {
-        id: input.id,
-        organizationId: input.organizationId,
-        orderId: input.orderId,
-        fromItemId: input.fromItemId,
-        toItemId: input.toItemId,
-        quantity: input.quantity,
-        reason: input.reason,
-        comment: input.comment,
-        actorMembershipId: input.actorMembershipId,
-      },
-    });
-    return mapReplacement(row);
-  }
-
   async lockNextClaimableOrderId(input: {
     organizationId: string;
     storeId: string;
@@ -868,39 +804,6 @@ export class PrismaOrderRepository implements OrderRepository {
       where: { organizationId, orderId, releasedAt: null },
     });
     return row ? mapAssignment(row) : null;
-  }
-
-  async appendTimeline(input: {
-    id: string;
-    organizationId: string;
-    orderId: string;
-    type: string;
-    message: string | null;
-    actorMembershipId: string | null;
-    payload: unknown;
-    occurredAt: Date;
-  }): Promise<TimelineEventView> {
-    const row = await this.client().orderTimelineEvent.create({
-      data: {
-        id: input.id,
-        organizationId: input.organizationId,
-        orderId: input.orderId,
-        type: input.type as PrismaTimeline['type'],
-        message: input.message,
-        actorMembershipId: input.actorMembershipId,
-        payload: input.payload === undefined ? undefined : (input.payload as Prisma.InputJsonValue),
-        occurredAt: input.occurredAt,
-      },
-    });
-    return mapTimeline(row);
-  }
-
-  async listTimeline(organizationId: string, orderId: string): Promise<TimelineEventView[]> {
-    const rows = await this.client().orderTimelineEvent.findMany({
-      where: { organizationId, orderId },
-      orderBy: { occurredAt: 'asc' },
-    });
-    return rows.map(mapTimeline);
   }
 
   async addComment(input: {

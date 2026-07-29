@@ -125,7 +125,6 @@ export class PrismaInventoryReservationAdapter implements InventoryReservationPo
         });
       }
 
-      const now = new Date();
       const reservedByItem = new Map<string, Prisma.Decimal>();
       for (const alloc of allocations) {
         const reservationId = randomUUID();
@@ -140,23 +139,6 @@ export class PrismaInventoryReservationAdapter implements InventoryReservationPo
             orderItemId: alloc.compositionItemId,
             quantity: alloc.quantity,
             status: 'ACTIVE',
-          },
-        });
-        await client.reservationMovement.create({
-          data: {
-            id: randomUUID(),
-            organizationId: command.organizationId,
-            storeId: command.storeId,
-            warehouseId: command.warehouseId,
-            itemId: alloc.itemId,
-            batchId: alloc.batchId,
-            reservationId,
-            type: 'RESERVE',
-            quantity: alloc.quantity,
-            sourceDocumentType: 'ORDER',
-            sourceDocumentId: command.orderId,
-            sourceDocumentItemId: alloc.compositionItemId,
-            occurredAt: now,
           },
         });
         reservedByItem.set(
@@ -276,29 +258,11 @@ export class PrismaInventoryReservationAdapter implements InventoryReservationPo
     });
     if (active.length === 0) return;
 
-    const now = new Date();
     const byItem = new Map<string, Prisma.Decimal>();
     for (const reservation of active) {
       await client.inventoryReservation.update({
         where: { id: reservation.id },
         data: { status: 'RELEASED' },
-      });
-      await client.reservationMovement.create({
-        data: {
-          id: randomUUID(),
-          organizationId: reservation.organizationId,
-          storeId: reservation.storeId,
-          warehouseId: reservation.warehouseId,
-          itemId: reservation.itemId,
-          batchId: reservation.batchId,
-          reservationId: reservation.id,
-          type: 'RELEASE',
-          quantity: reservation.quantity,
-          sourceDocumentType: 'ORDER',
-          sourceDocumentId: command.orderId,
-          sourceDocumentItemId: reservation.orderItemId,
-          occurredAt: now,
-        },
       });
       byItem.set(
         reservation.itemId,

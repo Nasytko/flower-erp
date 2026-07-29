@@ -29,7 +29,6 @@ export enum SalesChannel {
   STORE = 'STORE',
   PHONE = 'PHONE',
   WEBSITE = 'WEBSITE',
-  TELEGRAM = 'TELEGRAM',
   OTHER = 'OTHER',
 }
 

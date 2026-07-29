@@ -151,24 +151,6 @@ export class PrismaInventoryIssueAdapter implements InventoryIssuePort {
 
             await this.adjustBalanceOnIssue(client, command, line.itemId, take, take);
 
-            await client.reservationMovement.create({
-              data: {
-                id: randomUUID(),
-                organizationId: command.organizationId,
-                storeId: command.storeId,
-                warehouseId: command.warehouseId,
-                itemId: line.itemId,
-                batchId: reservation.batchId,
-                reservationId: reservation.id,
-                type: 'CONSUME',
-                quantity: take,
-                sourceDocumentType: command.sourceDocumentType,
-                sourceDocumentId: command.sourceDocumentId,
-                sourceDocumentItemId: reservation.orderItemId,
-                occurredAt: command.occurredAt,
-              },
-            });
-
             if (take.eq(reservation.quantity)) {
               await client.inventoryReservation.update({
                 where: { id: reservation.id },
@@ -403,23 +385,6 @@ export class PrismaInventoryIssueAdapter implements InventoryIssuePort {
       await client.inventoryReservation.update({
         where: { id: reservation.id },
         data: { status: 'RELEASED' },
-      });
-      await client.reservationMovement.create({
-        data: {
-          id: randomUUID(),
-          organizationId: command.organizationId,
-          storeId: command.storeId,
-          warehouseId: command.warehouseId,
-          itemId: reservation.itemId,
-          batchId: reservation.batchId,
-          reservationId: reservation.id,
-          type: 'RELEASE',
-          quantity: reservation.quantity,
-          sourceDocumentType: command.sourceDocumentType,
-          sourceDocumentId: command.sourceDocumentId,
-          sourceDocumentItemId: reservation.orderItemId,
-          occurredAt: command.occurredAt,
-        },
       });
       reservedDelta = reservedDelta.plus(reservation.quantity);
     }

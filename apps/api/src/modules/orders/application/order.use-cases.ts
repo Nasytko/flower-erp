@@ -18,7 +18,6 @@ import { ItemUseCases } from '../../master-data/application/item.use-cases';
 import {
   INVENTORY_RESERVATION_PORT,
   type InventoryReservationPort,
-  type ReserveCompositionResult,
 } from '../../inventory/application/ports/inventory-reservation.port';
 import {
   INVENTORY_ISSUE_PORT,
@@ -36,7 +35,6 @@ import {
   AssignmentConflictError,
   ORDER_REPOSITORY,
   type CompositionItemView,
-  type CompositionReplacementReason,
   type OrderDashboardBuckets,
   type OrderRepository,
   type OrderView,
@@ -116,14 +114,6 @@ function requireMembershipId(): string {
     });
   }
   return id;
-}
-
-function reservationTimelineType(
-  outcome: ReserveCompositionResult['outcome'],
-): 'RESERVATION_SUCCEEDED' | 'RESERVATION_PARTIAL' | 'RESERVATION_FAILED' {
-  if (outcome === 'FULL') return 'RESERVATION_SUCCEEDED';
-  if (outcome === 'PARTIAL') return 'RESERVATION_PARTIAL';
-  return 'RESERVATION_FAILED';
 }
 
 @Injectable()
@@ -239,8 +229,8 @@ export class OrderUseCases {
         confirmedAt: now,
       });
 
-      await this.appendTimeline(created, 'ORDER_CREATED', 'Order created', null);
-      await this.appendTimeline(created, 'CONFIRMED', 'Order placed in queue', null);
+      
+      
       await this.auditOrder(created, 'ORDER_CREATED', null, created);
       return created;
     });
@@ -386,7 +376,7 @@ export class OrderUseCases {
           });
         }
       }
-      await this.appendTimeline(updated, 'REFERENCE_UPDATED', 'Draft updated', null);
+      
       await this.auditOrder(updated, 'ORDER_UPDATED', existing, updated);
       return updated;
     });
@@ -446,9 +436,7 @@ export class OrderUseCases {
         planned,
       );
       const updated = await this.requireOrder(input.organizationId, input.storeId, input.orderId);
-      await this.appendTimeline(updated, 'COMPOSITION_CHANGED', 'Planned composition replaced', {
-        itemCount: planned.length,
-      });
+      
       await this.auditOrder(updated, 'COMPOSITION_CHANGED', order, updated);
       return updated;
     });
@@ -510,9 +498,7 @@ export class OrderUseCases {
         next,
       );
       const updated = await this.requireOrder(input.organizationId, input.storeId, input.orderId);
-      await this.appendTimeline(updated, 'COMPOSITION_CHANGED', 'Composition item added', {
-        itemId: input.itemId,
-      });
+      
       await this.auditOrder(updated, 'ORDER_COMPOSITION_ITEM_ADDED', order, updated);
       return updated;
     });
@@ -567,9 +553,7 @@ export class OrderUseCases {
         next,
       );
       const updated = await this.requireOrder(input.organizationId, input.storeId, input.orderId);
-      await this.appendTimeline(updated, 'COMPOSITION_CHANGED', 'Composition item removed', {
-        compositionItemId: input.compositionItemId,
-      });
+      
       await this.auditOrder(updated, 'ORDER_COMPOSITION_ITEM_REMOVED', order, updated);
       return updated;
     });
@@ -650,13 +634,8 @@ export class OrderUseCases {
         },
       );
 
-      await this.appendTimeline(updated, 'CONFIRMED', 'Order confirmed', { status });
-      await this.appendTimeline(
-        updated,
-        reservationTimelineType(result.outcome),
-        `Reservation ${result.outcome.toLowerCase()}`,
-        result,
-      );
+      
+      
       await this.auditOrder(updated, 'ORDER_CONFIRMED', fresh, { status, reservation: result });
       return this.enrichWithReservation(updated);
     });
@@ -699,12 +678,7 @@ export class OrderUseCases {
         { reservedAt: result.outcome === 'FULL' ? now : null },
       );
 
-      await this.appendTimeline(
-        updated,
-        reservationTimelineType(result.outcome),
-        `Reservation retry ${result.outcome.toLowerCase()}`,
-        result,
-      );
+      
       await this.auditOrder(updated, 'ORDER_RESERVE_ATTEMPTED', order, { status, reservation: result });
       return this.enrichWithReservation(updated);
     });
@@ -744,9 +718,7 @@ export class OrderUseCases {
         { assignedFloristId: input.membershipId },
       );
 
-      await this.appendTimeline(updated, 'ASSIGNMENT_CHANGED', 'Florist assigned', {
-        membershipId: input.membershipId,
-      });
+      
       await this.auditOrder(updated, 'ORDER_ASSIGNED', order, updated);
       return updated;
     });
@@ -799,10 +771,7 @@ export class OrderUseCases {
         input.orderId,
         { assignedFloristId: membershipId },
       );
-      await this.appendTimeline(updated, 'ASSIGNMENT_CHANGED', 'Order claimed', {
-        membershipId,
-        action: 'claim',
-      });
+      
       await this.auditOrder(updated, 'ORDER_CLAIMED', order, updated);
       return updated;
     });
@@ -847,10 +816,7 @@ export class OrderUseCases {
         orderId,
         { assignedFloristId: membershipId },
       );
-      await this.appendTimeline(updated, 'ASSIGNMENT_CHANGED', 'Order claimed via ClaimNext', {
-        membershipId,
-        action: 'claim-next',
-      });
+      
       await this.auditOrder(updated, 'ORDER_CLAIMED_NEXT', order, updated);
       return { code: 'OK' as const, order: updated };
     });
@@ -905,11 +871,7 @@ export class OrderUseCases {
         input.orderId,
         { assignedFloristId: input.membershipId },
       );
-      await this.appendTimeline(updated, 'ASSIGNMENT_CHANGED', 'Florist reassigned', {
-        fromMembershipId: previous?.membershipId ?? null,
-        toMembershipId: input.membershipId,
-        reason: input.reason.trim(),
-      });
+      
       await this.auditOrder(updated, 'ORDER_REASSIGNED', order, updated);
       return updated;
     });
@@ -948,10 +910,7 @@ export class OrderUseCases {
         { assignedFloristId: null },
       );
 
-      await this.appendTimeline(updated, 'ASSIGNMENT_CHANGED', 'Florist assignment released', {
-        membershipId: released.membershipId,
-        reason: input.reason.trim(),
-      });
+      
       await this.auditOrder(updated, 'ORDER_ASSIGNMENT_RELEASED', order, updated);
       return updated;
     });
@@ -995,7 +954,7 @@ export class OrderUseCases {
         { preparationStartedAt: now },
       );
 
-      await this.appendTimeline(updated, 'PREPARATION_STARTED', 'Preparation started', null);
+      
       await this.auditOrder(updated, 'ORDER_PREPARATION_STARTED', order, updated);
       return updated;
     });
@@ -1090,188 +1049,8 @@ export class OrderUseCases {
         })),
       );
       const updated = await this.requireOrder(input.organizationId, input.storeId, input.orderId);
-      await this.appendTimeline(
-        updated,
-        'ACTUAL_COMPOSITION_CHANGED',
-        'Actual composition updated',
-        { itemCount: input.items.length, version: updated.version },
-      );
+      
       await this.auditOrder(updated, 'ACTUAL_COMPOSITION_CHANGED', order, updated);
-      return updated;
-    });
-  }
-
-  async replaceCompositionItem(input: {
-    organizationId: string;
-    storeId: string;
-    orderId: string;
-    expectedVersion: number;
-    fromItemId: string;
-    toItemId: string;
-    quantity: string;
-    reason: CompositionReplacementReason;
-    comment?: string | null;
-  }) {
-    const order = await this.requireOrder(input.organizationId, input.storeId, input.orderId);
-    try {
-      assertCanEditActual(order.status as OrderStatus);
-    } catch (e) {
-      mapDomain(e);
-    }
-    if (!order.actualComposition) {
-      throw new BadRequestException({
-        code: 'ACTUAL_MISSING',
-        message: 'Actual composition is missing; start preparation first',
-      });
-    }
-    if (order.actualComposition.frozenAt) {
-      throw new BadRequestException({
-        code: 'ACTUAL_LOCKED',
-        message: 'Actual composition is frozen',
-      });
-    }
-    if (input.expectedVersion !== order.version) {
-      throw new ConflictException({
-        code: 'VERSION_CONFLICT',
-        message: 'Actual composition version conflict; reload and retry',
-        version: order.version,
-        updatedAt: order.updatedAt,
-      });
-    }
-    try {
-      assertQuantityPositive(input.quantity);
-    } catch (e) {
-      mapDomain(e);
-    }
-    if (input.fromItemId === input.toItemId) {
-      throw new BadRequestException({
-        code: 'INVALID_REPLACEMENT',
-        message: 'fromItemId and toItemId must differ',
-      });
-    }
-
-    const toItem = await this.items.getItem(input.organizationId, input.toItemId);
-    if (toItem.status !== 'ACTIVE') {
-      throw new BadRequestException({
-        code: 'ITEM_NOT_ACTIVE',
-        message: 'Only ACTIVE items can be used in actual composition',
-      });
-    }
-    await this.items.getItem(input.organizationId, input.fromItemId);
-
-    return this.uow.runInTransaction(async () => {
-      const bumped = await this.orders.incrementVersion(
-        input.organizationId,
-        input.storeId,
-        input.orderId,
-        input.expectedVersion,
-      );
-      if (bumped === null) {
-        const current = await this.requireOrder(
-          input.organizationId,
-          input.storeId,
-          input.orderId,
-        );
-        throw new ConflictException({
-          code: 'VERSION_CONFLICT',
-          message: 'Actual composition version conflict; reload and retry',
-          version: current.version,
-          updatedAt: current.updatedAt,
-        });
-      }
-
-      const actual = order.actualComposition!;
-      const qty = Number(input.quantity);
-      const nextLines: Array<{
-        id: string;
-        itemId: string;
-        actualQuantity: string;
-        batchId: string | null;
-        comment: string | null;
-        sortOrder: number;
-      }> = [];
-
-      let fromRemaining = qty;
-      for (const line of actual.items) {
-        if (line.itemId !== input.fromItemId || fromRemaining <= 0) {
-          nextLines.push({
-            id: randomUUID(),
-            itemId: line.itemId,
-            actualQuantity: line.actualQuantity,
-            batchId: line.batchId,
-            comment: line.comment,
-            sortOrder: line.sortOrder,
-          });
-          continue;
-        }
-        const lineQty = Number(line.actualQuantity);
-        const take = Math.min(lineQty, fromRemaining);
-        const left = lineQty - take;
-        fromRemaining -= take;
-        if (left > 0) {
-          nextLines.push({
-            id: randomUUID(),
-            itemId: line.itemId,
-            actualQuantity: left.toString(),
-            batchId: line.batchId,
-            comment: line.comment,
-            sortOrder: line.sortOrder,
-          });
-        }
-      }
-      if (fromRemaining > 0) {
-        throw new BadRequestException({
-          code: 'REPLACEMENT_QTY_EXCEEDS',
-          message: 'Replacement quantity exceeds from-item actual quantity',
-        });
-      }
-
-      const existingTo = nextLines.find((l) => l.itemId === input.toItemId);
-      if (existingTo) {
-        existingTo.actualQuantity = (Number(existingTo.actualQuantity) + qty).toString();
-      } else {
-        nextLines.push({
-          id: randomUUID(),
-          itemId: input.toItemId,
-          actualQuantity: input.quantity,
-          batchId: null,
-          comment: input.comment ?? null,
-          sortOrder: nextLines.length,
-        });
-      }
-
-      await this.orders.replaceActualItems(
-        input.organizationId,
-        input.orderId,
-        actual.id,
-        nextLines.map((line, index) => ({ ...line, sortOrder: index })),
-      );
-
-      const replacement = await this.orders.createCompositionReplacement({
-        id: randomUUID(),
-        organizationId: input.organizationId,
-        orderId: input.orderId,
-        fromItemId: input.fromItemId,
-        toItemId: input.toItemId,
-        quantity: input.quantity,
-        reason: input.reason,
-        comment: input.comment ?? null,
-        actorMembershipId: actorMembershipId(),
-      });
-
-      const updated = await this.requireOrder(input.organizationId, input.storeId, input.orderId);
-      await this.appendTimeline(updated, 'COMPOSITION_REPLACED', 'Composition item replaced', {
-        fromItemId: input.fromItemId,
-        toItemId: input.toItemId,
-        quantity: input.quantity,
-        reason: input.reason,
-        replacementId: replacement.id,
-        version: updated.version,
-      });
-      await this.auditOrder(updated, 'COMPOSITION_ITEM_REPLACED', order, {
-        order: updated,
-        replacement,
-      });
       return updated;
     });
   }
@@ -1298,7 +1077,7 @@ export class OrderUseCases {
         OrderStatus.READY,
       );
 
-      await this.appendTimeline(updated, 'READY', 'Order marked ready', null);
+      
       await this.auditOrder(updated, 'ORDER_MARKED_READY', order, updated);
       const readiness = this.deliveryReadiness();
       if (readiness) {
@@ -1365,7 +1144,7 @@ export class OrderUseCases {
             reservedAt: result.outcome === 'FULL' ? now : null,
           },
         );
-        await this.appendTimeline(order, 'CONFIRMED', 'Order confirmed', { status });
+        
         await this.auditOrder(order, 'ORDER_CONFIRMED', order, { status, reservation: result });
       }
 
@@ -1423,7 +1202,7 @@ export class OrderUseCases {
           OrderStatus.IN_PREPARATION,
           { preparationStartedAt: now },
         );
-        await this.appendTimeline(order, 'PREPARATION_STARTED', 'Preparation started', null);
+        
         await this.auditOrder(order, 'ORDER_PREPARATION_STARTED', order, order);
       }
 
@@ -1443,7 +1222,7 @@ export class OrderUseCases {
           input.orderId,
           OrderStatus.READY,
         );
-        await this.appendTimeline(order, 'READY', 'Order marked ready', null);
+        
         await this.auditOrder(order, 'ORDER_MARKED_READY', order, order);
         const readiness = this.deliveryReadiness();
         if (readiness) {
@@ -1500,7 +1279,7 @@ export class OrderUseCases {
         { completedAt: now },
       );
 
-      await this.appendTimeline(updated, 'COMPLETED', 'Order completed', null);
+      
       await this.auditOrder(updated, 'ORDER_COMPLETED', order, updated);
       return updated;
     });
@@ -1542,7 +1321,7 @@ export class OrderUseCases {
         { cancelledAt: this.clock.now() },
       );
 
-      await this.appendTimeline(updated, 'CANCELLED', 'Order cancelled', null);
+      
       await this.auditOrder(updated, 'ORDER_CANCELLED', order, updated);
       return updated;
     });
@@ -1578,9 +1357,7 @@ export class OrderUseCases {
         message: input.message.trim(),
       });
 
-      await this.appendTimeline(order, 'COMMENT_ADDED', 'Comment added', {
-        commentId: comment.id,
-      });
+      
       await this.auditOrder(order, 'ORDER_COMMENT_ADDED', null, comment);
       return this.requireOrder(input.organizationId, input.storeId, input.orderId);
     });
@@ -1716,23 +1493,7 @@ export class OrderUseCases {
     return order;
   }
 
-  private async appendTimeline(
-    order: OrderView,
-    type: string,
-    message: string | null,
-    payload: unknown,
-  ): Promise<void> {
-    await this.orders.appendTimeline({
-      id: randomUUID(),
-      organizationId: order.organizationId,
-      orderId: order.id,
-      type,
-      message,
-      actorMembershipId: actorMembershipId(),
-      payload,
-      occurredAt: this.clock.now(),
-    });
-  }
+
 
   private async auditOrder(
     order: OrderView,

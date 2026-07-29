@@ -8,7 +8,6 @@ import type {
   TransferDocumentView,
   TransferItemView,
   TransferRepository,
-  TransferTimelineEventView,
 } from '../application/ports/transfer.repository';
 
 @Injectable()
@@ -121,39 +120,6 @@ export class PrismaTransferRepository implements TransferRepository {
       include: { items: true, allocations: true },
     });
     return mapDocument(row);
-  }
-
-  async listTimeline(organizationId: string, transferId: string): Promise<TransferTimelineEventView[]> {
-    const rows = await this.client.transferTimelineEvent.findMany({
-      where: { organizationId, transferDocumentId: transferId },
-      orderBy: { occurredAt: 'asc' },
-    });
-    return rows as TransferTimelineEventView[];
-  }
-
-  async appendTimeline(input: {
-    id: string;
-    organizationId: string;
-    transferDocumentId: string;
-    type: string;
-    message: string | null;
-    actorMembershipId: string | null;
-    payload: Record<string, unknown> | null;
-    occurredAt: Date;
-  }): Promise<TransferTimelineEventView> {
-    const row = await this.client.transferTimelineEvent.create({
-      data: {
-        id: input.id,
-        organizationId: input.organizationId,
-        transferDocumentId: input.transferDocumentId,
-        type: input.type as never,
-        message: input.message,
-        actorMembershipId: input.actorMembershipId,
-        payload: (input.payload ?? undefined) as Prisma.InputJsonValue | undefined,
-        occurredAt: input.occurredAt,
-      },
-    });
-    return row as TransferTimelineEventView;
   }
 }
 

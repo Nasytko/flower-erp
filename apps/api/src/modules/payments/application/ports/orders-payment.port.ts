@@ -14,10 +14,4 @@ export interface OrdersPaymentPort {
     orderId: string,
   ): Promise<OrderPaymentTarget | null>;
   assertAcceptsPrepayment(target: OrderPaymentTarget): void;
-  appendTimelineEvent(input: {
-    organizationId: string;
-    orderId: string;
-    paymentId: string;
-    occurredAt: Date;
-  }): Promise<void>;
 }

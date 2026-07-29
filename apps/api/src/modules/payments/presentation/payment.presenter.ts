@@ -3,7 +3,6 @@ import type {
   CashOperationView,
   PaymentMethodView,
   PaymentRefundView,
-  PaymentTimelineEventView,
   PaymentView,
 } from '../application/ports/payment.repository';
 import type { PaymentSummaryView } from '../application/payment.use-cases';
@@ -28,10 +27,6 @@ export function presentRefund(refund: PaymentRefundView) {
 
 export function presentMethod(method: PaymentMethodView) {
   return method;
-}
-
-export function presentTimeline(events: PaymentTimelineEventView[]) {
-  return events;
 }
 
 export function presentSummary(summary: PaymentSummaryView) {

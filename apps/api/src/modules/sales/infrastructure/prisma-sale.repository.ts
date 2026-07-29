@@ -7,7 +7,6 @@ import type {
   SaleInventoryConsumption as PrismaConsumption,
   SaleInventoryConsumptionLine as PrismaConsumptionLine,
   SaleLine as PrismaSaleLine,
-  SaleTimelineEvent as PrismaTimeline,
 } from '@prisma/client';
 import { allocateOrgDocumentNumber } from '../../../infrastructure/ids/org-document-number';
 import { PrismaService } from '../../../infrastructure/prisma/prisma.service';
@@ -28,7 +27,6 @@ import type {
   SaleLineView,
   SaleListFilter,
   SaleRepository,
-  SaleTimelineEventView,
   SaleView,
   SaveConsumptionInput,
 } from '../application/ports/sale.repository';
@@ -143,20 +141,6 @@ function mapSale(row: SaleFull): SaleView {
     discount: row.discount ? mapDiscount(row.discount) : null,
     consumption: row.consumption ? mapConsumption(row.consumption) : null,
     annulment: row.annulment ? mapAnnulment(row.annulment) : null,
-  };
-}
-
-function mapTimeline(row: PrismaTimeline): SaleTimelineEventView {
-  return {
-    id: row.id,
-    organizationId: row.organizationId,
-    saleId: row.saleId,
-    type: row.type,
-    message: row.message,
-    actorMembershipId: row.actorMembershipId,
-    payload: row.payload,
-    occurredAt: row.occurredAt,
-    createdAt: row.createdAt,
   };
 }
 
@@ -380,42 +364,6 @@ export class PrismaSaleRepository implements SaleRepository {
       include: { lines: { orderBy: { createdAt: 'asc' } } },
     });
     return row ? mapConsumption(row as ConsumptionRow) : null;
-  }
-
-  async appendTimeline(input: {
-    id: string;
-    organizationId: string;
-    saleId: string;
-    type: string;
-    message: string | null;
-    actorMembershipId: string | null;
-    payload: unknown;
-    occurredAt: Date;
-  }): Promise<SaleTimelineEventView> {
-    const row = await this.client().saleTimelineEvent.create({
-      data: {
-        id: input.id,
-        organizationId: input.organizationId,
-        saleId: input.saleId,
-        type: input.type as PrismaTimeline['type'],
-        message: input.message,
-        actorMembershipId: input.actorMembershipId,
-        payload: input.payload === undefined ? undefined : (input.payload as Prisma.InputJsonValue),
-        occurredAt: input.occurredAt,
-      },
-    });
-    return mapTimeline(row);
-  }
-
-  async listTimeline(
-    organizationId: string,
-    saleId: string,
-  ): Promise<SaleTimelineEventView[]> {
-    const rows = await this.client().saleTimelineEvent.findMany({
-      where: { organizationId, saleId },
-      orderBy: { occurredAt: 'asc' },
-    });
-    return rows.map(mapTimeline);
   }
 
   async createAnnulment(input: {

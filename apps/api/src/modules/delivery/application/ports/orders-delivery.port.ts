@@ -26,15 +26,6 @@ export interface OrdersDeliveryPort {
     nextType: 'PICKUP' | 'DELIVERY',
   ): void;
 
-  appendOrderTimeline(input: {
-    organizationId: string;
-    orderId: string;
-    type: 'DELIVERY_CREATED' | 'DELIVERY_COMPLETED' | 'DELIVERY_CANCELLED';
-    message: string;
-    payload?: Record<string, unknown> | null;
-    occurredAt: Date;
-  }): Promise<void>;
-
   isOrderReady(order: OrderDeliverySnapshot): boolean;
 
   getOrderReadinessByIds(
