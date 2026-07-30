@@ -36,7 +36,7 @@ export function resolveAttentionHref(
   if (item.filterLink === 'partially_reserved') return `${base}/stock`;
   if (item.filterLink && filterHref) return filterHref(item.filterLink);
   if (item.filterLink) {
-    return `${base}/orders?filter=${encodeURIComponent(item.filterLink)}`;
+    return `${base}/orders/calendar`;
   }
   if (item.code === 'SUPPLIES_AWAITING_RECEIPT') return `${base}/supplies`;
   if (item.code === 'DRAFT_PAYMENTS') return `${base}/payments`;

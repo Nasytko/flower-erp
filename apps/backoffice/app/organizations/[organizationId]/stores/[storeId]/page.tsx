@@ -203,7 +203,7 @@ export default function StoreDetailPage() {
               <Card title="Операции магазина">
                 <div className="meta-row">
                   <Link href={`${base}/orders/calendar`}>Календарь заказов</Link>
-                  <Link href={`${base}/orders`}>Очередь заказов</Link>
+                  <Link href={`${base}/orders/new`}>Новый заказ</Link>
                   <Link href={`${base}/sales`}>Продажи</Link>
                   <Link href={`${base}/supplies`}>Приёмки</Link>
                   {auth.hasPermission('write-offs:read') ? <Link href={`${base}/write-offs`}>Списания</Link> : null}

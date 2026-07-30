@@ -454,7 +454,7 @@ export default function OrderDetailPage() {
           refCode={order?.number}
           breadcrumbs={[
             { label: 'Магазин', href: base },
-            { label: 'Заказы', href: `${base}/orders` },
+            { label: 'Заказы', href: `${base}/orders/calendar` },
             { label: order?.recipientName?.trim() || 'Карточка' },
           ]}
           actions={

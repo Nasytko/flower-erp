@@ -69,6 +69,9 @@ export function OrderCalendarView({ embedded = false, initialDate }: OrderCalend
   const [error, setError] = useState<string | null>(null);
 
   const canRead = auth.hasPermission('orders:read');
+  const canCreate = auth.hasPermission('orders:create');
+  const calendarHref = `${base}/orders/calendar`;
+  const newOrderHref = `${base}/orders/new`;
   const permissions = useMemo(
     () => ({
       canAssign: auth.hasPermission('orders:assign'),
@@ -303,22 +306,14 @@ export function OrderCalendarView({ embedded = false, initialDate }: OrderCalend
           description="Смена на день — перетаскивайте карточки за ручку слева между колонками."
           breadcrumbs={[
             { label: 'Магазин', href: base },
-            { label: 'Заказы', href: `${base}/orders` },
-            { label: 'Календарь' },
+            { label: 'Заказы', href: calendarHref },
           ]}
           actions={
-            <div className="page-header__actions">
-              <Link href={`${base}/home`}>
-                <Button type="button" variant="secondary">
-                  Обзор директора
-                </Button>
+            canCreate ? (
+              <Link href={newOrderHref}>
+                <Button type="button">Новый заказ</Button>
               </Link>
-              <Link href={`${base}/orders`}>
-                <Button type="button" variant="secondary">
-                  Все заказы
-                </Button>
-              </Link>
-            </div>
+            ) : null
           }
         />
         {content}

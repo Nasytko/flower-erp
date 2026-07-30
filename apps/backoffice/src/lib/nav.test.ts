@@ -72,11 +72,11 @@ test('resolveStoreHomePath returns sales when only sales:read', () => {
   );
 });
 
-test('resolveNavActionShortcuts maps new-order to calendar', () => {
+test('resolveNavActionShortcuts maps new-order to create form', () => {
   const nav = filterNavByPermissions(PRIMARY_NAV, () => true, 'org-1', 'store-1');
   const actions = resolveNavActionShortcuts(nav);
   const newOrder = actions.find((a) => a.id === 'new-order');
-  assert.equal(newOrder?.href, '/organizations/org-1/stores/store-1/orders/calendar');
+  assert.equal(newOrder?.href, '/organizations/org-1/stores/store-1/orders/new');
 });
 
 test('parseStoreRoute extracts org and store ids', () => {

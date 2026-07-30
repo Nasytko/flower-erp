@@ -20,7 +20,7 @@ export type NavItem = {
  */
 export const PRIMARY_NAV: NavItem[] = [
   {
-    href: '/organizations/{orgId}/stores/{storeId}/orders/calendar',
+    href: '/organizations/{orgId}/stores/{storeId}/orders',
     label: 'Заказы',
     permission: 'orders:read',
     storeScoped: true,
@@ -226,7 +226,7 @@ export function resolveNavActionShortcuts(
       href = `${nav.href.replace(/\/$/, '')}/new`;
     }
     if (shortcut.id === 'new-order') {
-      href = `${nav.href.replace(/\/$/, '')}/calendar`;
+      href = `${nav.href.replace(/\/$/, '')}/new`;
     }
     return [{ id: shortcut.id, label: shortcut.label, href }];
   });
