@@ -83,6 +83,19 @@ export function sortOrderBoardCards(a: OrderBoardCardDto, b: OrderBoardCardDto):
   return a.number.localeCompare(b.number);
 }
 
+export function orderCountByDate(
+  dateCounts: Array<{ date: string; count: number }>,
+): Map<string, number> {
+  return new Map(dateCounts.map((row) => [row.date, row.count]));
+}
+
+export function orderCountForDate(
+  dateCounts: Array<{ date: string; count: number }>,
+  isoDate: string,
+): number {
+  return orderCountByDate(dateCounts).get(isoDate) ?? 0;
+}
+
 export function shiftIsoDate(isoDate: string, days: number): string {
   const d = new Date(`${isoDate}T12:00:00`);
   d.setDate(d.getDate() + days);

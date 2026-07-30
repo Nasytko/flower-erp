@@ -23,6 +23,7 @@ import { OrderCalendarDateStrip } from '@/components/order/order-calendar-date-s
 import { OrderCalendarDetailContent } from '@/components/order/order-calendar-detail-panel';
 import {
   monthIsoFromDate,
+  orderCountForDate,
   shiftIsoDate,
   sortOrderBoardCards,
 } from '@/lib/order-calendar-labels';
@@ -137,6 +138,11 @@ export function OrderCalendarView({ embedded = false, initialDate }: OrderCalend
     return next;
   }, [board, search]);
 
+  const todayIso = todayIsoDate();
+  const tomorrowIso = shiftIsoDate(todayIso, 1);
+  const todayOrderCount = board ? orderCountForDate(board.dateCounts, todayIso) : 0;
+  const tomorrowOrderCount = board ? orderCountForDate(board.dateCounts, tomorrowIso) : 0;
+
   async function handleMove(ctx: Pick<Parameters<typeof executeCalendarMove>[1], 'card' | 'fromColumn' | 'toColumn'>) {
     await executeCalendarMove(getApiClient(), {
       ...ctx,
@@ -172,24 +178,59 @@ export function OrderCalendarView({ embedded = false, initialDate }: OrderCalend
             />
           </label>
           {board ? (
-            <OrderCalendarDatePicker
-              date={date}
-              viewMonth={viewMonth}
-              dateCounts={board.dateCounts}
-              onSelectDate={selectDate}
-              onChangeMonth={selectMonth}
-            />
+            <div className="order-calendar-toolbar__date-group">
+              <Button
+                type="button"
+                variant="secondary"
+                className="order-calendar-toolbar__date-arrow"
+                onClick={() => selectDate(shiftIsoDate(date, -1))}
+                aria-label="Предыдущий день"
+              >
+                ←
+              </Button>
+              <OrderCalendarDatePicker
+                date={date}
+                viewMonth={viewMonth}
+                dateCounts={board.dateCounts}
+                onSelectDate={selectDate}
+                onChangeMonth={selectMonth}
+              />
+              <Button
+                type="button"
+                variant="secondary"
+                className="order-calendar-toolbar__date-arrow"
+                onClick={() => selectDate(shiftIsoDate(date, 1))}
+                aria-label="Следующий день"
+              >
+                →
+              </Button>
+            </div>
           ) : null}
           <div className="order-calendar-toolbar__nav">
-            <Button type="button" variant="secondary" onClick={() => selectDate(shiftIsoDate(date, -1))} aria-label="Предыдущий день">
-              ←
-            </Button>
-            <Button type="button" variant="secondary" onClick={() => selectDate(todayIsoDate())}>
+            <button
+              type="button"
+              className={`order-calendar-quick-day${date === todayIso ? ' order-calendar-quick-day--active' : ''}`}
+              onClick={() => selectDate(todayIso)}
+            >
               Сегодня
-            </Button>
-            <Button type="button" variant="secondary" onClick={() => selectDate(shiftIsoDate(date, 1))} aria-label="Следующий день">
-              →
-            </Button>
+              {todayOrderCount > 0 ? (
+                <span className="order-calendar-quick-day__badge" aria-label={`${todayOrderCount} заказов`}>
+                  {todayOrderCount}
+                </span>
+              ) : null}
+            </button>
+            <button
+              type="button"
+              className={`order-calendar-quick-day${date === tomorrowIso ? ' order-calendar-quick-day--active' : ''}`}
+              onClick={() => selectDate(tomorrowIso)}
+            >
+              Завтра
+              {tomorrowOrderCount > 0 ? (
+                <span className="order-calendar-quick-day__badge" aria-label={`${tomorrowOrderCount} заказов`}>
+                  {tomorrowOrderCount}
+                </span>
+              ) : null}
+            </button>
             <Button type="button" variant="secondary" onClick={() => void load()}>
               Обновить
             </Button>

@@ -68,14 +68,8 @@ export function OrderCalendarMonthGrid({
             >
               <span className="order-calendar-month__day">{dayNum}</span>
               {count > 0 ? (
-                <span className="order-calendar-month__dots" aria-label={`${count} заказов`}>
-                  {count <= 3
-                    ? Array.from({ length: count }, (_, i) => (
-                        <span key={i} className="order-calendar-month__dot" />
-                      ))
-                    : (
-                        <span className="order-calendar-month__dot order-calendar-month__dot--many">{count}</span>
-                      )}
+                <span className="order-calendar-month__count" aria-label={`${count} заказов`}>
+                  {count}
                 </span>
               ) : null}
             </button>
