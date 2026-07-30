@@ -3757,6 +3757,37 @@ a.metric-card:hover {
   background: color-mix(in srgb, var(--color-primary) 7%, var(--color-surface));
 }
 
+.sale-cell--short {
+  border-color: color-mix(in srgb, var(--color-destructive) 55%, var(--color-border));
+}
+
+.sale-cell__meta--warn {
+  color: var(--color-destructive);
+  font-weight: var(--font-medium);
+}
+
+.order-composition-section__heading {
+  margin: var(--space-3) 0 var(--space-2);
+  font-size: var(--text-sm);
+  font-weight: var(--font-semibold);
+}
+
+.order-composition-preview {
+  margin: 0;
+  padding-left: 1.1rem;
+  display: grid;
+  gap: var(--space-1);
+}
+
+.order-composition-preview__line--short {
+  color: var(--color-destructive);
+}
+
+.order-composition-preview__short {
+  font-size: var(--text-sm);
+  font-weight: var(--font-medium);
+}
+
 .sale-cell__top {
   display: grid;
   gap: 4px;
