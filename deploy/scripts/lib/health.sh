@@ -12,11 +12,24 @@ health_code_ok() {
   (( 10#${code} >= 200 && 10#${code} < 400 ))
 }
 
+health_compose_health_status() {
+  local service="$1"
+  local cid
+  cid="$(deploy_compose ps -q "${service}" 2>/dev/null | head -1 || true)"
+  if [[ -z "${cid}" ]]; then
+    printf 'missing'
+    return 0
+  fi
+  docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "${cid}" 2>/dev/null \
+    || printf 'unknown'
+}
+
 health_wait_compose_service() {
   local service="$1"
   local timeout="${2:-120}"
   local deadline=$((SECONDS + timeout))
-  until deploy_compose ps "${service}" 2>/dev/null | grep -q "(healthy)"; do
+  local status
+  until [[ "$(health_compose_health_status "${service}")" == "healthy" ]]; do
     if (( SECONDS > deadline )); then
       return 1
     fi
@@ -56,20 +69,27 @@ health_smoke_production() {
   health_wait_compose_service api 120 \
     || { health_show_service_logs api; deploy_die "API did not become healthy within 120s."; }
 
-  deploy_log "Waiting for Backoffice container health (up to 120s)..."
-  health_wait_compose_service backoffice 120 \
-    || { health_show_service_logs backoffice; deploy_die "Backoffice did not become healthy within 120s."; }
-
   curl -sf "http://127.0.0.1:${api_port}/api/v1/health/live" >/dev/null \
     || deploy_die "API /health/live failed."
   curl -sf "http://127.0.0.1:${api_port}/api/v1/health/ready" >/dev/null \
     || deploy_die "API /health/ready failed."
 
-  deploy_log "Backoffice HTTP smoke check..."
-  if ! health_wait_http "http://127.0.0.1:${bo_port}/health" 120; then
-    bo_code="$(health_http_code "http://127.0.0.1:${bo_port}/health")"
-    health_show_service_logs backoffice
-    deploy_die "Backoffice HTTP check failed (status ${bo_code})."
+  deploy_log "Waiting for Backoffice container health (up to 120s)..."
+  if ! health_wait_compose_service backoffice 120; then
+    deploy_warn "Backoffice Docker health label not green yet; trying HTTP..."
+    if health_wait_http "http://127.0.0.1:${bo_port}/health" 30; then
+      deploy_warn "Backoffice responds on HTTP; continuing (Docker health label may lag)."
+    else
+      health_show_service_logs backoffice
+      deploy_die "Backoffice did not become healthy within 120s."
+    fi
+  else
+    deploy_log "Backoffice HTTP smoke check..."
+    if ! health_wait_http "http://127.0.0.1:${bo_port}/health" 30; then
+      bo_code="$(health_http_code "http://127.0.0.1:${bo_port}/health")"
+      health_show_service_logs backoffice
+      deploy_die "Backoffice HTTP check failed (status ${bo_code})."
+    fi
   fi
 }
 

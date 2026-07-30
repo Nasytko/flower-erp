@@ -107,6 +107,7 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3000
+      HOSTNAME: "0.0.0.0"
       NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL}
     ports:
       - "127.0.0.1:${FLOWER_BACKOFFICE_PORT:-3100}:3000"
@@ -116,7 +117,7 @@ services:
       test:
         [
           "CMD-SHELL",
-          "node -e \"fetch('http://127.0.0.1:3000/health').then(r=>process.exit(r.status>=200&&r.status<400?0:1)).catch(()=>process.exit(1))\"",
+          "node -e \"require('http').get('http://127.0.0.1:3000/health',(r)=>process.exit(r.statusCode>=200&&r.statusCode<400?0:1)).on('error',()=>process.exit(1))\"",
         ]
       interval: 15s
       timeout: 5s

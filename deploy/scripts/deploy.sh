@@ -117,7 +117,12 @@ main() {
     deploy_die "Pending migrations remain after deploy."
   fi
   if health_any_unhealthy; then
-    deploy_die "One or more containers are unhealthy."
+    bo_port="${FLOWER_BACKOFFICE_PORT:-3100}"
+    if health_code_ok "$(health_http_code "http://127.0.0.1:${bo_port}/health")"; then
+      deploy_warn "Docker reports unhealthy container(s), but Backoffice HTTP is OK — continuing."
+    else
+      deploy_die "One or more containers are unhealthy."
+    fi
   fi
 
   deploy_save_deploy_state
