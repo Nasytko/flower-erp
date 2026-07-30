@@ -296,7 +296,7 @@ export default function OrdersPage() {
     setError(null);
     try {
       const client = getApiClient();
-      let price = parseBynToApi(plannedPrice) ?? undefined;
+      const price = parseBynToApi(plannedPrice) ?? undefined;
       const created = await client.createOrder(organizationId, storeId, {
         type: orderType,
         occasion: 'OTHER',
