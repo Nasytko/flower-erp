@@ -336,7 +336,7 @@ db_pg_restore_list() {
   pg_ensure_migrate_image
   deploy_compose_migrate run --rm --no-deps \
     -v "${abs_file}:/backup.dump:ro" \
-    --entrypoint pg_restore migrate --list /backup.dump
+    --entrypoint pg_restore migrate --list /backup.dump >/dev/null
 }
 
 pg_run_pg_dump() {

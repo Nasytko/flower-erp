@@ -82,9 +82,9 @@ main() {
 
   deploy_log "Verifying migration SQL safety..."
   if [[ "${DRY_RUN}" == "1" ]]; then
-    run node "${DEPLOY_ROOT}/scripts/check-migration-safety.mjs"
+    run deploy_run_migration_safety
   else
-    node "${DEPLOY_ROOT}/scripts/check-migration-safety.mjs" \
+    deploy_run_migration_safety \
       || deploy_die "Migration safety check failed. Fix migration.sql before deploy."
   fi
 

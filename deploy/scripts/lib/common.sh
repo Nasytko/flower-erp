@@ -77,6 +77,23 @@ deploy_check_disk_space() {
   deploy_log "Disk free in ${DEPLOY_ROOT}: $(( avail_kb / 1024 / 1024 )) GiB"
 }
 
+deploy_run_migration_safety() {
+  local script="${DEPLOY_ROOT}/scripts/check-migration-safety.mjs"
+  [[ -f "${script}" ]] || deploy_die "Migration safety script not found: ${script}"
+
+  if command -v node >/dev/null 2>&1; then
+    node "${script}"
+    return
+  fi
+
+  deploy_log "Node.js not on PATH; running migration safety check in Docker..."
+  docker run --rm \
+    -v "${DEPLOY_ROOT}:/repo:ro" \
+    -w /repo \
+    node:22-bookworm-slim \
+    node scripts/check-migration-safety.mjs
+}
+
 deploy_write_checksum() {
   local file="$1"
   local checksum_file="$2"
