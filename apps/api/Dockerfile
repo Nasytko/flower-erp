@@ -101,10 +101,21 @@ RUN printf '%s\n' 'node-linker=hoisted' > /app/.npmrc \
 FROM node:22-bookworm-slim AS migrate
 WORKDIR /app
 ENV NODE_ENV=production
+ARG POSTGRES_CLIENT_MAJOR=16
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends openssl ca-certificates postgresql-client \
+  && apt-get install -y --no-install-recommends curl ca-certificates gnupg \
+  && install -d /usr/share/postgresql-common/pgdg \
+  && curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+    | gpg --dearmor -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.gpg \
+  && echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.gpg] https://apt.postgresql.org/pub/repos/apt bookworm-pgdg main" \
+    > /etc/apt/sources.list.d/pgdg.list \
+  && apt-get update \
+  && apt-get install -y --no-install-recommends \
+    "postgresql-client-${POSTGRES_CLIENT_MAJOR}" \
+    openssl \
   && rm -rf /var/lib/apt/lists/* \
-  && psql --version \
+  && pg_dump --version | grep -qE " ${POSTGRES_CLIENT_MAJOR}\\." \
+  && psql --version | grep -qE " ${POSTGRES_CLIENT_MAJOR}\\." \
   && groupadd --system --gid 1001 flower \
   && useradd --system --uid 1001 --gid flower flower
 COPY --from=migrate-bundle --chown=flower:flower /prod/migrate /app

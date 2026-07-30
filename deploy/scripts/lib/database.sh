@@ -257,6 +257,88 @@ pg_verify_connection() {
     || deploy_die "Database is not reachable via migrate container."
 }
 
+# Extract major version from `SHOW server_version` or `pg_dump (PostgreSQL) 16.x`.
+pg_parse_major_version() {
+  local line
+  IFS= read -r line || true
+  if [[ "${line}" =~ ([0-9]+)\. ]]; then
+    printf '%s' "${BASH_REMATCH[1]}"
+  fi
+}
+
+pg_server_major_version() {
+  pg_run_sql "SHOW server_version;" | pg_parse_major_version
+}
+
+pg_client_major_version_migrate() {
+  pg_ensure_migrate_image
+  deploy_compose_migrate run --rm --no-deps --entrypoint sh migrate \
+    -c 'pg_dump --version' | pg_parse_major_version
+}
+
+pg_client_major_version_host() {
+  command -v pg_dump >/dev/null 2>&1 || return 1
+  pg_dump --version | pg_parse_major_version
+}
+
+pg_server_major_version_host() {
+  : "${FLOWER_DB_HOST:?FLOWER_DB_HOST required}"
+  : "${FLOWER_DB_PORT:?FLOWER_DB_PORT required}"
+  : "${FLOWER_DB_USER:?FLOWER_DB_USER required}"
+  : "${FLOWER_DB_PASSWORD:?FLOWER_DB_PASSWORD required}"
+  : "${FLOWER_DB_NAME:?FLOWER_DB_NAME required}"
+  PGPASSWORD="${FLOWER_DB_PASSWORD}" psql \
+    -h "${FLOWER_DB_HOST}" \
+    -p "${FLOWER_DB_PORT}" \
+    -U "${FLOWER_DB_USER}" \
+    -d "${FLOWER_DB_NAME}" \
+    -X -A -t -P pager=off -v ON_ERROR_STOP=1 \
+    -c "SHOW server_version;" | pg_parse_major_version
+}
+
+pg_assert_pg_dump_version_compatible() {
+  local server_major client_major
+
+  if command -v pg_dump >/dev/null 2>&1 \
+    && [[ -n "${FLOWER_DB_HOST:-}" && -n "${FLOWER_DB_PORT:-}" \
+      && -n "${FLOWER_DB_USER:-}" && -n "${FLOWER_DB_PASSWORD:-}" ]]; then
+    server_major="$(pg_server_major_version_host)"
+    client_major="$(pg_client_major_version_host)"
+  else
+    pg_verify_connection
+    server_major="$(pg_server_major_version)"
+    client_major="$(pg_client_major_version_migrate)"
+  fi
+
+  [[ -n "${server_major}" && -n "${client_major}" ]] \
+    || deploy_die "Could not detect PostgreSQL server/client major versions for backup."
+
+  if [[ "${client_major}" -lt "${server_major}" ]]; then
+    deploy_die "pg_dump major version ${client_major} is older than PostgreSQL server ${server_major}. Rebuild migrate image with postgresql-client-${server_major} (apt.postgresql.org) or upgrade host pg_dump."
+  fi
+
+  deploy_log "pg_dump version OK (client ${client_major}, server ${server_major})"
+}
+
+db_pg_restore_list() {
+  local file="$1"
+  local abs_dir abs_file
+
+  abs_dir="$(cd "$(dirname "${file}")" && pwd)"
+  abs_file="${abs_dir}/$(basename "${file}")"
+
+  if command -v pg_restore >/dev/null 2>&1; then
+    if pg_restore --list "${abs_file}" >/dev/null 2>&1; then
+      return 0
+    fi
+  fi
+
+  pg_ensure_migrate_image
+  deploy_compose_migrate run --rm --no-deps \
+    -v "${abs_file}:/backup.dump:ro" \
+    --entrypoint pg_restore migrate --list /backup.dump
+}
+
 pg_run_pg_dump() {
   local output_file="$1"
   db_stream_pg_dump_to_file "${output_file}"
@@ -272,6 +354,8 @@ db_stream_pg_dump_to_file() {
   mkdir -p "${backup_dir}"
   partial="${backup_dir}/.partial.$(basename "${output_file}").$$"
   err_file="${partial}.err"
+
+  pg_assert_pg_dump_version_compatible
 
   if command -v pg_dump >/dev/null 2>&1 \
     && [[ -n "${FLOWER_DB_HOST:-}" && -n "${FLOWER_DB_PORT:-}" \
@@ -309,10 +393,8 @@ db_verify_pg_dump_file() {
   deploy_verify_nonempty_file "${file}"
   [[ "$(head -c 5 "${file}" 2>/dev/null || true)" == "PGDMP" ]] \
     || deploy_die "Backup file is not a valid pg_dump custom archive (missing PGDMP magic): ${file}"
-  if command -v pg_restore >/dev/null 2>&1; then
-    pg_restore --list "${file}" >/dev/null \
-      || deploy_die "pg_restore --list rejected backup file: ${file}"
-  fi
+  db_pg_restore_list "${file}" \
+    || deploy_die "pg_restore --list rejected backup file: ${file}"
 }
 
 # --- Prisma migrate helpers (entrypoint: prisma "$@") ---

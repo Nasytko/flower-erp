@@ -37,5 +37,6 @@ run_test "migrate-image-psql.test.sh"
 run_test "reset-test-database.test.sh"
 run_test "reset-test-database-integration.test.sh"
 run_test "backup-db-stream.test.sh"
+run_test "backup-db-integration.test.sh"
 
 exit "${fail}"

@@ -30,6 +30,9 @@ assert_eq() {
 assert_eq "$(pg_prisma_url_for_psql 'postgresql://u:p@h:5432/db?schema=public')" \
   "postgresql://u:p@h:5432/db" "schema only removed"
 
+assert_eq "$(printf '%s' '16.14' | pg_parse_major_version)" "16" "server version major"
+assert_eq "$(printf '%s' 'pg_dump (PostgreSQL) 16.4' | pg_parse_major_version)" "16" "pg_dump version major"
+
 WORKDIR="$(mktemp -d)"
 trap 'rm -rf "${WORKDIR}"' EXIT
 

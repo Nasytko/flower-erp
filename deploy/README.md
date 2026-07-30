@@ -106,7 +106,7 @@ Shows git, disk, compose health, HTTP checks, migration status, latest backup (n
 ./deploy/scripts/backup-db.sh
 ```
 
-Creates verified custom-format dump on host (`PGDMP` magic, optional `pg_restore --list`).
+Creates verified custom-format dump on host (`PGDMP` magic, `pg_restore --list` via migrate image). Uses **PostgreSQL 16 client** from the migrate image (apt.postgresql.org); backup fails early if `pg_dump` major is older than the server.
 
 ## 9. Restore
 

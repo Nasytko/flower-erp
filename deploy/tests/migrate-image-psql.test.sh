@@ -19,8 +19,8 @@ fi
 
 docker compose -f "${COMPOSE_FILE}" --env-file "${ENV_FILE}" --profile migrate build migrate
 docker compose -f "${COMPOSE_FILE}" --env-file "${ENV_FILE}" --profile migrate \
-  run --rm --no-deps --entrypoint psql migrate --version
+  run --rm --no-deps --entrypoint psql migrate --version | grep -qE ' 16\.'
 docker compose -f "${COMPOSE_FILE}" --env-file "${ENV_FILE}" --profile migrate \
-  run --rm --no-deps --entrypoint pg_dump migrate --version
+  run --rm --no-deps --entrypoint pg_dump migrate --version | grep -qE ' 16\.'
 
-echo "OK: migrate image provides psql and pg_dump"
+echo "OK: migrate image provides PostgreSQL 16 psql and pg_dump"
