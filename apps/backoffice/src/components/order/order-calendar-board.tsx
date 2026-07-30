@@ -15,22 +15,24 @@ import {
 } from '@/lib/order-calendar-move';
 
 type OrderCalendarBoardProps = {
+  base: string;
   sections: Record<OrderBoardColumn, OrderBoardCardDto[]>;
-  selectedId: string | null;
+  canCreateSale: boolean;
   permissions: {
     canAssign: boolean;
     canPrepare: boolean;
     canDelivery: boolean;
   };
-  onSelect: (card: OrderBoardCardDto) => void;
+  onOpen: (card: OrderBoardCardDto) => void;
   onMove: (ctx: Pick<CalendarMoveContext, 'card' | 'fromColumn' | 'toColumn'>) => Promise<void>;
 };
 
 export function OrderCalendarBoard({
+  base,
   sections,
-  selectedId,
+  canCreateSale,
   permissions,
-  onSelect,
+  onOpen,
   onMove,
 }: OrderCalendarBoardProps) {
   const [dragging, setDragging] = useState<{ card: OrderBoardCardDto; fromColumn: OrderBoardColumn } | null>(null);
@@ -137,10 +139,11 @@ export function OrderCalendarBoard({
                   cards.map((card) => (
                     <OrderCalendarCard
                       key={card.id}
+                      base={base}
                       card={card}
-                      selected={selectedId === card.id}
+                      canCreateSale={canCreateSale}
                       draggable={canDragCard(column, permissions) && !busy}
-                      onSelect={onSelect}
+                      onOpen={onOpen}
                       onDragStart={handleDragStart}
                       onDragEnd={handleDragEnd}
                     />

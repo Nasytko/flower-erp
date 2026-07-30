@@ -1,6 +1,8 @@
 'use client';
 
-import { useRef, type DragEvent } from 'react';
+import Link from 'next/link';
+import { useRef, type DragEvent, type MouseEvent } from 'react';
+import { Button } from '@flower/ui';
 import type { OrderBoardCardDto } from '@flower/api-client';
 import { DocRef } from '@/components/layout/doc-ref';
 import {
@@ -12,19 +14,21 @@ import { formatMoney } from '@/lib/format-money';
 import { formatOrderTimeWindow, paymentStatusLabel } from '@/lib/order-calendar-labels';
 
 type OrderCalendarCardProps = {
+  base: string;
   card: OrderBoardCardDto;
-  selected: boolean;
   draggable: boolean;
-  onSelect: (card: OrderBoardCardDto) => void;
+  canCreateSale: boolean;
+  onOpen: (card: OrderBoardCardDto) => void;
   onDragStart: (card: OrderBoardCardDto, column: string) => void;
   onDragEnd: () => void;
 };
 
 export function OrderCalendarCard({
+  base,
   card,
-  selected,
   draggable,
-  onSelect,
+  canCreateSale,
+  onOpen,
   onDragStart,
   onDragEnd,
 }: OrderCalendarCardProps) {
@@ -38,13 +42,14 @@ export function OrderCalendarCard({
   const paid = card.paymentStatus === 'PAID';
   const partial = card.paymentStatus === 'PARTIALLY_PAID';
   const isDelivery = card.type === 'DELIVERY';
+  const showSaleAction = canCreateSale && card.column === 'READY' && !card.saleId;
 
-  function handleSelect() {
+  function handleOpen() {
     if (draggedRef.current) {
       draggedRef.current = false;
       return;
     }
-    onSelect(card);
+    onOpen(card);
   }
 
   function handleDragStart(e: DragEvent<HTMLButtonElement>) {
@@ -69,9 +74,13 @@ export function OrderCalendarCard({
     onDragEnd();
   }
 
+  function stopCardClick(event: MouseEvent) {
+    event.stopPropagation();
+  }
+
   return (
     <article
-      className={`order-calendar-card${selected ? ' order-calendar-card--selected' : ''}${draggable ? ' order-calendar-card--draggable' : ''}`}
+      className={`order-calendar-card${draggable ? ' order-calendar-card--draggable' : ''}`}
     >
       {draggable ? (
         <button
@@ -90,11 +99,11 @@ export function OrderCalendarCard({
         role="button"
         tabIndex={0}
         className="order-calendar-card__body"
-        onClick={handleSelect}
+        onClick={handleOpen}
         onKeyDown={(e) => {
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault();
-            handleSelect();
+            handleOpen();
           }
         }}
       >
@@ -118,7 +127,7 @@ export function OrderCalendarCard({
               }`}
               title={paymentStatusLabel(card.paymentStatus)}
             >
-              {paid ? '₽' : partial ? '◐' : '○'}
+              {paid ? '●' : partial ? '◐' : '○'}
             </span>
           </div>
         </div>
@@ -126,12 +135,24 @@ export function OrderCalendarCard({
         {card.customerPhone ? (
           <span className="order-calendar-card__phone">{card.customerPhone}</span>
         ) : null}
+        {card.compositionLabel ? (
+          <span className="order-calendar-card__composition">{card.compositionLabel}</span>
+        ) : null}
         <div className="order-calendar-card__footer">
           <span className="order-calendar-card__price">
             {card.plannedPrice ? formatMoney(card.plannedPrice) : '—'}
           </span>
           <DocRef>{card.number}</DocRef>
         </div>
+        {showSaleAction ? (
+          <div className="order-calendar-card__actions" onClick={stopCardClick}>
+            <Link href={`${base}/sales/new?fromOrder=${card.id}`}>
+              <Button type="button" className="order-calendar-card__sale-btn">
+                Оформить продажу
+              </Button>
+            </Link>
+          </div>
+        ) : null}
       </div>
     </article>
   );

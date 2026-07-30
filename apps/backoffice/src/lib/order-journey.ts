@@ -271,9 +271,8 @@ export function buildOrderJourney(input: OrderJourneyInput): JourneyBranch[] {
       ? statusLabelRu('CANCELLED')
       : order.displayPhaseLabel ?? orderPhaseLabel(orderPhase, order),
     href: links.order ? `${basePath}/orders/${order.id}` : undefined,
-    actionHref: links.order ? `${basePath}/work-orders/${order.id}` : undefined,
-    actionLabel:
-      orderPhase === 'NEW' || orderPhase === 'IN_WORK' ? 'К сборке' : 'Карточка',
+    actionHref: links.order ? `${basePath}/orders/${order.id}` : undefined,
+    actionLabel: 'Карточка',
     steps: orderSteps,
     branchState: branchStateFromSteps(orderSteps, orderCancelled),
     visible: true,
@@ -403,23 +402,14 @@ export function journeyNextAction(input: OrderJourneyInput): JourneyNextAction |
   );
 
   if (current.id === 'order') {
-    if (orderPhase === 'NEW') {
-      const href = `${basePath}/work-orders/${order.id}`;
+    if (orderPhase === 'NEW' || orderPhase === 'IN_WORK') {
+      const href = `${basePath}/orders/calendar`;
       return {
         branchId: 'order',
-        title: 'Взять заказ в работу',
-        description: 'Откройте сборку и закрепите заказ за собой.',
+        title: orderPhase === 'NEW' ? 'Взять заказ в работу' : 'Завершите сборку',
+        description: 'Перетащите карточку на календаре или откройте карточку заказа.',
         href,
-        actionLabel: order.primaryAction === 'CLAIM' ? 'Взять в работу' : 'К сборке',
-      };
-    }
-    if (orderPhase === 'IN_WORK') {
-      return {
-        branchId: 'order',
-        title: 'Завершите сборку',
-        description: 'Проверьте состав и отметьте заказ готовым.',
-        href: `${basePath}/work-orders/${order.id}`,
-        actionLabel: 'Продолжить сборку',
+        actionLabel: orderPhase === 'NEW' ? 'К календарю' : 'К календарю',
       };
     }
     if (orderPhase === 'READY' && order.type === 'PICKUP') {

@@ -20,7 +20,7 @@ export type NavItem = {
  */
 export const PRIMARY_NAV: NavItem[] = [
   {
-    href: '/organizations/{orgId}/stores/{storeId}/orders',
+    href: '/organizations/{orgId}/stores/{storeId}/orders/calendar',
     label: 'Заказы',
     permission: 'orders:read',
     storeScoped: true,
@@ -176,6 +176,10 @@ export function isNavItemActive(pathname: string, href: string): boolean {
   if (href === '/') {
     return pathname === '/';
   }
+  if (href.endsWith('/orders/calendar')) {
+    const ordersBase = href.replace(/\/calendar$/, '');
+    return pathname === href || pathname.startsWith(`${ordersBase}/`);
+  }
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
@@ -226,7 +230,7 @@ export function resolveNavActionShortcuts(
       href = `${nav.href.replace(/\/$/, '')}/new`;
     }
     if (shortcut.id === 'new-order') {
-      href = `${nav.href.replace(/\/$/, '')}/new`;
+      href = nav.href.replace(/\/calendar\/?$/, '/new');
     }
     return [{ id: shortcut.id, label: shortcut.label, href }];
   });

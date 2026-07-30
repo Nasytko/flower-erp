@@ -16,11 +16,9 @@ import { PageHeader } from '@/components/layout/page-header';
 import { Section } from '@/components/layout/section';
 import { ErrorState, LoadingState } from '@/components/layout/states';
 import { InlineAlert } from '@/components/workspace/workspace-ui';
-import { Dialog } from '@/components/ui/dialog';
 import { OrderCalendarBoard } from '@/components/order/order-calendar-board';
 import { OrderCalendarDatePicker } from '@/components/order/order-calendar-date-picker';
 import { OrderCalendarDateStrip } from '@/components/order/order-calendar-date-strip';
-import { OrderCalendarDetailContent } from '@/components/order/order-calendar-detail-panel';
 import {
   monthIsoFromDate,
   orderCountForDate,
@@ -46,11 +44,10 @@ function matchesSearch(card: OrderBoardCardDto, query: string): boolean {
 }
 
 type OrderCalendarViewProps = {
-  embedded?: boolean;
   initialDate?: string;
 };
 
-export function OrderCalendarView({ embedded = false, initialDate }: OrderCalendarViewProps) {
+export function OrderCalendarView({ initialDate }: OrderCalendarViewProps) {
   const params = useParams<{ organizationId: string; storeId: string }>();
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -64,13 +61,12 @@ export function OrderCalendarView({ embedded = false, initialDate }: OrderCalend
   const [viewMonth, setViewMonth] = useState(monthIsoFromDate(date));
   const [search, setSearch] = useState('');
   const [board, setBoard] = useState<OrderCalendarBoardDto | null>(null);
-  const [selected, setSelected] = useState<OrderBoardCardDto | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const canRead = auth.hasPermission('orders:read');
   const canCreate = auth.hasPermission('orders:create');
-  const calendarHref = `${base}/orders/calendar`;
+  const canCreateSale = auth.hasPermission('sales:create');
   const newOrderHref = `${base}/orders/new`;
   const permissions = useMemo(
     () => ({
@@ -88,14 +84,6 @@ export function OrderCalendarView({ embedded = false, initialDate }: OrderCalend
       const data = await getApiClient().getOrderCalendarBoard(organizationId, storeId, date);
       setBoard(data);
       setViewMonth(data.month);
-      setSelected((prev) => {
-        if (!prev) return null;
-        for (const cards of Object.values(data.sections)) {
-          const match = cards.find((card) => card.id === prev.id);
-          if (match) return match;
-        }
-        return null;
-      });
     } catch (err) {
       setError(err instanceof ApiClientError ? err.message : 'Не удалось загрузить календарь');
     } finally {
@@ -109,18 +97,15 @@ export function OrderCalendarView({ embedded = false, initialDate }: OrderCalend
   }, [canRead, load]);
 
   useEffect(() => {
-    if (embedded) return;
     const next = searchParams.get('date') || todayIsoDate();
     setDate(next);
     setViewMonth(monthIsoFromDate(next));
-  }, [embedded, searchParams]);
+  }, [searchParams]);
 
   function selectDate(next: string) {
     setDate(next);
     setViewMonth(monthIsoFromDate(next));
-    if (!embedded) {
-      router.replace(`${base}/orders/calendar?date=${encodeURIComponent(next)}`);
-    }
+    router.replace(`${base}/orders/calendar?date=${encodeURIComponent(next)}`);
   }
 
   function selectMonth(nextMonth: string) {
@@ -155,6 +140,10 @@ export function OrderCalendarView({ embedded = false, initialDate }: OrderCalend
     await load();
   }
 
+  function openOrder(card: OrderBoardCardDto) {
+    router.push(`${base}/orders/${card.id}`);
+  }
+
   if (!canRead) {
     return (
       <main>
@@ -165,139 +154,6 @@ export function OrderCalendarView({ embedded = false, initialDate }: OrderCalend
     );
   }
 
-  const content = (
-    <>
-      <Section>
-        <div className="order-calendar-toolbar">
-          <label className="order-calendar-toolbar__search">
-            <span className="visually-hidden">Поиск заказов</span>
-            <input
-              type="search"
-              className="order-calendar-toolbar__search-input"
-              placeholder="Телефон, имя, № заказа…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              aria-label="Поиск заказов"
-            />
-          </label>
-          {board ? (
-            <div className="order-calendar-toolbar__date-group">
-              <Button
-                type="button"
-                variant="secondary"
-                className="order-calendar-toolbar__date-arrow"
-                onClick={() => selectDate(shiftIsoDate(date, -1))}
-                aria-label="Предыдущий день"
-              >
-                ←
-              </Button>
-              <OrderCalendarDatePicker
-                date={date}
-                viewMonth={viewMonth}
-                dateCounts={board.dateCounts}
-                onSelectDate={selectDate}
-                onChangeMonth={selectMonth}
-              />
-              <Button
-                type="button"
-                variant="secondary"
-                className="order-calendar-toolbar__date-arrow"
-                onClick={() => selectDate(shiftIsoDate(date, 1))}
-                aria-label="Следующий день"
-              >
-                →
-              </Button>
-            </div>
-          ) : null}
-          <div className="order-calendar-toolbar__nav">
-            <button
-              type="button"
-              className={`order-calendar-quick-day${date === todayIso ? ' order-calendar-quick-day--active' : ''}`}
-              onClick={() => selectDate(todayIso)}
-            >
-              Сегодня
-              {todayOrderCount > 0 ? (
-                <span className="order-calendar-quick-day__badge" aria-label={`${todayOrderCount} заказов`}>
-                  {todayOrderCount}
-                </span>
-              ) : null}
-            </button>
-            <button
-              type="button"
-              className={`order-calendar-quick-day${date === tomorrowIso ? ' order-calendar-quick-day--active' : ''}`}
-              onClick={() => selectDate(tomorrowIso)}
-            >
-              Завтра
-              {tomorrowOrderCount > 0 ? (
-                <span className="order-calendar-quick-day__badge" aria-label={`${tomorrowOrderCount} заказов`}>
-                  {tomorrowOrderCount}
-                </span>
-              ) : null}
-            </button>
-            <Button type="button" variant="secondary" onClick={() => void load()}>
-              Обновить
-            </Button>
-          </div>
-        </div>
-      </Section>
-
-      {board ? (
-        <Section>
-          <OrderCalendarDateStrip
-            selectedDate={date}
-            dateCounts={board.dateCounts}
-            onSelect={selectDate}
-          />
-        </Section>
-      ) : null}
-
-      {loading ? <LoadingState message="Загрузка календаря…" /> : null}
-      {error ? <ErrorState message={error} /> : null}
-
-      {!loading && !error && filteredSections ? (
-        <Section>
-          {!permissions.canAssign && !permissions.canPrepare ? (
-            <InlineAlert tone="info">
-              Перетаскивание недоступно — нужны права orders:assign или orders:prepare. Тяните карточку за ручку слева.
-            </InlineAlert>
-          ) : null}
-          <OrderCalendarBoard
-            sections={filteredSections}
-            selectedId={selected?.id ?? null}
-            permissions={permissions}
-            onSelect={setSelected}
-            onMove={handleMove}
-          />
-        </Section>
-      ) : null}
-
-      <Dialog
-        open={selected !== null}
-        onClose={() => setSelected(null)}
-        title={selected ? `Заказ ${selected.number}` : 'Детали заказа'}
-        className="order-calendar-order-dialog"
-        footer={
-          selected ? (
-            <>
-              <Button type="button" variant="secondary" onClick={() => setSelected(null)}>
-                Закрыть
-              </Button>
-              <Link href={`${base}/orders/${selected.id}`} className="order-calendar-order-dialog__open">
-                <Button type="button">Открыть заказ</Button>
-              </Link>
-            </>
-          ) : null
-        }
-      >
-        {selected ? <OrderCalendarDetailContent base={base} card={selected} /> : null}
-      </Dialog>
-    </>
-  );
-
-  if (embedded) {
-    return <div className="order-calendar-embedded">{content}</div>;
-  }
-
   return (
     <main className="order-calendar-page">
       <PageContainer>
@@ -306,7 +162,7 @@ export function OrderCalendarView({ embedded = false, initialDate }: OrderCalend
           description="Смена на день — перетаскивайте карточки за ручку слева между колонками."
           breadcrumbs={[
             { label: 'Магазин', href: base },
-            { label: 'Заказы', href: calendarHref },
+            { label: 'Заказы' },
           ]}
           actions={
             canCreate ? (
@@ -316,7 +172,111 @@ export function OrderCalendarView({ embedded = false, initialDate }: OrderCalend
             ) : null
           }
         />
-        {content}
+
+        <Section>
+          <div className="order-calendar-toolbar">
+            <label className="order-calendar-toolbar__search">
+              <span className="visually-hidden">Поиск заказов</span>
+              <input
+                type="search"
+                className="order-calendar-toolbar__search-input"
+                placeholder="Телефон, имя, № заказа…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                aria-label="Поиск заказов"
+              />
+            </label>
+            {board ? (
+              <div className="order-calendar-toolbar__date-group">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="order-calendar-toolbar__date-arrow"
+                  onClick={() => selectDate(shiftIsoDate(date, -1))}
+                  aria-label="Предыдущий день"
+                >
+                  ←
+                </Button>
+                <OrderCalendarDatePicker
+                  date={date}
+                  viewMonth={viewMonth}
+                  dateCounts={board.dateCounts}
+                  onSelectDate={selectDate}
+                  onChangeMonth={selectMonth}
+                />
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="order-calendar-toolbar__date-arrow"
+                  onClick={() => selectDate(shiftIsoDate(date, 1))}
+                  aria-label="Следующий день"
+                >
+                  →
+                </Button>
+              </div>
+            ) : null}
+            <div className="order-calendar-toolbar__nav">
+              <button
+                type="button"
+                className={`order-calendar-quick-day${date === todayIso ? ' order-calendar-quick-day--active' : ''}`}
+                onClick={() => selectDate(todayIso)}
+              >
+                Сегодня
+                {todayOrderCount > 0 ? (
+                  <span className="order-calendar-quick-day__badge" aria-label={`${todayOrderCount} заказов`}>
+                    {todayOrderCount}
+                  </span>
+                ) : null}
+              </button>
+              <button
+                type="button"
+                className={`order-calendar-quick-day${date === tomorrowIso ? ' order-calendar-quick-day--active' : ''}`}
+                onClick={() => selectDate(tomorrowIso)}
+              >
+                Завтра
+                {tomorrowOrderCount > 0 ? (
+                  <span className="order-calendar-quick-day__badge" aria-label={`${tomorrowOrderCount} заказов`}>
+                    {tomorrowOrderCount}
+                  </span>
+                ) : null}
+              </button>
+              <Button type="button" variant="secondary" onClick={() => void load()}>
+                Обновить
+              </Button>
+            </div>
+          </div>
+        </Section>
+
+        {board ? (
+          <Section>
+            <OrderCalendarDateStrip
+              selectedDate={date}
+              dateCounts={board.dateCounts}
+              onSelect={selectDate}
+            />
+          </Section>
+        ) : null}
+
+        {loading ? <LoadingState message="Загрузка календаря…" /> : null}
+        {error ? <ErrorState message={error} /> : null}
+
+        {!loading && !error && filteredSections ? (
+          <Section>
+            {!permissions.canAssign && !permissions.canPrepare ? (
+              <InlineAlert tone="info">
+                Перетаскивание недоступно — нужны права orders:assign или orders:prepare. Тяните карточку за ручку слева.
+              </InlineAlert>
+            ) : null}
+            <OrderCalendarBoard
+              base={base}
+              sections={filteredSections}
+              canCreateSale={canCreateSale}
+              permissions={permissions}
+              onOpen={openOrder}
+              onMove={handleMove}
+            />
+          </Section>
+        ) : null}
       </PageContainer>
     </main>
   );

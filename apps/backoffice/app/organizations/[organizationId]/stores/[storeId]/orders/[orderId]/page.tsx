@@ -214,11 +214,18 @@ export default function OrderDetailPage() {
             { label: order?.recipientName?.trim() || 'Карточка' },
           ]}
           actions={
-            <Link href={calendarHref}>
-              <Button type="button" variant="secondary">
-                К календарю
-              </Button>
-            </Link>
+            <div className="page-header__actions">
+              {order?.status === 'READY' && auth.hasPermission('sales:create') ? (
+                <Link href={`${base}/sales/new?fromOrder=${orderId}`}>
+                  <Button type="button">Оформить продажу</Button>
+                </Link>
+              ) : null}
+              <Link href={calendarHref}>
+                <Button type="button" variant="secondary">
+                  К календарю
+                </Button>
+              </Link>
+            </div>
           }
         />
 

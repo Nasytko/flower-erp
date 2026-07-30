@@ -25,8 +25,6 @@ type SaleRow = {
   createdAt: string;
 };
 
-type ReadyOrder = { id: string; number: string; status: string };
-
 export default function SalesPage() {
   const params = useParams<{ organizationId: string; storeId: string }>();
   const router = useRouter();
@@ -35,7 +33,6 @@ export default function SalesPage() {
   const base = `/organizations/${organizationId}/stores/${storeId}`;
 
   const [sales, setSales] = useState<SaleRow[]>([]);
-  const [readyOrders, setReadyOrders] = useState<ReadyOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -43,15 +40,8 @@ export default function SalesPage() {
     setLoading(true);
     setError(null);
     try {
-      const client = getApiClient();
-      const [list, ready] = await Promise.all([
-        client.listSales(organizationId, storeId),
-        auth.hasPermission('orders:read')
-          ? client.listOrders(organizationId, storeId, 'READY')
-          : Promise.resolve([] as ReadyOrder[]),
-      ]);
+      const list = await getApiClient().listSales(organizationId, storeId);
       setSales(list);
-      setReadyOrders(ready);
     } catch (err) {
       setError(err instanceof ApiClientError ? err.message : 'Не удалось загрузить');
     } finally {
@@ -93,12 +83,11 @@ export default function SalesPage() {
           <div className="concept-callout">
             <strong>Продажа и заказ</strong>
             <p>
-              <strong>Продажа</strong> — клиент получает букет сейчас в магазине. Укажите способ
-              оплаты (можно несколько: карта + наличные).
+              <strong>Продажа</strong> — клиент получает букет сейчас в магазине.
             </p>
             <p>
-              <strong>Заказ</strong> — готовим к времени (самовывоз или доставка). Когда заказ
-              готов и передаётся клиенту, из него оформляется продажа.
+              <strong>Заказ</strong> — готовим к времени. Когда заказ в колонке «Собранные»,
+              оформите продажу прямо с карточки на календаре.
             </p>
           </div>
         </Section>
@@ -114,48 +103,9 @@ export default function SalesPage() {
               <p className="form-lead">
                 Соберите букет, укажите оплату и оформите продажу.
               </p>
-              <div className="page-header__actions">
-                <Button type="button" onClick={() => router.push(`${base}/sales/new`)}>
-                  Новая продажа
-                </Button>
-              </div>
-            </Card>
-          </Section>
-        ) : null}
-
-        {readyOrders.length > 0 ? (
-          <Section>
-            <Card title="Готовые заказы без продажи">
-              <p className="form-lead">
-                Заказы со статусом «Готово» можно оформить как продажу — с оплатой и списанием по
-                фактическому составу.
-              </p>
-              <ul className="list-stack">
-                {readyOrders.map((order) => (
-                  <li key={order.id}>
-                    <div className="meta-row">
-                      <Link href={`${base}/orders/${order.id}`}>
-                        <div className="list-row__primary">
-                          <strong>Заказ</strong>
-                          <DocRef>{order.number}</DocRef>
-                        </div>
-                      </Link>
-                      <StatusBadge status={order.status} />
-                      {canCreate ? (
-                        <Button
-                          type="button"
-                          variant="secondary"
-                          onClick={() =>
-                            router.push(`${base}/sales/new?fromOrder=${order.id}`)
-                          }
-                        >
-                          Оформить продажу
-                        </Button>
-                      ) : null}
-                    </div>
-                  </li>
-                ))}
-              </ul>
+              <Button type="button" onClick={() => router.push(`${base}/sales/new`)}>
+                Новая продажа
+              </Button>
             </Card>
           </Section>
         ) : null}
@@ -178,9 +128,6 @@ export default function SalesPage() {
                       </div>
                       <StatusBadge status={sale.status} />
                       <StatusBadge status={sale.type} />
-                      <span>
-                        {sale.netAmount} {sale.currencyCode === 'BYN' || !sale.currencyCode ? 'BYN' : sale.currencyCode}
-                      </span>
                     </div>
                   </Link>
                 </li>

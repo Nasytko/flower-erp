@@ -27,7 +27,7 @@ export function resolveAttentionHref(
   filterHref?: (filter: string) => string,
 ): string | null {
   const type = item.entityType.toUpperCase();
-  if (type === 'ORDER') return `${base}/work-orders/${item.entityId}`;
+  if (type === 'ORDER') return `${base}/orders/${item.entityId}`;
   if (type === 'SALE') return `${base}/sales/${item.entityId}`;
   if (type === 'DELIVERY') return `${base}/deliveries/${item.entityId}`;
   if (item.code === 'LOW_STOCK' || item.code?.includes('STOCK')) {
