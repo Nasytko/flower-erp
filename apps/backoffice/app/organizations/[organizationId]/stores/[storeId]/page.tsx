@@ -97,12 +97,7 @@ export default function StoreDetailPage() {
           <Section>
             <Card title="Операции">
               <div className="page-header__actions">
-                {auth.hasPermission('workspace:read') ? (
-                  <Button type="button" variant="secondary" onClick={() => router.push(`${base}/today`)}>
-                    Смена
-                  </Button>
-                ) : null}
-                <Button type="button" variant="secondary" onClick={() => router.push(`${base}/orders`)}>
+                <Button type="button" variant="secondary" onClick={() => router.push(`${base}/orders/calendar`)}>
                   Заказы
                 </Button>
                 <Button type="button" variant="secondary" onClick={() => router.push(`${base}/sales`)}>
@@ -207,9 +202,7 @@ export default function StoreDetailPage() {
             <Section>
               <Card title="Операции магазина">
                 <div className="meta-row">
-                  {auth.hasPermission('workspace:read') ? (
-                    <Link href={`${base}/today`}>Смена</Link>
-                  ) : null}
+                  <Link href={`${base}/orders/calendar`}>Календарь заказов</Link>
                   <Link href={`${base}/orders`}>Очередь заказов</Link>
                   <Link href={`${base}/sales`}>Продажи</Link>
                   <Link href={`${base}/supplies`}>Приёмки</Link>

@@ -15,7 +15,9 @@ import {
   UNIT_OF_MEASURE_REPOSITORY,
 } from './application/ports/repositories';
 import { ITEM_RETAIL_PRICE_REPOSITORY } from './application/ports/item-retail-price.repository';
+import { ITEM_RECIPE_REPOSITORY } from './application/ports/item-recipe.repository';
 import { PrismaItemRetailPriceRepository } from './infrastructure/prisma-item-retail-price.repository';
+import { PrismaItemRecipeRepository } from './infrastructure/prisma-item-recipe.repository';
 import { PrismaSupplierRepository } from './infrastructure/prisma-supplier.repository';
 import { PrismaItemCategoryRepository } from './infrastructure/prisma-item-category.repository';
 import { PrismaUnitOfMeasureRepository } from './infrastructure/prisma-unit-of-measure.repository';
@@ -38,6 +40,7 @@ import { PrismaItemRepository } from './infrastructure/prisma-item.repository';
     { provide: INVENTORY_POLICY_REPOSITORY, useClass: PrismaInventoryPolicyRepository },
     { provide: ITEM_REPOSITORY, useClass: PrismaItemRepository },
     { provide: ITEM_RETAIL_PRICE_REPOSITORY, useClass: PrismaItemRetailPriceRepository },
+    { provide: ITEM_RECIPE_REPOSITORY, useClass: PrismaItemRecipeRepository },
   ],
   exports: [
     SupplierUseCases,

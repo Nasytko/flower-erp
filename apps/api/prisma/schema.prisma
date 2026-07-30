@@ -106,6 +106,7 @@ model Organization {
   roles                         Role[]
   integrationSettings           OrganizationIntegrationSettings?
   itemRetailPrices              ItemRetailPrice[]
+  itemRecipeLines               ItemRecipeLine[]
 
   @@index([status])
   @@map("organizations")
@@ -326,6 +327,8 @@ model Item {
   description           String?
   isPurchasable         Boolean          @default(true) @map("is_purchasable")
   isSellable            Boolean          @default(false) @map("is_sellable")
+  /// Showcase bouquet: recipe is offered when creating orders from the display.
+  isShowcase            Boolean          @default(false) @map("is_showcase")
   /// Minimum available stock before low-stock KPI / attention (flowers); null = no alert.
   minimumStockQuantity  Decimal?         @map("minimum_stock_quantity") @db.Decimal(18, 3)
   status                MasterDataStatus @default(ACTIVE)
@@ -347,6 +350,8 @@ model Item {
   reservations            InventoryReservation[]
   writeOffItems           WriteOffItem[]
   retailPrices            ItemRetailPrice[]
+  recipeAsParent          ItemRecipeLine[]        @relation("RecipeParent")
+  recipeAsComponent       ItemRecipeLine[]        @relation("RecipeComponent")
 
   @@unique([organizationId, code])
   @@index([organizationId])
@@ -354,9 +359,31 @@ model Item {
   @@index([organizationId, itemType])
   @@index([organizationId, categoryId])
   @@index([organizationId, name])
+  @@index([organizationId, isShowcase])
   @@index([unitId])
   @@index([inventoryPolicyId])
   @@map("items")
+}
+
+model ItemRecipeLine {
+  id              String   @id @default(uuid()) @db.Uuid
+  organizationId  String   @map("organization_id") @db.Uuid
+  parentItemId    String   @map("parent_item_id") @db.Uuid
+  componentItemId String   @map("component_item_id") @db.Uuid
+  quantity        Decimal  @db.Decimal(18, 3)
+  sortOrder       Int      @default(0) @map("sort_order")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  organization  Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  parentItem    Item         @relation("RecipeParent", fields: [parentItemId], references: [id], onDelete: Restrict)
+  componentItem Item         @relation("RecipeComponent", fields: [componentItemId], references: [id], onDelete: Restrict)
+
+  @@unique([parentItemId, componentItemId])
+  @@index([organizationId])
+  @@index([organizationId, parentItemId])
+  @@index([componentItemId])
+  @@map("item_recipe_lines")
 }
 
 model ItemRetailPrice {

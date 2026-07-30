@@ -74,6 +74,16 @@ const ORDER_LIST_FILTERS: OrderListFilter[] = [
 
 type CustomerOption = { id: string; name: string; phone: string; status: string };
 
+type ShowcaseBouquet = {
+  id: string;
+  name: string;
+  code: string;
+  previewLines: Array<{ componentName: string; quantity: string }>;
+  previewMoreCount: number;
+};
+
+type CompositionMode = 'SHOWCASE' | 'MANUAL';
+
 const PHASE_TONE: Record<OrderPhase, string> = {
   NEW: 'warning',
   IN_WORK: 'info',
@@ -129,6 +139,9 @@ export default function OrdersPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const [compositionMode, setCompositionMode] = useState<CompositionMode>('MANUAL');
+  const [showcaseBouquets, setShowcaseBouquets] = useState<ShowcaseBouquet[]>([]);
+  const [showcaseBouquetId, setShowcaseBouquetId] = useState('');
 
   const canReadDelivery = auth.hasPermission('delivery:read');
   const canReadSales = auth.hasPermission('sales:read');
@@ -139,6 +152,31 @@ export default function OrdersPage() {
       setFilter(phase as OrderListFilter);
     }
   }, [searchParams]);
+
+  useEffect(() => {
+    if (!showCreate || !auth.hasPermission('master-data:read')) return;
+    let cancelled = false;
+    void getApiClient()
+      .listShowcaseBouquets(organizationId)
+      .then((items) => {
+        if (cancelled) return;
+        setShowcaseBouquets(items);
+        if (items[0]) {
+          setShowcaseBouquetId((prev) => prev || items[0]!.id);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setShowcaseBouquets([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [showCreate, organizationId, auth]);
+
+  const selectedShowcase = useMemo(
+    () => showcaseBouquets.find((item) => item.id === showcaseBouquetId) ?? null,
+    [showcaseBouquets, showcaseBouquetId],
+  );
 
   async function load(phaseFilter?: OrderListFilter) {
     setLoading(true);
@@ -238,6 +276,11 @@ export default function OrdersPage() {
     if (orderType === 'DELIVERY') {
       errors.deliveryAddress = requiredText(deliveryAddress, 'Укажите адрес доставки');
     }
+    if (compositionMode === 'SHOWCASE') {
+      if (!showcaseBouquetId) {
+        errors.showcaseBouquet = 'Выберите букет с витрины';
+      }
+    }
     return errors;
   }
 
@@ -252,7 +295,9 @@ export default function OrdersPage() {
     setCreating(true);
     setError(null);
     try {
-      const created = await getApiClient().createOrder(organizationId, storeId, {
+      const client = getApiClient();
+      let price = parseBynToApi(plannedPrice) ?? undefined;
+      const created = await client.createOrder(organizationId, storeId, {
         type: orderType,
         occasion: 'OTHER',
         customerId: customerId || undefined,
@@ -260,7 +305,7 @@ export default function OrdersPage() {
         recipientPhone: recipientPhone.trim() || undefined,
         readyAt: combineDateAndTime(readyDate, readyTime),
         comment: comment.trim() || undefined,
-        plannedPrice: parseBynToApi(plannedPrice) ?? undefined,
+        plannedPrice: price,
         deliveryAddressLine:
           orderType === 'DELIVERY' ? deliveryAddress.trim() : undefined,
         deliveryCity:
@@ -270,6 +315,31 @@ export default function OrdersPage() {
         deliveryComment:
           orderType === 'DELIVERY' ? deliveryComment.trim() || undefined : undefined,
       });
+
+      if (compositionMode === 'SHOWCASE' && showcaseBouquetId) {
+        await client.applyOrderCompositionTemplate(organizationId, storeId, created.id, {
+          templateItemId: showcaseBouquetId,
+        });
+        if (!price) {
+          try {
+            const recipe = await client.getItemRecipe(organizationId, showcaseBouquetId);
+            const quote = await client.resolveRetailComposition(organizationId, {
+              lines: recipe.lines.map((line) => ({
+                itemId: line.componentItemId,
+                quantity: line.quantity,
+              })),
+            });
+            if (quote.total && quote.total !== '0.00') {
+              await client.updateOrder(organizationId, storeId, created.id, {
+                plannedPrice: quote.total,
+              });
+            }
+          } catch {
+            // Price suggestion is optional
+          }
+        }
+      }
+
       router.push(`${base}/orders/${created.id}`);
     } catch (err) {
       setError(formatApiErrorMessage(err, 'Не удалось создать заказ'));
@@ -332,6 +402,64 @@ export default function OrdersPage() {
                     <span className="sale-mode__title">Доставка</span>
                   </button>
                 </div>
+
+                <div className="sale-mode" role="tablist" aria-label="Способ набора состава">
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={compositionMode === 'SHOWCASE'}
+                    className={`sale-mode__card${compositionMode === 'SHOWCASE' ? ' sale-mode__card--active' : ''}`}
+                    onClick={() => setCompositionMode('SHOWCASE')}
+                  >
+                    <span className="sale-mode__title">С витрины</span>
+                    <span className="sale-mode__hint">Готовый букет по рецепту</span>
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={compositionMode === 'MANUAL'}
+                    className={`sale-mode__card${compositionMode === 'MANUAL' ? ' sale-mode__card--active' : ''}`}
+                    onClick={() => setCompositionMode('MANUAL')}
+                  >
+                    <span className="sale-mode__title">Вручную</span>
+                    <span className="sale-mode__hint">Состав на карточке заказа</span>
+                  </button>
+                </div>
+
+                {compositionMode === 'SHOWCASE' ? (
+                  showcaseBouquets.length > 0 ? (
+                    <>
+                      <Field label="Букет с витрины" required error={fieldErrors.showcaseBouquet}>
+                        <FancySelect
+                          value={showcaseBouquetId}
+                          onChange={setShowcaseBouquetId}
+                          options={showcaseBouquets.map((item) => ({
+                            value: item.id,
+                            label: item.name,
+                            hint: item.code,
+                          }))}
+                          searchable
+                          placeholder="Выберите букет"
+                        />
+                      </Field>
+                      {selectedShowcase && selectedShowcase.previewLines.length > 0 ? (
+                        <div className="field__hint">
+                          {selectedShowcase.previewLines
+                            .map((line) => `${line.componentName} × ${line.quantity}`)
+                            .join(' · ')}
+                          {selectedShowcase.previewMoreCount > 0
+                            ? ` · ещё ${selectedShowcase.previewMoreCount}`
+                            : ''}
+                        </div>
+                      ) : null}
+                    </>
+                  ) : (
+                    <p className="field__hint">
+                      Нет букетов на витрине. Отметьте позицию «На витрине» в справочнике и задайте
+                      рецепт.
+                    </p>
+                  )
+                ) : null}
 
                 {customers.length > 0 ? (
                   <Field label="Клиент">

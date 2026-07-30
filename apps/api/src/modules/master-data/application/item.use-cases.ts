@@ -24,6 +24,10 @@ import {
   type UnitOfMeasureRepository,
 } from './ports/repositories';
 import {
+  ITEM_RECIPE_REPOSITORY,
+  type ItemRecipeRepository,
+} from './ports/item-recipe.repository';
+import {
   ItemType,
   InventoryPolicyPresetCode,
   MasterDataStatus,
@@ -36,6 +40,14 @@ import {
   normalizeMasterCode,
   type ItemProps,
 } from '../domain/master-data-rules';
+import {
+  assertRecipeNotEmpty,
+  assertRecipeParentSellable,
+  assertShowcaseFlag,
+  assertTemplateItemEligible,
+  validateRecipeLines,
+  type RecipeLineInput,
+} from '../domain/item-recipe-rules';
 import { mapDomainError } from './map-domain-error';
 
 const DEFAULT_CATEGORY_NAME = 'Общее';
@@ -62,6 +74,7 @@ function normalizeMinimumStockQuantity(value: string | null | undefined): string
 export class ItemUseCases {
   constructor(
     @Inject(ITEM_REPOSITORY) private readonly items: ItemRepository,
+    @Inject(ITEM_RECIPE_REPOSITORY) private readonly recipes: ItemRecipeRepository,
     @Inject(ITEM_CATEGORY_REPOSITORY) private readonly categories: ItemCategoryRepository,
     @Inject(UNIT_OF_MEASURE_REPOSITORY) private readonly units: UnitOfMeasureRepository,
     @Inject(INVENTORY_POLICY_REPOSITORY) private readonly policies: InventoryPolicyRepository,
@@ -152,6 +165,7 @@ export class ItemUseCases {
     description?: string | null;
     isPurchasable?: boolean;
     isSellable?: boolean;
+    isShowcase?: boolean;
     minimumStockQuantity?: string | null;
   }): Promise<ItemProps> {
     try {
@@ -218,6 +232,10 @@ export class ItemUseCases {
         assertAvailableForNewDocuments(policy.status, 'POLICY');
         assertItemPolicyTypeMatch(input.itemType, policy.itemType);
 
+        const isSellable = input.isSellable ?? false;
+        const isShowcase = input.isShowcase ?? false;
+        assertShowcaseFlag({ isSellable }, isShowcase);
+
         const minimumStockQuantity = normalizeMinimumStockQuantity(input.minimumStockQuantity);
         if (minimumStockQuantity !== null && input.itemType !== ItemType.FLOWER) {
           throw new BadRequestException({
@@ -237,7 +255,8 @@ export class ItemUseCases {
           itemType: input.itemType,
           description,
           isPurchasable: input.isPurchasable ?? true,
-          isSellable: input.isSellable ?? false,
+          isSellable,
+          isShowcase,
           minimumStockQuantity,
           status: MasterDataStatus.ACTIVE,
           createdByMembershipId,
@@ -258,6 +277,7 @@ export class ItemUseCases {
             inventoryPolicyId: item.inventoryPolicyId,
             isPurchasable: item.isPurchasable,
             isSellable: item.isSellable,
+            isShowcase: item.isShowcase,
             status: item.status,
             createdByMembershipId: item.createdByMembershipId,
           },
@@ -296,6 +316,7 @@ export class ItemUseCases {
     name?: string;
     description?: string | null;
     minimumStockQuantity?: string | null;
+    isShowcase?: boolean;
   }): Promise<ItemProps> {
     try {
       const ctx = getRequestContext();
@@ -318,6 +339,7 @@ export class ItemUseCases {
           name?: string;
           description?: string | null;
           minimumStockQuantity?: string | null;
+          isShowcase?: boolean;
         } = {};
 
         if (input.name !== undefined) {
@@ -334,6 +356,10 @@ export class ItemUseCases {
             });
           }
           patch.minimumStockQuantity = normalizeMinimumStockQuantity(input.minimumStockQuantity);
+        }
+        if (input.isShowcase !== undefined) {
+          assertShowcaseFlag(item, input.isShowcase);
+          patch.isShowcase = input.isShowcase;
         }
 
         if (Object.keys(patch).length === 0) {
@@ -356,6 +382,7 @@ export class ItemUseCases {
             name: updated.name,
             description: updated.description,
             minimumStockQuantity: updated.minimumStockQuantity,
+            isShowcase: updated.isShowcase,
           },
           requestId: ctx?.requestId ?? 'unknown',
           occurredAt: this.clock.now(),
@@ -382,6 +409,100 @@ export class ItemUseCases {
   ) {
     await this.organizations.getOrganization(organizationId);
     return this.items.list(organizationId, { page, pageSize }, filter);
+  }
+
+  async getItemRecipe(organizationId: string, itemId: string) {
+    const item = await this.getItem(organizationId, itemId);
+    assertRecipeParentSellable(item);
+    const lines = await this.recipes.listByParent(organizationId, itemId);
+    return { itemId, lines };
+  }
+
+  async setItemRecipe(input: {
+    organizationId: string;
+    itemId: string;
+    lines: RecipeLineInput[];
+  }) {
+    try {
+      const ctx = getRequestContext();
+      return await this.uow.runInTransaction(async () => {
+        const item = await this.items.findById(input.organizationId, input.itemId);
+        if (!item) {
+          throw new NotFoundException({
+            code: 'ITEM_NOT_FOUND',
+            message: 'Item not found in this organization',
+          });
+        }
+        assertRecipeParentSellable(item);
+
+        const componentIds = input.lines.map((line) => line.componentItemId);
+        const components = await this.items.findByIds(input.organizationId, componentIds);
+        const componentMap = new Map(
+          components.map((row) => [
+            row.id,
+            { id: row.id, itemType: row.itemType, status: row.status },
+          ]),
+        );
+        validateRecipeLines(input.lines, componentMap);
+
+        const replaced = await this.recipes.replaceAll(
+          input.organizationId,
+          input.itemId,
+          input.lines.map((line, index) => ({
+            componentItemId: line.componentItemId,
+            quantity: line.quantity,
+            sortOrder: index,
+          })),
+        );
+
+        await this.audit.append({
+          organizationId: input.organizationId,
+          actorId: ctx?.actorId ?? null,
+          action: 'item.recipe.updated',
+          entityType: 'Item',
+          entityId: item.id,
+          afterState: { lineCount: replaced.length },
+          requestId: ctx?.requestId ?? 'unknown',
+          occurredAt: this.clock.now(),
+        });
+
+        return { itemId: input.itemId, lines: replaced };
+      });
+    } catch (error) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof ConflictException ||
+        error instanceof BadRequestException
+      ) {
+        throw error;
+      }
+      mapDomainError(error);
+    }
+  }
+
+  async listShowcaseBouquets(organizationId: string) {
+    await this.organizations.getOrganization(organizationId);
+    return this.recipes.listShowcaseBouquets(organizationId);
+  }
+
+  async getRecipeForTemplate(organizationId: string, templateItemId: string) {
+    try {
+      const item = await this.getItem(organizationId, templateItemId);
+      assertTemplateItemEligible(item);
+      const lines = await this.recipes.listByParent(organizationId, templateItemId);
+      assertRecipeNotEmpty(
+        lines.map((line) => ({
+          componentItemId: line.componentItemId,
+          quantity: line.quantity,
+        })),
+      );
+      return { item, lines };
+    } catch (error) {
+      if (error instanceof NotFoundException || error instanceof BadRequestException) {
+        throw error;
+      }
+      mapDomainError(error);
+    }
   }
 
   async archiveItem(input: {

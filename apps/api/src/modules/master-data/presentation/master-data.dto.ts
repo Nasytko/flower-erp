@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
+  IsArray,
   IsBoolean,
   IsEnum,
   IsIn,
@@ -11,6 +12,7 @@ import {
   MaxLength,
   Min,
   MinLength,
+  ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import {
@@ -273,8 +275,12 @@ export class CreateItemDto {
   @IsBoolean()
   isSellable?: boolean;
 
+  @ApiPropertyOptional({ default: false })
+  @IsOptional()
+  @IsBoolean()
+  isShowcase?: boolean;
+
   @ApiPropertyOptional({
-    description: 'Low-stock alert threshold (available qty). Flowers only; omit for no alert.',
     example: '10',
   })
   @IsOptional()
@@ -305,6 +311,30 @@ export class UpdateItemDto {
   @IsString()
   @MinLength(1)
   minimumStockQuantity?: string | null;
+
+  @ApiPropertyOptional({ description: 'Mark as showcase bouquet for order templates' })
+  @IsOptional()
+  @IsBoolean()
+  isShowcase?: boolean;
+}
+
+export class ItemRecipeLineDto {
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID()
+  componentItemId!: string;
+
+  @ApiProperty({ example: '7' })
+  @IsString()
+  @MinLength(1)
+  quantity!: string;
+}
+
+export class SetItemRecipeDto {
+  @ApiProperty({ type: [ItemRecipeLineDto] })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ItemRecipeLineDto)
+  lines!: ItemRecipeLineDto[];
 }
 
 export class ListItemsQueryDto extends PaginationQueryDto {

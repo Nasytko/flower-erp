@@ -2,17 +2,20 @@
 
 import { useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import { useAuth } from '@/components/auth-provider';
+import { resolveStoreHomePath } from '@/lib/nav';
 
-/** Legacy route — рабочий экран смены перенесён на /today. */
+/** Legacy route — redirects to the current store home (order calendar). */
 export default function StoreHomeRedirectPage() {
   const params = useParams<{ organizationId: string; storeId: string }>();
+  const auth = useAuth();
   const router = useRouter();
 
   useEffect(() => {
     router.replace(
-      `/organizations/${params.organizationId}/stores/${params.storeId}/today`,
+      resolveStoreHomePath(params.organizationId, params.storeId, auth.hasPermission),
     );
-  }, [params.organizationId, params.storeId, router]);
+  }, [params.organizationId, params.storeId, auth.hasPermission, router]);
 
   return null;
 }

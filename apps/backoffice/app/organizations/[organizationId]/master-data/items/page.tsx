@@ -63,6 +63,7 @@ export default function ItemsPage() {
   const [itemType, setItemType] = useState<'FLOWER' | 'MATERIAL'>('FLOWER');
   const [description, setDescription] = useState('');
   const [isSellable, setIsSellable] = useState(false);
+  const [isShowcase, setIsShowcase] = useState(false);
   const [minimumStock, setMinimumStock] = useState('');
   const [creating, setCreating] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
@@ -112,6 +113,7 @@ export default function ItemsPage() {
         itemType,
         description: description.trim() || undefined,
         isSellable,
+        isShowcase: isSellable ? isShowcase : false,
         isPurchasable: true,
         minimumStockQuantity:
           itemType === 'FLOWER' && minimumStock.trim() ? minimumStock.trim() : undefined,
@@ -119,6 +121,7 @@ export default function ItemsPage() {
       setName('');
       setDescription('');
       setIsSellable(false);
+      setIsShowcase(false);
       setMinimumStock('');
       await load();
     } catch (err) {
@@ -364,10 +367,31 @@ export default function ItemsPage() {
                 <input
                   type="checkbox"
                   checked={isSellable}
-                  onChange={(e) => setIsSellable(e.target.checked)}
+                  onChange={(e) => {
+                    setIsSellable(e.target.checked);
+                    if (!e.target.checked) setIsShowcase(false);
+                  }}
                 />
                 Готовый букет (продаётся в магазине как готовая позиция)
               </label>
+              {isSellable ? (
+                <label
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    minHeight: 40,
+                    fontSize: 'var(--text-sm)',
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={isShowcase}
+                    onChange={(e) => setIsShowcase(e.target.checked)}
+                  />
+                  На витрине (доступен при создании заказа)
+                </label>
+              ) : null}
               <Button type="submit" disabled={creating}>
                 {creating ? 'Создание…' : 'Создать'}
               </Button>

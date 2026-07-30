@@ -27,6 +27,7 @@ function mapItem(row: PrismaItem, createdByDisplayName: string | null): ItemProp
     description: row.description,
     isPurchasable: row.isPurchasable,
     isSellable: row.isSellable,
+    isShowcase: row.isShowcase,
     minimumStockQuantity: row.minimumStockQuantity?.toString() ?? null,
     status: row.status as MasterDataStatus,
     createdByMembershipId: row.createdByMembershipId,
@@ -75,6 +76,7 @@ export class PrismaItemRepository implements ItemRepository {
     description: string | null;
     isPurchasable: boolean;
     isSellable: boolean;
+    isShowcase?: boolean;
     minimumStockQuantity?: string | null;
     status: MasterDataStatus;
     createdByMembershipId: string | null;
@@ -82,6 +84,7 @@ export class PrismaItemRepository implements ItemRepository {
     const row = await this.client().item.create({
       data: {
         ...data,
+        isShowcase: data.isShowcase ?? false,
         minimumStockQuantity:
           data.minimumStockQuantity != null
             ? data.minimumStockQuantity
@@ -110,6 +113,25 @@ export class PrismaItemRepository implements ItemRepository {
       row.createdByMembershipId
         ? (names.get(row.createdByMembershipId) ?? null)
         : null,
+    );
+  }
+
+  async findByIds(organizationId: string, ids: string[]): Promise<ItemProps[]> {
+    if (ids.length === 0) {
+      return [];
+    }
+    const unique = [...new Set(ids)];
+    const rows = await this.client().item.findMany({
+      where: { organizationId, id: { in: unique } },
+    });
+    const names = await this.resolveDisplayNames(rows.map((row) => row.createdByMembershipId));
+    return rows.map((row) =>
+      mapItem(
+        row,
+        row.createdByMembershipId
+          ? (names.get(row.createdByMembershipId) ?? null)
+          : null,
+      ),
     );
   }
 
@@ -161,6 +183,7 @@ export class PrismaItemRepository implements ItemRepository {
       name?: string;
       description?: string | null;
       minimumStockQuantity?: string | null;
+      isShowcase?: boolean;
     },
   ): Promise<ItemProps> {
     await this.client().item.updateMany({
@@ -171,6 +194,7 @@ export class PrismaItemRepository implements ItemRepository {
         ...(data.minimumStockQuantity !== undefined
           ? { minimumStockQuantity: data.minimumStockQuantity }
           : {}),
+        ...(data.isShowcase !== undefined ? { isShowcase: data.isShowcase } : {}),
       },
     });
     const row = await this.findById(organizationId, id);

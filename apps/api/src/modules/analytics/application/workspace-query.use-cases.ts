@@ -8,7 +8,6 @@ import { OrganizationUseCases } from '../../organization/application/organizatio
 import {
   compareWorkspacePriority,
   enrichWorkspaceCard,
-  type WorkspaceOrderCard,
 } from '../domain/urgency';
 import {
   WORKSPACE_READ_REPOSITORY,
@@ -24,151 +23,6 @@ export class WorkspaceQueryUseCases {
     @Inject(API_ENV) private readonly env: ApiEnv,
     private readonly organizations: OrganizationUseCases,
   ) {}
-
-  async getToday(organizationId: string, storeId: string) {
-    this.assertWorkspaceAccess();
-    await this.organizations.getStore(organizationId, storeId);
-    const now = this.clock.now();
-    const soonMinutes = this.env.WORKSPACE_READY_SOON_MINUTES;
-    const sectionLimit = this.env.WORKSPACE_SECTION_LIMIT;
-    const membershipId = getRequestContext()?.auth?.membershipId ?? null;
-    const permissions = getRequestContext()?.auth?.permissions ?? [];
-
-    const [
-      counters,
-      overdue,
-      soon,
-      unassigned,
-      inPreparation,
-      ready,
-      attentionItems,
-      lowStock,
-      flowerShortageOrders,
-      flowersBelowThreshold,
-    ] =
-      await Promise.all([
-        this.reads.countWorkspaceBuckets({
-          organizationId,
-          storeId,
-          now,
-          soonMinutes,
-        }),
-        this.reads.listWorkspaceOrders({
-          organizationId,
-          storeId,
-          filter: 'overdue',
-          now,
-          soonMinutes,
-          offset: 0,
-          limit: sectionLimit,
-        }),
-        this.reads.listWorkspaceOrders({
-          organizationId,
-          storeId,
-          filter: 'soon',
-          now,
-          soonMinutes,
-          offset: 0,
-          limit: sectionLimit,
-        }),
-        this.reads.listWorkspaceOrders({
-          organizationId,
-          storeId,
-          filter: 'unassigned',
-          now,
-          soonMinutes,
-          offset: 0,
-          limit: sectionLimit,
-        }),
-        this.reads.listWorkspaceOrders({
-          organizationId,
-          storeId,
-          filter: 'in_preparation',
-          now,
-          soonMinutes,
-          offset: 0,
-          limit: sectionLimit,
-        }),
-        this.reads.listWorkspaceOrders({
-          organizationId,
-          storeId,
-          filter: 'ready',
-          now,
-          soonMinutes,
-          offset: 0,
-          limit: sectionLimit,
-        }),
-        this.reads.listAttentionItems({
-          organizationId,
-          storeId,
-          now,
-          soonMinutes,
-          lowStockThreshold: this.env.WORKSPACE_LOW_STOCK_THRESHOLD,
-        }),
-        this.reads.listLowStockWarnings({
-          organizationId,
-          storeId,
-        }),
-        this.reads.countFlowerShortageOrders({
-          organizationId,
-          storeId,
-        }),
-        this.reads.countFlowersBelowThreshold({
-          organizationId,
-          storeId,
-        }),
-      ]);
-
-    const mapCards = (rows: typeof overdue.rows): WorkspaceOrderCard[] =>
-      rows
-        .map((row) =>
-          enrichWorkspaceCard(row, now, soonMinutes, membershipId, false),
-        )
-        .sort(compareWorkspacePriority);
-
-    return {
-      serverNow: now.toISOString(),
-      sectionLimit,
-      counters: {
-        overdue: { count: counters.overdue, filterLink: 'overdue' },
-        soon: { count: counters.soon, filterLink: 'soon' },
-        unassigned: { count: counters.unassigned, filterLink: 'unassigned' },
-        inPreparation: {
-          count: counters.in_preparation,
-          filterLink: 'in_preparation',
-        },
-        inWork: { count: counters.in_work, filterLink: 'in_work' },
-        ready: { count: counters.ready, filterLink: 'ready' },
-        handedOffToday: {
-          count: counters.handed_off_today,
-          filterLink: 'handed_off_today',
-        },
-        today: { count: counters.today, filterLink: 'today' },
-        partiallyReserved: {
-          count: counters.partially_reserved,
-          filterLink: 'partially_reserved',
-        },
-        flowerShortageOrders: {
-          count: flowerShortageOrders,
-          filterLink: 'partially_reserved',
-        },
-        flowersBelowThreshold: {
-          count: flowersBelowThreshold,
-          filterLink: null,
-        },
-      },
-      sections: {
-        overdue: mapCards(overdue.rows),
-        soon: mapCards(soon.rows),
-        unassigned: mapCards(unassigned.rows),
-        inPreparation: mapCards(inPreparation.rows),
-        ready: mapCards(ready.rows),
-      },
-      attentionItems,
-      lowStockWarnings: lowStock,
-      quickActions: this.quickActions(permissions),
-    };
-  }
 
   async listWorkspaceOrders(input: {
     organizationId: string;
@@ -281,30 +135,5 @@ export class WorkspaceQueryUseCases {
             : 'workspace:read or orders:read required',
       });
     }
-  }
-
-  private quickActions(permissions: readonly string[]) {
-    const actions: Array<{ code: string; label: string; requires: string }> = [];
-    if (hasPermission(permissions, ['orders:assign', 'orders:prepare'])) {
-      actions.push({
-        code: 'CLAIM_NEXT',
-        label: 'Claim next',
-        requires: 'orders:assign+orders:prepare',
-      });
-    }
-    if (hasPermission(permissions, ['orders:create'])) {
-      actions.push({ code: 'CREATE_ORDER', label: 'New order', requires: 'orders:create' });
-    }
-    if (hasPermission(permissions, ['sales:create'])) {
-      actions.push({ code: 'CREATE_SALE', label: 'New sale', requires: 'sales:create' });
-    }
-    if (hasPermission(permissions, ['supply:receive'])) {
-      actions.push({
-        code: 'RECEIVE_SUPPLY',
-        label: 'Receive supply',
-        requires: 'supply:receive',
-      });
-    }
-    return actions;
   }
 }

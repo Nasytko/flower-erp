@@ -442,6 +442,27 @@ export class OrderUseCases {
     });
   }
 
+  async applyCompositionTemplate(input: {
+    organizationId: string;
+    storeId: string;
+    orderId: string;
+    templateItemId: string;
+  }) {
+    const { lines } = await this.items.getRecipeForTemplate(
+      input.organizationId,
+      input.templateItemId,
+    );
+    return this.setPlannedComposition({
+      organizationId: input.organizationId,
+      storeId: input.storeId,
+      orderId: input.orderId,
+      items: lines.map((line) => ({
+        itemId: line.componentItemId,
+        quantity: line.quantity,
+      })),
+    });
+  }
+
   async addCompositionItem(input: {
     organizationId: string;
     storeId: string;

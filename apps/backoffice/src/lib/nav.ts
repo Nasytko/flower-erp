@@ -20,12 +20,6 @@ export type NavItem = {
  */
 export const PRIMARY_NAV: NavItem[] = [
   {
-    href: '/organizations/{orgId}/stores/{storeId}/today',
-    label: 'Сегодня',
-    anyPermission: ['workspace:read', 'orders:read', 'delivery:read'],
-    storeScoped: true,
-  },
-  {
     href: '/organizations/{orgId}/stores/{storeId}/orders/calendar',
     label: 'Заказы',
     permission: 'orders:read',
@@ -88,11 +82,10 @@ export const NAV_ACTION_SHORTCUTS: NavActionShortcut[] = [
   { id: 'new-order', label: 'Новый заказ', navLabel: 'Заказы' },
   { id: 'new-sale', label: 'Новая продажа', navLabel: 'Продажа' },
   { id: 'stock', label: 'Остатки', navLabel: 'Остатки' },
-  { id: 'today', label: 'Смена', navLabel: 'Сегодня' },
 ];
 
 /**
- * Post-login / store home: «Сегодня» as the shift workspace.
+ * Post-login / store home: order calendar for staff with order access.
  */
 export function resolveStoreHomePath(
   organizationId: string,
@@ -101,12 +94,12 @@ export function resolveStoreHomePath(
 ): string {
   const base = `/organizations/${organizationId}/stores/${storeId}`;
 
-  if (
-    hasPermission('workspace:read') ||
-    hasPermission('orders:read') ||
-    hasPermission('delivery:read')
-  ) {
-    return `${base}/today`;
+  if (hasPermission('orders:read')) {
+    return `${base}/orders/calendar`;
+  }
+
+  if (hasPermission('sales:read')) {
+    return `${base}/sales`;
   }
 
   return base;

@@ -15,6 +15,7 @@ import { OrderUseCases } from '../application/order.use-cases';
 import { OrderOccasion, OrderStatus, OrderType } from '../domain/order-rules';
 import {
   AddCommentDto,
+  ApplyCompositionTemplateDto,
   AssignFloristDto,
   CompositionItemDto,
   CreateOrderDto,
@@ -126,6 +127,18 @@ export class OrdersController {
       itemId: body.itemId,
       quantity: body.plannedQuantity,
       comment: body.comment,
+    });
+  }
+
+  @Post('orders/:orderId/composition/apply-template')
+  @RequirePermissions('orders:update')
+  applyCompositionTemplate(
+    @Param() params: OrderParamsDto,
+    @Body() body: ApplyCompositionTemplateDto,
+  ) {
+    return this.orders.applyCompositionTemplate({
+      ...params,
+      templateItemId: body.templateItemId,
     });
   }
 

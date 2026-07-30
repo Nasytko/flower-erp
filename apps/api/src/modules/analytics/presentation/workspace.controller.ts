@@ -59,12 +59,6 @@ class WorkspaceOrdersQueryDto {
 export class WorkspaceController {
   constructor(private readonly workspace: WorkspaceQueryUseCases) {}
 
-  @Get('workspace/today')
-  today(@Param() params: StoreParamsDto, @CurrentAuthContext() auth: AuthContext) {
-    this.assertWorkspaceOrOrders(auth);
-    return this.workspace.getToday(params.organizationId, params.storeId);
-  }
-
   @Get('workspace/orders')
   listOrders(
     @Param() params: StoreParamsDto,

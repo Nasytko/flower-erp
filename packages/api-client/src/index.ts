@@ -615,6 +615,7 @@ export function createApiClient(options: ApiClientOptions) {
           inventoryPolicyId: string;
           isSellable?: boolean;
           isPurchasable?: boolean;
+          isShowcase?: boolean;
           createdAt?: string;
           createdByMembershipId?: string | null;
           createdByDisplayName?: string | null;
@@ -637,6 +638,7 @@ export function createApiClient(options: ApiClientOptions) {
         description?: string;
         isSellable?: boolean;
         isPurchasable?: boolean;
+        isShowcase?: boolean;
         minimumStockQuantity?: string | null;
       },
     ) =>
@@ -648,6 +650,7 @@ export function createApiClient(options: ApiClientOptions) {
         status: string;
         isSellable?: boolean;
         minimumStockQuantity?: string | null;
+        isShowcase?: boolean;
         createdAt?: string;
         createdByMembershipId?: string | null;
         createdByDisplayName?: string | null;
@@ -669,6 +672,7 @@ export function createApiClient(options: ApiClientOptions) {
         description: string | null;
         isSellable?: boolean;
         isPurchasable?: boolean;
+        isShowcase?: boolean;
         minimumStockQuantity?: string | null;
         createdAt?: string;
         createdByMembershipId?: string | null;
@@ -681,6 +685,7 @@ export function createApiClient(options: ApiClientOptions) {
         name?: string;
         description?: string | null;
         minimumStockQuantity?: string | null;
+        isShowcase?: boolean;
       },
     ) =>
       request<{
@@ -690,6 +695,7 @@ export function createApiClient(options: ApiClientOptions) {
         itemType: string;
         status: string;
         minimumStockQuantity?: string | null;
+        isShowcase?: boolean;
       }>(`/organizations/${organizationId}/items/${itemId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -704,6 +710,51 @@ export function createApiClient(options: ApiClientOptions) {
           body: JSON.stringify({ reason }),
         },
       ),
+    getItemRecipe: (organizationId: string, itemId: string) =>
+      request<{
+        itemId: string;
+        lines: Array<{
+          id: string;
+          parentItemId: string;
+          componentItemId: string;
+          componentName: string;
+          componentCode: string;
+          componentItemType: string;
+          quantity: string;
+          sortOrder: number;
+        }>;
+      }>(`/organizations/${organizationId}/items/${itemId}/recipe`),
+    setItemRecipe: (
+      organizationId: string,
+      itemId: string,
+      body: { lines: Array<{ componentItemId: string; quantity: string }> },
+    ) =>
+      request<{
+        itemId: string;
+        lines: Array<{
+          id: string;
+          componentItemId: string;
+          componentName: string;
+          componentCode: string;
+          componentItemType: string;
+          quantity: string;
+          sortOrder: number;
+        }>;
+      }>(`/organizations/${organizationId}/items/${itemId}/recipe`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      }),
+    listShowcaseBouquets: (organizationId: string) =>
+      request<
+        Array<{
+          id: string;
+          name: string;
+          code: string;
+          previewLines: Array<{ componentName: string; quantity: string }>;
+          previewMoreCount: number;
+        }>
+      >(`/organizations/${organizationId}/showcase-bouquets`),
     listRetailPrices: (organizationId: string, effectiveFrom: string) =>
       request<{
         effectiveFrom: string;
@@ -1290,6 +1341,20 @@ export function createApiClient(options: ApiClientOptions) {
           body: JSON.stringify(body),
         },
       ),
+    applyOrderCompositionTemplate: (
+      organizationId: string,
+      storeId: string,
+      orderId: string,
+      body: { templateItemId: string },
+    ) =>
+      request<unknown>(
+        `/organizations/${organizationId}/stores/${storeId}/orders/${orderId}/composition/apply-template`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        },
+      ),
     setActualComposition: (
       organizationId: string,
       storeId: string,
@@ -1418,10 +1483,6 @@ export function createApiClient(options: ApiClientOptions) {
       ),
 
     // ─── Workspace / operations ───────────────────────────────────────────────
-    getWorkspaceToday: (organizationId: string, storeId: string) =>
-      request<WorkspaceTodayDto>(
-        `/organizations/${organizationId}/stores/${storeId}/workspace/today`,
-      ),
     listWorkspaceOrders: (
       organizationId: string,
       storeId: string,
@@ -2290,61 +2351,6 @@ export type WorkspaceOrderCardDto = {
   priority: number;
   displayPhase: string;
   displayPhaseLabel: string;
-};
-
-export type WorkspaceCounterDto = {
-  count: number;
-  filterLink: WorkspaceFilter;
-};
-
-export type AttentionItemDto = {
-  id: string;
-  severity: 'INFO' | 'WARNING' | 'CRITICAL';
-  code: string;
-  title: string;
-  reason: string;
-  entityType: string;
-  entityId: string;
-  recommendedAction: string;
-  filterLink: string | null;
-  ageMinutes: number;
-};
-
-export type LowStockWarningDto = {
-  itemId: string;
-  itemName: string;
-  itemCode: string;
-  warehouseId: string;
-  availableQuantity: string;
-  threshold: string;
-};
-
-export type WorkspaceTodayDto = {
-  serverNow: string;
-  sectionLimit: number;
-  counters: {
-    overdue: WorkspaceCounterDto;
-    soon: WorkspaceCounterDto;
-    unassigned: WorkspaceCounterDto;
-    inPreparation: WorkspaceCounterDto;
-    inWork: WorkspaceCounterDto;
-    ready: WorkspaceCounterDto;
-    handedOffToday: WorkspaceCounterDto;
-    today: WorkspaceCounterDto;
-    partiallyReserved: WorkspaceCounterDto;
-    flowerShortageOrders: WorkspaceCounterDto;
-    flowersBelowThreshold: WorkspaceCounterDto;
-  };
-  sections: {
-    overdue: WorkspaceOrderCardDto[];
-    soon: WorkspaceOrderCardDto[];
-    unassigned: WorkspaceOrderCardDto[];
-    inPreparation: WorkspaceOrderCardDto[];
-    ready: WorkspaceOrderCardDto[];
-  };
-  attentionItems: AttentionItemDto[];
-  lowStockWarnings: LowStockWarningDto[];
-  quickActions: Array<{ code: string; label: string; requires: string }>;
 };
 
 export type WorkspaceOrdersListDto = {

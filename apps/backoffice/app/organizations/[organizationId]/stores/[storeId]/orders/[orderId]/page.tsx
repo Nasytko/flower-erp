@@ -122,6 +122,16 @@ export default function OrderDetailPage() {
       missingPrice?: boolean;
     }>;
   } | null>(null);
+  const [showcaseBouquets, setShowcaseBouquets] = useState<
+    Array<{
+      id: string;
+      name: string;
+      code: string;
+      previewLines: Array<{ componentName: string; quantity: string }>;
+      previewMoreCount: number;
+    }>
+  >([]);
+  const [showcaseTemplateId, setShowcaseTemplateId] = useState('');
 
   const flowerCatalog = useMemo(
     () => items.filter((item) => item.itemType === 'FLOWER'),
@@ -253,6 +263,45 @@ export default function OrderDetailPage() {
       cancelled = true;
     };
   }, [organizationId, order?.composition?.items]);
+
+  useEffect(() => {
+    if (!auth.hasPermission('master-data:read')) return;
+    let cancelled = false;
+    void getApiClient()
+      .listShowcaseBouquets(organizationId)
+      .then((rows) => {
+        if (cancelled) return;
+        setShowcaseBouquets(rows);
+        if (rows[0]) {
+          setShowcaseTemplateId((prev) => prev || rows[0]!.id);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setShowcaseBouquets([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [organizationId, auth]);
+
+  async function onApplyShowcaseTemplate() {
+    if (!showcaseTemplateId) return;
+    const hasComposition = (order?.composition?.items.length ?? 0) > 0;
+    if (
+      hasComposition &&
+      !window.confirm('Заменить текущий состав букетом с витрины?')
+    ) {
+      return;
+    }
+    await run(async () => {
+      await getApiClient().applyOrderCompositionTemplate(
+        organizationId,
+        storeId,
+        orderId,
+        { templateItemId: showcaseTemplateId },
+      );
+    });
+  }
 
   async function onAddCompositionItem(event: FormEvent, kind: 'FLOWER' | 'MATERIAL') {
     event.preventDefault();
@@ -855,6 +904,40 @@ export default function OrderDetailPage() {
                         Подставить в плановую цену
                       </Button>
                     ) : null}
+                  </div>
+                ) : null}
+
+                {canUpdate && showcaseBouquets.length > 0 ? (
+                  <div
+                    style={{
+                      marginBottom: 16,
+                      padding: '12px 14px',
+                      borderRadius: 10,
+                      border: '1px solid var(--color-border)',
+                    }}
+                  >
+                    <h4 style={{ margin: '0 0 8px' }}>Взять с витрины</h4>
+                    <Field label="Букет">
+                      <FancySelect
+                        value={showcaseTemplateId}
+                        onChange={setShowcaseTemplateId}
+                        options={showcaseBouquets.map((item) => ({
+                          value: item.id,
+                          label: item.name,
+                          hint: item.code,
+                        }))}
+                        searchable
+                      />
+                    </Field>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      disabled={busy || !showcaseTemplateId}
+                      style={{ marginTop: 8 }}
+                      onClick={() => void onApplyShowcaseTemplate()}
+                    >
+                      Применить
+                    </Button>
                   </div>
                 ) : null}
 

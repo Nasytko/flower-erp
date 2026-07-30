@@ -231,6 +231,11 @@ export class SetCompositionDto {
   items!: CompositionItemDto[];
 }
 
+export class ApplyCompositionTemplateDto {
+  @IsUUID()
+  templateItemId!: string;
+}
+
 export class ActualCompositionItemDto {
   @IsUUID()
   itemId!: string;

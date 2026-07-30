@@ -35,6 +35,7 @@ import {
   PaginationQueryDto,
   PolicyIdParamDto,
   ResolveRetailCompositionDto,
+  SetItemRecipeDto,
   UpsertRetailPricesDto,
   SupplierIdParamDto,
 } from './master-data.dto';
@@ -258,6 +259,29 @@ export class MasterDataController {
       itemId: params.itemId,
       reason: body.reason,
     });
+  }
+
+  @Get('items/:itemId/recipe')
+  @ApiOperation({ summary: 'Get item showcase recipe (BOM)' })
+  getItemRecipe(@Param() params: ItemIdParamDto) {
+    return this.items.getItemRecipe(params.organizationId, params.itemId);
+  }
+
+  @Put('items/:itemId/recipe')
+  @RequirePermissions('master-data:manage')
+  @ApiOperation({ summary: 'Replace item showcase recipe (BOM)' })
+  setItemRecipe(@Param() params: ItemIdParamDto, @Body() body: SetItemRecipeDto) {
+    return this.items.setItemRecipe({
+      organizationId: params.organizationId,
+      itemId: params.itemId,
+      lines: body.lines,
+    });
+  }
+
+  @Get('showcase-bouquets')
+  @ApiOperation({ summary: 'List showcase bouquets with composition preview' })
+  listShowcaseBouquets(@Param() params: OrganizationIdParamDto) {
+    return this.items.listShowcaseBouquets(params.organizationId);
   }
 
   @Get('master-data/retail-prices')
