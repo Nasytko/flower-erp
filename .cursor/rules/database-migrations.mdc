@@ -1,0 +1,53 @@
+---
+description: Safe Prisma migration workflow for Flower ERP
+globs:
+  - apps/api/prisma/**
+  - scripts/check-migration-safety.mjs
+  - scripts/test-migrations.sh
+alwaysApply: false
+---
+
+# Database migrations (Flower ERP)
+
+When changing `apps/api/prisma/schema.prisma`:
+
+1. Create or update the migration SQL (never skip reviewing `migration.sql`).
+2. Inspect **defaults** on every enum/text column affected by `ALTER COLUMN TYPE`.
+3. Inspect **destructive** operations: `DROP TABLE`, `DROP COLUMN`, enum value removal.
+4. Add **data guards** (`DO $$ … RAISE EXCEPTION`) before removing enum values or dropping data.
+5. Wrap destructive migrations in `BEGIN;` … `COMMIT;`.
+6. Run `pnpm migration:safety`.
+7. Run `bash scripts/test-migrations.sh`.
+8. Do not mark the task complete without passing both checks.
+
+## Enum value removal
+
+**Never trust auto-generated enum-removal SQL.**
+
+Always use this order per column:
+
+1. `ALTER COLUMN … DROP DEFAULT` (skip only with `-- @no-default` and confirmed no default in prior migrations/schema)
+2. `ALTER COLUMN … TYPE … USING (col::text::NewEnum)`
+3. `DROP TYPE` old enum
+4. `RENAME TYPE`
+5. `ALTER COLUMN … SET DEFAULT` when a default existed
+
+Reference migrations:
+
+- `20260729150000_remove_unused_enum_values` (SalesChannel)
+- `20260730120000_remove_transfers_counts_cash` (InventoryBatchSourceType)
+
+## Annotations (use deliberately)
+
+- `-- @destructive-reviewed` — intentional DROP TABLE/COLUMN after runtime removal
+- `-- @data-guarded` — migration includes row guards
+- `-- @no-default` — column has no server default; DROP DEFAULT not required
+
+## Forbidden
+
+- `DROP … CASCADE`
+- `prisma migrate reset` on shared/production databases
+- `db push --force-reset`
+- Editing already-applied production migrations (except the one explicitly being recovered)
+
+See `docs/database-change-workflow.md` and `docs/migration-safety-audit.md`.
