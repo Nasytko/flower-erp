@@ -54,8 +54,9 @@ if [[ -f "${ENV_FILE}" && -f "${COMPOSE_FILE}" ]]; then
 
   api_port="${FLOWER_API_PORT:-4100}"
   bo_port="${FLOWER_BACKOFFICE_PORT:-3100}"
-  api_live="$(health_http_code "http://127.0.0.1:${api_port}/api/v1/health/live")"
-  api_ready="$(health_http_code "http://127.0.0.1:${api_port}/api/v1/health/ready")"
+  api_prefix="${API_PREFIX:-api/v1}"
+  api_live="$(health_http_code "http://127.0.0.1:${api_port}/${api_prefix}/health/live")"
+  api_ready="$(health_http_code "http://127.0.0.1:${api_port}/${api_prefix}/health/ready")"
   bo_code="$(health_http_code "http://127.0.0.1:${bo_port}/health")"
   printf '\nHTTP checks:\n'
   printf '  API live:       %s\n' "${api_live}"

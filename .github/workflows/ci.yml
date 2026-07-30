@@ -57,11 +57,15 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Docker build API
-        run: docker build -f docker/api/Dockerfile -t flower-erp-api:ci .
+      - name: Docker build production images
+        run: |
+          docker build -f apps/api/Dockerfile --target production -t flower-erp-api:ci .
+          docker build -f apps/api/Dockerfile --target migrate -t flower-erp-migrate:ci .
+          docker build -f apps/backoffice/Dockerfile --target production -t flower-erp-backoffice:ci \
+            --build-arg NEXT_PUBLIC_API_BASE_URL=http://localhost:3001/api/v1 .
 
-      - name: Docker build backoffice
-        run: docker build -f docker/backoffice/Dockerfile -t flower-erp-backoffice:ci --build-arg NEXT_PUBLIC_API_BASE_URL=http://localhost:3001/api/v1 .
+      - name: Deploy script tests
+        run: pnpm test:deploy-scripts
 
   postgres-integration:
     runs-on: ubuntu-latest

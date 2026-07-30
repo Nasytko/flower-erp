@@ -199,6 +199,14 @@ function main() {
     for (const issue of errors) {
       console.error(`  [${issue.rule}] ${issue.migration}: ${issue.message}`);
     }
+    console.error('');
+    console.error('Fix checklist:');
+    console.error('  1. Open migration.sql — wrap destructive changes in BEGIN; ... COMMIT;');
+    console.error('  2. Add -- @destructive-reviewed for intentional DROP TABLE/COLUMN');
+    console.error('  3. Add data guards (DO $$ ... RAISE EXCEPTION) before enum shrink / DROP');
+    console.error('  4. Enum columns: DROP DEFAULT → ALTER TYPE → SET DEFAULT (see .cursor/rules/database-migrations.mdc)');
+    console.error('  5. Add migration.test.json for upgrade/negative tests when migration is risky');
+    console.error('  6. Run: pnpm verify:release');
     process.exit(1);
   }
 

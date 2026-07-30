@@ -18,6 +18,62 @@ pnpm prisma:validate
 
 Deploy on VPS runs `scripts/check-migration-safety.mjs` before `prisma migrate deploy`.
 
+Before pushing schema changes:
+
+```bash
+pnpm verify:release          # full local gate (lint, tests, migrations, build)
+pnpm preflight:deploy        # deploy-script checks (also on VPS before deploy)
+```
+
+On VPS before/instead of full deploy:
+
+```bash
+./deploy/scripts/preflight.sh
+PRE_MIGRATE_BACKUP=1 ./deploy/scripts/deploy.sh   # recommended for DROP/enum migrations
+```
+
+---
+
+## F. Checklist when adding, removing, or cutting a feature
+
+**Code (same release or before migration):**
+
+1. Remove API modules, backoffice pages, permissions, api-client types.
+2. Keep `apps/backoffice/app/health/route.ts` — deploy health checks depend on `/health`.
+3. If public API URL changes, rebuild backoffice (`deploy.sh` already rebuilds).
+
+**Migration:**
+
+1. Create migration; review `migration.sql` manually.
+2. Destructive changes: `BEGIN;`/`COMMIT;`, `-- @destructive-reviewed`, data guards.
+3. Enum changes: follow section C (DROP DEFAULT → ALTER TYPE → SET DEFAULT).
+4. For risky migrations (DROP, enum shrink): add `migration.test.json` next to `migration.sql`:
+
+```json
+{
+  "baselineFixture": "scripts/test-fixtures/your-baseline.sql",
+  "negativeFixture": "scripts/test-fixtures/your-negative.sql",
+  "tablesDropped": ["obsolete_table"],
+  "enumColumns": [],
+  "negativeGuardPattern": "DATA GUARD"
+}
+```
+
+5. Run `pnpm migration:safety` and `bash scripts/test-migrations.sh`.
+6. Run `pnpm verify:release`.
+
+**Deploy:**
+
+1. `./deploy/scripts/backup-db.sh` or `PRE_MIGRATE_BACKUP=1 ./deploy/scripts/deploy.sh`
+2. `./deploy/scripts/deploy.sh`
+3. If migration failed previously: `migrate resolve --rolled-back …` then redeploy (section E).
+
+**Do not remove without replacement:**
+
+- `/health` route in backoffice
+- `node` or `curl` on VPS (health checks use either)
+- `migration.test.json` fixtures when migration still needs upgrade/negative coverage
+
 ---
 
 ## A. Adding a table or column

@@ -24,6 +24,7 @@
     "verify:release": "pnpm lint && pnpm typecheck && pnpm --filter @flower/api test:unit && pnpm prisma:validate && pnpm migration:safety && pnpm test:migrations && pnpm build",
     "depcruise": "depcruise --config .dependency-cruiser.cjs apps packages",
     "test:deploy-scripts": "bash deploy/tests/run-all.sh",
+    "preflight:deploy": "bash deploy/scripts/preflight.sh",
     "bootstrap:owner": "pnpm --filter @flower/api create:initial-director"
   },
   "devDependencies": {

@@ -1,0 +1,14 @@
+{
+  "baselineFixture": "scripts/test-fixtures/migration-upgrade-baseline.sql",
+  "negativeFixture": "scripts/test-fixtures/migration-negative-enum-row.sql",
+  "tablesDropped": ["transfer_documents"],
+  "enumColumns": [
+    {
+      "table": "inventory_batches",
+      "column": "batch_source_type",
+      "enumType": "InventoryBatchSourceType",
+      "defaultValue": "GOODS_RECEIPT"
+    }
+  ],
+  "negativeGuardPattern": "DATA GUARD"
+}

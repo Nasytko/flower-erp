@@ -51,6 +51,10 @@ deploy_git_info() {
 }
 
 deploy_check_git_clean() {
+  if [[ "${ALLOW_DIRTY_DEPLOY:-0}" == "1" ]]; then
+    deploy_warn "ALLOW_DIRTY_DEPLOY=1 — skipping clean working tree check."
+    return 0
+  fi
   if ! command -v git >/dev/null 2>&1; then
     deploy_warn "git not found; skipping working tree check."
     return 0
@@ -60,8 +64,19 @@ deploy_check_git_clean() {
     return 0
   fi
   if [[ -n "$(git -C "${DEPLOY_ROOT}" status --porcelain --untracked-files=no)" ]]; then
-    deploy_die "Modified tracked files detected. Commit or stash before deploy."
+    deploy_die "Modified tracked files detected. Commit or stash before deploy (or set ALLOW_DIRTY_DEPLOY=1)."
   fi
+}
+
+deploy_check_host_tools() {
+  if command -v curl >/dev/null 2>&1; then
+    return 0
+  fi
+  if command -v node >/dev/null 2>&1; then
+    deploy_warn "curl not found; HTTP health checks will use node."
+    return 0
+  fi
+  deploy_die "Install curl or node on the host for deploy health checks."
 }
 
 deploy_check_disk_space() {
@@ -81,17 +96,17 @@ deploy_run_migration_safety() {
   local script="${DEPLOY_ROOT}/scripts/check-migration-safety.mjs"
   [[ -f "${script}" ]] || deploy_die "Migration safety script not found: ${script}"
 
-  if command -v node >/dev/null 2>&1; then
-    node "${script}"
+  if [[ "${DEPLOY_MIGRATION_SAFETY_IN_DOCKER:-0}" == "1" ]] || ! command -v node >/dev/null 2>&1; then
+    deploy_log "Running migration safety check in Docker..."
+    docker run --rm \
+      -v "${DEPLOY_ROOT}:/repo:ro" \
+      -w /repo \
+      node:22-bookworm-slim \
+      node scripts/check-migration-safety.mjs
     return
   fi
 
-  deploy_log "Node.js not on PATH; running migration safety check in Docker..."
-  docker run --rm \
-    -v "${DEPLOY_ROOT}:/repo:ro" \
-    -w /repo \
-    node:22-bookworm-slim \
-    node scripts/check-migration-safety.mjs
+  node "${script}"
 }
 
 deploy_write_checksum() {

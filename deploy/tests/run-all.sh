@@ -16,6 +16,7 @@ run_test() {
 }
 
 bash -n "${SCRIPT_DIR}/../scripts/deploy.sh"
+bash -n "${SCRIPT_DIR}/../scripts/preflight.sh"
 bash -n "${SCRIPT_DIR}/../scripts/migrate.sh"
 bash -n "${SCRIPT_DIR}/../scripts/backup-db.sh"
 bash -n "${SCRIPT_DIR}/../scripts/restore-db.sh"

@@ -17,7 +17,7 @@ When changing `apps/api/prisma/schema.prisma`:
 4. Add **data guards** (`DO $$ … RAISE EXCEPTION`) before removing enum values or dropping data.
 5. Wrap destructive migrations in `BEGIN;` … `COMMIT;`.
 6. Run `pnpm migration:safety`.
-7. Run `bash scripts/test-migrations.sh`.
+7. Run `bash scripts/test-migrations.sh` (add `migration.test.json` for risky DROP/enum migrations).
 8. Do not mark the task complete without passing both checks.
 
 ## Enum value removal

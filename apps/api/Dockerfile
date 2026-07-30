@@ -136,6 +136,6 @@ COPY --from=pruned --chown=flower:flower /prod/api /app
 USER flower
 EXPOSE 4000
 HEALTHCHECK --interval=15s --timeout=5s --retries=5 --start-period=30s \
-  CMD node -e "fetch('http://127.0.0.1:4000/api/v1/health/live').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+  CMD node -e "const p=process.env.API_PREFIX||'api/v1';require('http').get('http://127.0.0.1:4000/'+p+'/health/live',(r)=>process.exit(r.statusCode>=200&&r.statusCode<400?0:1)).on('error',()=>process.exit(1))"
 # Layout after pnpm deploy: /app/dist/main.js (not /app/apps/api/dist/main.js)
 CMD ["node", "dist/main.js"]

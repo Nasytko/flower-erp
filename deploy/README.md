@@ -85,12 +85,28 @@ CONFIRM_ALL_FLOWER_DATA_CAN_BE_DELETED=YES \
 ```bash
 cd /opt/flower-erp
 git pull --ff-only
+./deploy/scripts/preflight.sh          # optional quick gate
 ./deploy/scripts/deploy.sh
 ```
 
-Optional: `DRY_RUN=1`, `SKIP_DOCKER_CLEANUP=1`.
+For migrations that DROP tables or shrink enums:
 
-Flow: build images → `prisma migrate deploy` → start api/backoffice → health checks.
+```bash
+PRE_MIGRATE_BACKUP=1 ./deploy/scripts/deploy.sh
+```
+
+Optional env:
+
+| Variable | Purpose |
+|----------|---------|
+| `DRY_RUN=1` | Print steps without changes |
+| `SKIP_DOCKER_CLEANUP=1` | Skip `docker image prune` |
+| `PRE_MIGRATE_BACKUP=1` | Run `backup-db.sh` before migrate |
+| `ALLOW_DIRTY_DEPLOY=1` | Skip clean git tree check (emergency only) |
+
+Flow: build images → migration safety → `prisma migrate deploy` → start api/backoffice → health checks (HTTP fallback if Docker label lags).
+
+Local before push: `pnpm verify:release` and `pnpm preflight:deploy`.
 
 ## 7. Status
 

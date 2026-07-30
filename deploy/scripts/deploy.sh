@@ -2,7 +2,7 @@
 # Flower ERP — production deploy.
 # Build → migrate → start services → verify health.
 #
-# Optional: DRY_RUN=1, SKIP_DOCKER_CLEANUP=1
+# Optional: DRY_RUN=1, SKIP_DOCKER_CLEANUP=1, PRE_MIGRATE_BACKUP=1, ALLOW_DIRTY_DEPLOY=1
 
 set -Eeuo pipefail
 
@@ -20,6 +20,7 @@ source "${SCRIPT_DIR}/lib/health.sh"
 
 DRY_RUN="${DRY_RUN:-0}"
 SKIP_DOCKER_CLEANUP="${SKIP_DOCKER_CLEANUP:-0}"
+PRE_MIGRATE_BACKUP="${PRE_MIGRATE_BACKUP:-0}"
 ON_ERROR_HANDLED=0
 
 run() {
@@ -43,8 +44,10 @@ on_error() {
     cat >&2 <<'EOF'
 Hints:
   ./deploy/scripts/status.sh
+  ./deploy/scripts/preflight.sh
   ./deploy/scripts/rollback.sh
   ./deploy/scripts/restore-db.sh /path/to/backup.dump
+  Failed migration: see docs/database-change-workflow.md section E
 EOF
   fi
   exit "${exit_code}"
@@ -58,6 +61,7 @@ main() {
   cd "${DEPLOY_ROOT}"
   deploy_common_init
   deploy_check_docker
+  deploy_check_host_tools
   deploy_load_env
   deploy_compose_validate
 
@@ -92,6 +96,10 @@ main() {
   if [[ "${DRY_RUN}" == "1" ]]; then
     run deploy_compose_migrate run --rm migrate migrate status
   else
+    if [[ "${PRE_MIGRATE_BACKUP}" == "1" ]]; then
+      deploy_log "Pre-migrate backup (PRE_MIGRATE_BACKUP=1)..."
+      "${SCRIPT_DIR}/backup-db.sh"
+    fi
     prisma_refresh_migrate_status
     prisma_assert_status_readable
     prisma_assert_no_failed_migrations
@@ -117,9 +125,11 @@ main() {
     deploy_die "Pending migrations remain after deploy."
   fi
   if health_any_unhealthy; then
-    bo_port="${FLOWER_BACKOFFICE_PORT:-3100}"
-    if health_code_ok "$(health_http_code "http://127.0.0.1:${bo_port}/health")"; then
-      deploy_warn "Docker reports unhealthy container(s), but Backoffice HTTP is OK — continuing."
+    bo_url="$(health_backoffice_url)"
+    api_ready_url="$(health_api_url health/ready)"
+    if health_code_ok "$(health_http_code "${bo_url}")" \
+      && health_code_ok "$(health_http_code "${api_ready_url}")"; then
+      deploy_warn "Docker reports unhealthy container(s), but HTTP checks are OK — continuing."
     else
       deploy_die "One or more containers are unhealthy."
     fi
