@@ -46,6 +46,9 @@ jobs:
       - name: Prisma validate
         run: pnpm prisma:validate
 
+      - name: Migration safety lint
+        run: pnpm migration:safety
+
       - name: Dependency cruise
         run: pnpm depcruise
 
@@ -106,6 +109,9 @@ jobs:
 
       - name: Prisma validate
         run: pnpm prisma:validate
+
+      - name: Migration upgrade tests
+        run: pnpm test:migrations
 
       - name: Integration tests (PostgreSQL)
         run: pnpm --filter @flower/api test:integration

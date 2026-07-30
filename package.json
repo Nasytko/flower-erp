@@ -19,6 +19,9 @@
     "db:migrate": "node scripts/prisma-with-migrate-url.mjs migrate dev",
     "db:migrate:deploy": "node scripts/prisma-with-migrate-url.mjs migrate deploy",
     "prisma:validate": "pnpm --filter @flower/api prisma:validate",
+    "migration:safety": "node scripts/check-migration-safety.mjs",
+    "test:migrations": "bash scripts/test-migrations.sh",
+    "verify:release": "pnpm lint && pnpm typecheck && pnpm --filter @flower/api test:unit && pnpm prisma:validate && pnpm migration:safety && pnpm test:migrations && pnpm build",
     "depcruise": "depcruise --config .dependency-cruiser.cjs apps packages",
     "test:deploy-scripts": "bash deploy/tests/run-all.sh",
     "bootstrap:owner": "pnpm --filter @flower/api create:initial-director"

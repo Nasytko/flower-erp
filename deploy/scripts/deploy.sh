@@ -80,6 +80,14 @@ main() {
   run deploy_compose build api backoffice
   run deploy_compose_migrate build migrate
 
+  deploy_log "Verifying migration SQL safety..."
+  if [[ "${DRY_RUN}" == "1" ]]; then
+    run node "${DEPLOY_ROOT}/scripts/check-migration-safety.mjs"
+  else
+    node "${DEPLOY_ROOT}/scripts/check-migration-safety.mjs" \
+      || deploy_die "Migration safety check failed. Fix migration.sql before deploy."
+  fi
+
   deploy_log "[2/4] Checking migration state..."
   if [[ "${DRY_RUN}" == "1" ]]; then
     run deploy_compose_migrate run --rm migrate migrate status
