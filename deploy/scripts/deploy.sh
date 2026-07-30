@@ -44,10 +44,14 @@ on_error() {
     cat >&2 <<'EOF'
 Hints:
   ./deploy/scripts/status.sh
+  Scroll up for the first "ERROR:" line (cause is not always migrations).
+  If migrations are up to date, force app refresh:
+    docker compose -f docker-compose.production.yml --env-file .env.production build api backoffice
+    docker compose -f docker-compose.production.yml --env-file .env.production up -d --remove-orphans api backoffice
   ./deploy/scripts/preflight.sh
   ./deploy/scripts/rollback.sh
   ./deploy/scripts/restore-db.sh /path/to/backup.dump
-  Failed migration: see docs/database-change-workflow.md section E
+  Failed migration recovery: docs/database-change-workflow.md section E
 EOF
   fi
   exit "${exit_code}"

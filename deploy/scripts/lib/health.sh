@@ -126,7 +126,12 @@ health_smoke_production() {
   fi
 
   health_assert_http_ok "${api_live_url}" "API /health/live"
-  health_assert_http_ok "${api_ready_url}" "API /health/ready"
+
+  deploy_log "Waiting for API /health/ready (database probe, up to 90s)..."
+  if ! health_wait_http "${api_ready_url}" 90; then
+    health_show_service_logs api
+    deploy_die "API /health/ready did not return OK within 90s."
+  fi
 
   deploy_log "Waiting for Backoffice container health (up to 120s)..."
   if ! health_wait_service_or_http backoffice "${bo_url}" 120; then
