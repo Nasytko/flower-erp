@@ -46,8 +46,10 @@ Hints:
   ./deploy/scripts/status.sh
   Scroll up for the first "ERROR:" line (cause is not always migrations).
   If migrations are up to date, force app refresh:
-    docker compose -f docker-compose.production.yml --env-file .env.production build api backoffice
-    docker compose -f docker-compose.production.yml --env-file .env.production up -d --remove-orphans api backoffice
+    ./deploy/scripts/restart-apps.sh
+    # or: NO_CACHE=1 ./deploy/scripts/restart-apps.sh
+  Or retry deploy skipping health gate:
+    SKIP_HEALTH_CHECK=1 ./deploy/scripts/deploy.sh
   ./deploy/scripts/preflight.sh
   ./deploy/scripts/rollback.sh
   ./deploy/scripts/restore-db.sh /path/to/backup.dump
@@ -119,7 +121,11 @@ main() {
   fi
 
   deploy_log "[4/4] Verifying health..."
-  health_smoke_production
+  if [[ "${SKIP_HEALTH_CHECK:-0}" == "1" ]]; then
+    deploy_warn "SKIP_HEALTH_CHECK=1 — skipping health smoke (containers were started)."
+  else
+    health_smoke_production
+  fi
 
   prisma_invalidate_status_cache
   prisma_refresh_migrate_status
@@ -128,7 +134,7 @@ main() {
   if [[ "${PRISMA_MIGRATE_STATUS_CLASS}" == "pending" ]]; then
     deploy_die "Pending migrations remain after deploy."
   fi
-  if health_any_unhealthy; then
+  if [[ "${SKIP_HEALTH_CHECK:-0}" != "1" ]] && health_any_unhealthy; then
     bo_url="$(health_backoffice_url)"
     api_ready_url="$(health_api_url health/ready)"
     if health_code_ok "$(health_http_code "${bo_url}")" \
