@@ -15,6 +15,7 @@ type OrderCalendarMonthGridProps = {
   dateCounts: Array<{ date: string; count: number }>;
   onSelectDate: (date: string) => void;
   onChangeMonth: (month: string) => void;
+  compact?: boolean;
 };
 
 export function OrderCalendarMonthGrid({
@@ -23,13 +24,14 @@ export function OrderCalendarMonthGrid({
   dateCounts,
   onSelectDate,
   onChangeMonth,
+  compact = false,
 }: OrderCalendarMonthGridProps) {
   const today = todayIsoDate();
   const countByDate = new Map(dateCounts.map((row) => [row.date, row.count]));
   const days = buildMonthDays(month);
 
   return (
-    <div className="order-calendar-month">
+    <div className={`order-calendar-month${compact ? ' order-calendar-month--compact' : ''}`}>
       <div className="order-calendar-month__head">
         <button type="button" className="order-calendar-month__nav" onClick={() => onChangeMonth(shiftMonthIso(month, -1))}>
           ←

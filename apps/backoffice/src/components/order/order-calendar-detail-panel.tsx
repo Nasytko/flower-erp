@@ -1,7 +1,6 @@
 'use client';
 
 import Link from 'next/link';
-import { Button, Card } from '@flower/ui';
 import type { OrderBoardCardDto } from '@flower/api-client';
 import { DocRef } from '@/components/layout/doc-ref';
 import { formatMoney } from '@/lib/format-money';
@@ -11,15 +10,12 @@ import {
 } from '@/lib/order-calendar-labels';
 import { orderPhaseLabel, resolveOrderPhase } from '@/lib/order-ui';
 
-type OrderCalendarDetailPanelProps = {
+type OrderCalendarDetailContentProps = {
   base: string;
-  card: OrderBoardCardDto | null;
-  onClose: () => void;
+  card: OrderBoardCardDto;
 };
 
-export function OrderCalendarDetailPanel({ base, card, onClose }: OrderCalendarDetailPanelProps) {
-  if (!card) return null;
-
+export function OrderCalendarDetailContent({ base, card }: OrderCalendarDetailContentProps) {
   const phase = resolveOrderPhase(
     { status: card.status, type: card.type, displayPhase: card.displayPhase, displayPhaseLabel: card.displayPhaseLabel },
     card.deliveryStatus
@@ -28,74 +24,73 @@ export function OrderCalendarDetailPanel({ base, card, onClose }: OrderCalendarD
   );
 
   return (
-    <aside className="order-calendar-detail" aria-label="Детали заказа">
-      <Card title="Детали заказа">
-        <div className="order-calendar-detail__actions">
-          <Button type="button" variant="secondary" onClick={onClose}>
-            Закрыть
-          </Button>
-          <Link href={`${base}/orders/${card.id}`}>
-            <Button type="button">Открыть заказ</Button>
-          </Link>
+    <dl className="order-calendar-detail__list">
+      <div>
+        <dt>Заказ</dt>
+        <dd>
+          <DocRef>{card.number}</DocRef>
+        </dd>
+      </div>
+      <div>
+        <dt>Тип</dt>
+        <dd>{card.type === 'DELIVERY' ? 'Доставка' : 'Самовывоз (магазин)'}</dd>
+      </div>
+      <div>
+        <dt>Время</dt>
+        <dd>
+          {formatOrderTimeWindow({
+            readyAt: card.readyAt,
+            deliveryWindowStart: card.deliveryWindowStart,
+            deliveryWindowEnd: card.deliveryWindowEnd,
+          })}
+        </dd>
+      </div>
+      <div>
+        <dt>Клиент</dt>
+        <dd>{card.customerName ?? card.recipientName ?? '—'}</dd>
+      </div>
+      {card.customerPhone ? (
+        <div>
+          <dt>Телефон</dt>
+          <dd>
+            <a href={`tel:${card.customerPhone}`}>{card.customerPhone}</a>
+          </dd>
         </div>
-
-        <dl className="order-calendar-detail__list">
-          <div>
-            <dt>Заказ</dt>
-            <dd>
-              <DocRef>{card.number}</DocRef>
-            </dd>
-          </div>
-          <div>
-            <dt>Время</dt>
-            <dd>
-              {formatOrderTimeWindow({
-                readyAt: card.readyAt,
-                deliveryWindowStart: card.deliveryWindowStart,
-                deliveryWindowEnd: card.deliveryWindowEnd,
-              })}
-            </dd>
-          </div>
-          <div>
-            <dt>Клиент</dt>
-            <dd>{card.customerName ?? card.recipientName ?? '—'}</dd>
-          </div>
-          {card.customerPhone ? (
-            <div>
-              <dt>Телефон</dt>
-              <dd>{card.customerPhone}</dd>
-            </div>
-          ) : null}
-          <div>
-            <dt>Бюджет</dt>
-            <dd>{formatMoney(card.plannedPrice)}</dd>
-          </div>
-          <div>
-            <dt>Состав</dt>
-            <dd>{card.compositionLabel ?? '—'}</dd>
-          </div>
-          <div>
-            <dt>Флорист</dt>
-            <dd>{card.floristDisplayName ?? 'Не назначен'}</dd>
-          </div>
-          <div>
-            <dt>Статус</dt>
-            <dd>{orderPhaseLabel(phase, { type: card.type, displayPhase: card.displayPhase, displayPhaseLabel: card.displayPhaseLabel })}</dd>
-          </div>
-          <div>
-            <dt>Оплата</dt>
-            <dd>{paymentStatusLabel(card.paymentStatus)}</dd>
-          </div>
-          {card.deliveryId ? (
-            <div>
-              <dt>Доставка</dt>
-              <dd>
-                <Link href={`${base}/deliveries/${card.deliveryId}`}>Открыть доставку</Link>
-              </dd>
-            </div>
-          ) : null}
-        </dl>
-      </Card>
-    </aside>
+      ) : null}
+      <div>
+        <dt>Бюджет</dt>
+        <dd>{formatMoney(card.plannedPrice)}</dd>
+      </div>
+      <div>
+        <dt>Состав</dt>
+        <dd>{card.compositionLabel ?? '—'}</dd>
+      </div>
+      <div>
+        <dt>Флорист</dt>
+        <dd>{card.floristDisplayName ?? 'Не назначен'}</dd>
+      </div>
+      <div>
+        <dt>Статус</dt>
+        <dd>
+          {orderPhaseLabel(phase, {
+            type: card.type,
+            displayPhase: card.displayPhase,
+            displayPhaseLabel: card.displayPhaseLabel,
+          })}
+        </dd>
+      </div>
+      <div>
+        <dt>Оплата</dt>
+        <dd>{paymentStatusLabel(card.paymentStatus)}</dd>
+      </div>
+      {card.deliveryId ? (
+        <div>
+          <dt>Доставка</dt>
+          <dd>
+            <Link href={`${base}/deliveries/${card.deliveryId}`}>Открыть доставку</Link>
+          </dd>
+        </div>
+      ) : null}
+    </dl>
   );
 }

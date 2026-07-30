@@ -1,9 +1,10 @@
 'use client';
 
 import type { OrderBoardColumn } from '@flower/api-client';
+import { OrdersCountIcon } from '@/components/order/order-calendar-icons';
 import {
   buildDateStrip,
-  formatCalendarDayLabel,
+  formatDateStripWeekday,
   ORDER_BOARD_COLUMN_LABELS,
 } from '@/lib/order-calendar-labels';
 import { todayIsoDate } from '@/lib/delivery-labels';
@@ -28,31 +29,30 @@ export function OrderCalendarDateStrip({
       {dates.map((date) => {
         const count = countByDate.get(date) ?? 0;
         const selected = date === selectedDate;
+        const isToday = date === today;
+        const dayNum = Number(date.slice(8, 10));
+
         return (
           <button
             key={date}
             type="button"
             role="tab"
             aria-selected={selected}
-            className={`order-calendar-strip__day${selected ? ' order-calendar-strip__day--active' : ''}`}
+            className={`order-calendar-strip__day${selected ? ' order-calendar-strip__day--active' : ''}${isToday ? ' order-calendar-strip__day--today' : ''}`}
             onClick={() => onSelect(date)}
           >
-            <span className="order-calendar-strip__dot-row">
-              {count > 0 ? (
-                <span
-                  className={`order-calendar-strip__dot${date === today ? ' order-calendar-strip__dot--today' : ''}`}
-                  aria-hidden
-                />
-              ) : (
-                <span className="order-calendar-strip__dot order-calendar-strip__dot--empty" aria-hidden />
-              )}
+            <span className="order-calendar-strip__weekday">
+              {formatDateStripWeekday(date, today)}
             </span>
-            <span className="order-calendar-strip__label">
-              {formatCalendarDayLabel(date, today)}
-            </span>
+            <span className="order-calendar-strip__daynum">{dayNum}</span>
             {count > 0 ? (
-              <span className="order-calendar-strip__count">{count}</span>
-            ) : null}
+              <span className="order-calendar-strip__badge" aria-label={`${count} заказов`}>
+                <OrdersCountIcon className="order-calendar-strip__badge-icon" />
+                <span>{count}</span>
+              </span>
+            ) : (
+              <span className="order-calendar-strip__badge order-calendar-strip__badge--empty" aria-hidden />
+            )}
           </button>
         );
       })}

@@ -60,12 +60,15 @@ export function OrderCalendarBoard({
   }
 
   function handleDragOver(e: DragEvent, column: OrderBoardColumn) {
-    if (!dragging) return;
     e.preventDefault();
+    e.stopPropagation();
+    if (!dragging) return;
     if (!canDropCardOnColumn(dragging.fromColumn, column, dragging.card)) {
       e.dataTransfer.dropEffect = 'none';
-      setDropTarget(null);
-      setMoveHint(null);
+      if (dropTarget === column) {
+        setDropTarget(null);
+        setMoveHint(null);
+      }
       return;
     }
     e.dataTransfer.dropEffect = 'move';
@@ -73,8 +76,18 @@ export function OrderCalendarBoard({
     setMoveHint(calendarMoveLabel(dragging.fromColumn, column, dragging.card));
   }
 
+  function handleDragLeave(e: DragEvent, column: OrderBoardColumn) {
+    const next = e.relatedTarget as Node | null;
+    if (next && e.currentTarget.contains(next)) return;
+    if (dropTarget === column) {
+      setDropTarget(null);
+      setMoveHint(null);
+    }
+  }
+
   async function handleDrop(e: DragEvent, column: OrderBoardColumn) {
     e.preventDefault();
+    e.stopPropagation();
     if (!dragging) return;
     if (!canDropCardOnColumn(dragging.fromColumn, column, dragging.card)) return;
 
@@ -111,18 +124,15 @@ export function OrderCalendarBoard({
               key={column}
               className={`order-calendar-column${dropTarget === column ? ' order-calendar-column--drop-target' : ''}`}
               onDragOver={(e) => handleDragOver(e, column)}
-              onDragLeave={() => {
-                if (dropTarget === column) {
-                  setDropTarget(null);
-                  setMoveHint(null);
-                }
-              }}
+              onDragLeave={(e) => handleDragLeave(e, column)}
               onDrop={(e) => void handleDrop(e, column)}
             >
               <OrderCalendarColumnHeader column={column} count={cards.length} />
-              <div className={`order-calendar-column__cards${droppable ? ' order-calendar-column__cards--droppable' : ''}`}>
+              <div
+                className={`order-calendar-column__cards${droppable ? ' order-calendar-column__cards--droppable' : ''}${cards.length === 0 ? ' order-calendar-column__cards--empty' : ''}`}
+              >
                 {cards.length === 0 ? (
-                  <EmptyState message={droppable ? 'Отпустите здесь' : 'Пусто'} />
+                  <EmptyState message={droppable ? 'Отпустите здесь' : 'Пока ничего нет'} />
                 ) : (
                   cards.map((card) => (
                     <OrderCalendarCard

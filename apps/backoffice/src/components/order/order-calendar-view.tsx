@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
-import { Button, Card, Input } from '@flower/ui';
+import { Button } from '@flower/ui';
 import {
   ApiClientError,
   type OrderBoardCardDto,
@@ -16,13 +16,15 @@ import { PageHeader } from '@/components/layout/page-header';
 import { Section } from '@/components/layout/section';
 import { ErrorState, LoadingState } from '@/components/layout/states';
 import { InlineAlert } from '@/components/workspace/workspace-ui';
+import { Dialog } from '@/components/ui/dialog';
 import { OrderCalendarBoard } from '@/components/order/order-calendar-board';
+import { OrderCalendarDatePicker } from '@/components/order/order-calendar-date-picker';
 import { OrderCalendarDateStrip } from '@/components/order/order-calendar-date-strip';
-import { OrderCalendarDetailPanel } from '@/components/order/order-calendar-detail-panel';
-import { OrderCalendarMonthGrid } from '@/components/order/order-calendar-month-grid';
+import { OrderCalendarDetailContent } from '@/components/order/order-calendar-detail-panel';
 import {
   monthIsoFromDate,
   shiftIsoDate,
+  sortOrderBoardCards,
 } from '@/lib/order-calendar-labels';
 import { executeCalendarMove } from '@/lib/order-calendar-move';
 import { todayIsoDate } from '@/lib/delivery-labels';
@@ -64,7 +66,6 @@ export function OrderCalendarView({ embedded = false, initialDate }: OrderCalend
   const [selected, setSelected] = useState<OrderBoardCardDto | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [showMonth, setShowMonth] = useState(true);
 
   const canRead = auth.hasPermission('orders:read');
   const permissions = useMemo(
@@ -129,7 +130,9 @@ export function OrderCalendarView({ embedded = false, initialDate }: OrderCalend
     if (!board) return null;
     const next = { ...board.sections };
     for (const key of Object.keys(next) as Array<keyof typeof next>) {
-      next[key] = next[key].filter((card) => matchesSearch(card, search));
+      next[key] = next[key]
+        .filter((card) => matchesSearch(card, search))
+        .sort(sortOrderBoardCards);
     }
     return next;
   }, [board, search]);
@@ -157,29 +160,35 @@ export function OrderCalendarView({ embedded = false, initialDate }: OrderCalend
     <>
       <Section>
         <div className="order-calendar-toolbar">
-          <Input
-            type="search"
-            placeholder="Телефон, имя, № заказа…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            aria-label="Поиск заказов"
-          />
-          <label className="order-calendar-toolbar__date">
-            <span className="visually-hidden">Дата</span>
-            <Input type="date" value={date} onChange={(e) => selectDate(e.target.value)} />
+          <label className="order-calendar-toolbar__search">
+            <span className="visually-hidden">Поиск заказов</span>
+            <input
+              type="search"
+              className="order-calendar-toolbar__search-input"
+              placeholder="Телефон, имя, № заказа…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              aria-label="Поиск заказов"
+            />
           </label>
+          {board ? (
+            <OrderCalendarDatePicker
+              date={date}
+              viewMonth={viewMonth}
+              dateCounts={board.dateCounts}
+              onSelectDate={selectDate}
+              onChangeMonth={selectMonth}
+            />
+          ) : null}
           <div className="order-calendar-toolbar__nav">
-            <Button type="button" variant="secondary" onClick={() => selectDate(shiftIsoDate(date, -1))}>
+            <Button type="button" variant="secondary" onClick={() => selectDate(shiftIsoDate(date, -1))} aria-label="Предыдущий день">
               ←
             </Button>
             <Button type="button" variant="secondary" onClick={() => selectDate(todayIsoDate())}>
               Сегодня
             </Button>
-            <Button type="button" variant="secondary" onClick={() => selectDate(shiftIsoDate(date, 1))}>
+            <Button type="button" variant="secondary" onClick={() => selectDate(shiftIsoDate(date, 1))} aria-label="Следующий день">
               →
-            </Button>
-            <Button type="button" variant="secondary" onClick={() => setShowMonth((v) => !v)}>
-              {showMonth ? 'Скрыть месяц' : 'Месяц'}
             </Button>
             <Button type="button" variant="secondary" onClick={() => void load()}>
               Обновить
@@ -187,18 +196,6 @@ export function OrderCalendarView({ embedded = false, initialDate }: OrderCalend
           </div>
         </div>
       </Section>
-
-      {board && showMonth ? (
-        <Section>
-          <OrderCalendarMonthGrid
-            month={viewMonth}
-            selectedDate={date}
-            dateCounts={board.dateCounts}
-            onSelectDate={selectDate}
-            onChangeMonth={selectMonth}
-          />
-        </Section>
-      ) : null}
 
       {board ? (
         <Section>
@@ -217,21 +214,39 @@ export function OrderCalendarView({ embedded = false, initialDate }: OrderCalend
         <Section>
           {!permissions.canAssign && !permissions.canPrepare ? (
             <InlineAlert tone="info">
-              Перетаскивание недоступно — нужны права orders:assign или orders:prepare.
+              Перетаскивание недоступно — нужны права orders:assign или orders:prepare. Тяните карточку за ручку слева.
             </InlineAlert>
           ) : null}
-          <div className="order-calendar-layout">
-            <OrderCalendarBoard
-              sections={filteredSections}
-              selectedId={selected?.id ?? null}
-              permissions={permissions}
-              onSelect={setSelected}
-              onMove={handleMove}
-            />
-            <OrderCalendarDetailPanel base={base} card={selected} onClose={() => setSelected(null)} />
-          </div>
+          <OrderCalendarBoard
+            sections={filteredSections}
+            selectedId={selected?.id ?? null}
+            permissions={permissions}
+            onSelect={setSelected}
+            onMove={handleMove}
+          />
         </Section>
       ) : null}
+
+      <Dialog
+        open={selected !== null}
+        onClose={() => setSelected(null)}
+        title={selected ? `Заказ ${selected.number}` : 'Детали заказа'}
+        className="order-calendar-order-dialog"
+        footer={
+          selected ? (
+            <>
+              <Button type="button" variant="secondary" onClick={() => setSelected(null)}>
+                Закрыть
+              </Button>
+              <Link href={`${base}/orders/${selected.id}`} className="order-calendar-order-dialog__open">
+                <Button type="button">Открыть заказ</Button>
+              </Link>
+            </>
+          ) : null
+        }
+      >
+        {selected ? <OrderCalendarDetailContent base={base} card={selected} /> : null}
+      </Dialog>
     </>
   );
 
@@ -244,7 +259,7 @@ export function OrderCalendarView({ embedded = false, initialDate }: OrderCalend
       <PageContainer>
         <PageHeader
           title="Календарь заказов"
-          description="Смена на день — перетаскивайте карточки между колонками."
+          description="Смена на день — перетаскивайте карточки за ручку слева между колонками."
           breadcrumbs={[
             { label: 'Магазин', href: base },
             { label: 'Заказы', href: `${base}/orders` },
@@ -266,21 +281,6 @@ export function OrderCalendarView({ embedded = false, initialDate }: OrderCalend
           }
         />
         {content}
-        <Section>
-          <Card title="Другие виды">
-            <p className="order-calendar-footer-links">
-              <Link href={`${base}/orders`}>Список всех заказов</Link>
-              {' · '}
-              <Link href={`${base}/home`}>Обзор и KPI</Link>
-              {auth.hasPermission('delivery:read') ? (
-                <>
-                  {' · '}
-                  <Link href={`${base}/deliveries?date=${encodeURIComponent(date)}`}>Доставки</Link>
-                </>
-              ) : null}
-            </p>
-          </Card>
-        </Section>
       </PageContainer>
     </main>
   );

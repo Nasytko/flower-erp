@@ -1,4 +1,4 @@
-import type { OrderBoardColumn } from '@flower/api-client';
+import type { OrderBoardCardDto, OrderBoardColumn } from '@flower/api-client';
 
 export const ORDER_BOARD_COLUMN_LABELS: Record<OrderBoardColumn, string> = {
   NEW: 'Новые',
@@ -53,6 +53,34 @@ export function formatCalendarDayLabel(isoDate: string, todayIso: string): strin
   const day = d.getDate();
   if (isoDate === todayIso) return `сегодня, ${day}`;
   return `${weekday}, ${day}`;
+}
+
+export function formatDatePickerLabel(isoDate: string): string {
+  const d = new Date(`${isoDate}T12:00:00`);
+  return d.toLocaleDateString('ru-RU', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
+}
+
+export function formatDateStripWeekday(isoDate: string, todayIso: string): string {
+  if (isoDate === todayIso) return 'Сегодня';
+  const d = new Date(`${isoDate}T12:00:00`);
+  return d.toLocaleDateString('ru-RU', { weekday: 'short' });
+}
+
+export function orderCardSortKey(card: OrderBoardCardDto): number {
+  const iso = card.deliveryWindowStart ?? card.readyAt;
+  if (!iso) return Number.MAX_SAFE_INTEGER;
+  const ms = new Date(iso).getTime();
+  return Number.isNaN(ms) ? Number.MAX_SAFE_INTEGER : ms;
+}
+
+export function sortOrderBoardCards(a: OrderBoardCardDto, b: OrderBoardCardDto): number {
+  const diff = orderCardSortKey(a) - orderCardSortKey(b);
+  if (diff !== 0) return diff;
+  return a.number.localeCompare(b.number);
 }
 
 export function shiftIsoDate(isoDate: string, days: number): string {
