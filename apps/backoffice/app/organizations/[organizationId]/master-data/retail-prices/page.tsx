@@ -38,16 +38,6 @@ export default function RetailPricesPage() {
 
   const canManage = auth.hasPermission(CATALOG_ADMIN_PERMISSION);
 
-  if (!canManage) {
-    return (
-      <main>
-        <PageContainer>
-          <ErrorState message="Раздел доступен только директору." />
-        </PageContainer>
-      </main>
-    );
-  }
-
   async function load(week: string) {
     setLoading(true);
     setError(null);
@@ -79,15 +69,29 @@ export default function RetailPricesPage() {
   }
 
   useEffect(() => {
+    if (!canManage) {
+      setLoading(false);
+      return;
+    }
     void load(weekStart);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [organizationId, weekStart]);
+  }, [organizationId, weekStart, canManage]);
 
   const filledCount = useMemo(
     () =>
       [...flowers, ...materials].filter((row) => row.amount.trim() && Number(row.amount) >= 0).length,
     [flowers, materials],
   );
+
+  if (!canManage) {
+    return (
+      <main>
+        <PageContainer>
+          <ErrorState message="Раздел доступен только директору." />
+        </PageContainer>
+      </main>
+    );
+  }
 
   function shiftWeek(delta: number) {
     setWeekStart(addDaysIso(weekStart, delta * 7));
