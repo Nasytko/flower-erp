@@ -109,6 +109,8 @@ export type OrderCompositionSectionProps = {
     deficitQuantity?: string;
     item?: { name: string } | null;
   }>;
+  /** On first catalog load, pick SHOWCASE vs CUSTOM from available data. */
+  autoPickModeOnLoad?: boolean;
 };
 
 export function OrderCompositionSection({
@@ -123,35 +125,58 @@ export function OrderCompositionSection({
   disabled = false,
   showcaseError,
   reservedLines,
+  autoPickModeOnLoad = false,
 }: OrderCompositionSectionProps) {
   const [loading, setLoading] = useState(true);
   const [showcaseBouquets, setShowcaseBouquets] = useState<ShowcaseBouquet[]>([]);
+  const [showcaseLoadError, setShowcaseLoadError] = useState<string | null>(null);
   const [catalog, setCatalog] = useState<CatalogItem[]>([]);
   const [stockByItemId, setStockByItemId] = useState<Map<string, string>>(new Map());
   const [recipeLines, setRecipeLines] = useState<CompositionNeedLine[]>([]);
   const [catalogQuery, setCatalogQuery] = useState('');
+  const [modePicked, setModePicked] = useState(false);
+
+  const itemsHref = `/organizations/${organizationId}/master-data/items`;
+  const showcaseHref = `/organizations/${organizationId}/master-data/showcase-bouquets`;
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
+    setShowcaseLoadError(null);
     void (async () => {
       try {
         const client = getApiClient();
-        const [stock, bouquets, items] = await Promise.all([
+        const [stock, bouquetsResult, items] = await Promise.all([
           client.getOperationalStock(organizationId, storeId),
-          client.listShowcaseBouquets(organizationId).catch(() => [] as ShowcaseBouquet[]),
-          client.listItems(organizationId, { pageSize: 500, status: 'ACTIVE' }),
+          client.listShowcaseBouquets(organizationId).then(
+            (bouquets) => ({ bouquets, error: null as string | null }),
+            (err: unknown) => ({
+              bouquets: [] as ShowcaseBouquet[],
+              error:
+                err instanceof Error
+                  ? err.message
+                  : 'Не удалось загрузить букеты на витрине',
+            }),
+          ),
+          client.listItems(organizationId, {
+            pageSize: 500,
+            status: 'ACTIVE',
+            isSellable: false,
+          }),
         ]);
         if (cancelled) return;
         setStockByItemId(buildAvailableStockMap(stock.items));
-        setShowcaseBouquets(bouquets);
+        setShowcaseBouquets(bouquetsResult.bouquets);
+        setShowcaseLoadError(bouquetsResult.error);
         setCatalog(
           items.items.filter(
-            (item) => item.itemType === 'FLOWER' || item.itemType === 'MATERIAL',
+            (item) =>
+              !item.isSellable &&
+              (item.itemType === 'FLOWER' || item.itemType === 'MATERIAL'),
           ),
         );
-        if (bouquets[0] && !showcaseBouquetId) {
-          onShowcaseBouquetIdChange(bouquets[0]!.id);
+        if (bouquetsResult.bouquets[0] && !showcaseBouquetId) {
+          onShowcaseBouquetIdChange(bouquetsResult.bouquets[0]!.id);
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -162,6 +187,23 @@ export function OrderCompositionSection({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [organizationId, storeId]);
+
+  useEffect(() => {
+    if (!autoPickModeOnLoad || loading || modePicked) return;
+    if (showcaseBouquets.length > 0) {
+      onModeChange('SHOWCASE');
+    } else if (catalog.length > 0) {
+      onModeChange('CUSTOM');
+    }
+    setModePicked(true);
+  }, [
+    autoPickModeOnLoad,
+    loading,
+    modePicked,
+    showcaseBouquets.length,
+    catalog.length,
+    onModeChange,
+  ]);
 
   useEffect(() => {
     if (mode !== 'SHOWCASE' || !showcaseBouquetId) {
@@ -263,6 +305,12 @@ export function OrderCompositionSection({
         </button>
       </div>
 
+      {showcaseLoadError ? (
+        <InlineAlert tone="warning" title="Букеты на витрине недоступны">
+          {showcaseLoadError}. Проверьте, что на сервере применены миграции БД.
+        </InlineAlert>
+      ) : null}
+
       {mode === 'SHOWCASE' ? (
         showcaseBouquets.length > 0 ? (
           <>
@@ -308,17 +356,31 @@ export function OrderCompositionSection({
               </div>
             ) : null}
           </>
-        ) : (
+        ) : loading ? null : (
           <p className="field__hint">
-            Нет букетов на витрине.{' '}
-            <Link href={`/organizations/${organizationId}/master-data/showcase-bouquets`}>
-              Добавьте в справочнике
-            </Link>
-            .
+            Нет букетов на витрине. Добавьте их в{' '}
+            <Link href={showcaseHref}>Справочник → Букеты на витрине</Link>. Для сборки по
+            штукам переключитесь на «Собрать» и добавьте{' '}
+            <Link href={itemsHref}>товары-ингредиенты</Link>.
           </p>
         )
       ) : (
         <>
+          {showcaseBouquets.length > 0 ? (
+            <p className="field__hint">
+              Готовые букеты с рецептом — на вкладке{' '}
+              <button
+                type="button"
+                className="text-link"
+                style={{ border: 'none', background: 'none', padding: 0, cursor: 'pointer', font: 'inherit' }}
+                onClick={() => onModeChange('SHOWCASE')}
+                disabled={disabled}
+              >
+                «Букет с витрины»
+              </button>
+              .
+            </p>
+          ) : null}
           <Field label="Поиск">
             <Input
               value={catalogQuery}
@@ -329,7 +391,17 @@ export function OrderCompositionSection({
           </Field>
           <h4 className="order-composition-section__heading">Цветы</h4>
           {filterCatalog(flowers).length === 0 ? (
-            <p className="sale-cells__empty">Нет цветов в справочнике</p>
+            <p className="sale-cells__empty">
+              {loading
+                ? 'Загрузка…'
+                : (
+                    <>
+                      Нет цветов-ингредиентов.{' '}
+                      <Link href={itemsHref}>Добавьте в «Товары»</Link> (не в букеты на
+                      витрине).
+                    </>
+                  )}
+            </p>
           ) : (
             <div className="sale-cells" role="list">
               {filterCatalog(flowers).map((item) => {
@@ -363,7 +435,15 @@ export function OrderCompositionSection({
           )}
           <h4 className="order-composition-section__heading">Доп. услуги (+1)</h4>
           {filterCatalog(materials).length === 0 ? (
-            <p className="sale-cells__empty">Нет материалов в справочнике</p>
+            <p className="sale-cells__empty">
+              {loading ? (
+                'Загрузка…'
+              ) : (
+                <>
+                  Нет материалов. <Link href={itemsHref}>Добавьте в «Товары»</Link>.
+                </>
+              )}
+            </p>
           ) : (
             <div className="sale-cells" role="list">
               {filterCatalog(materials).map((item) => {

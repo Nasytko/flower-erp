@@ -324,6 +324,7 @@ export default function NewOrderPage() {
                     }
                   }}
                   showcaseError={fieldErrors.showcaseBouquet}
+                  autoPickModeOnLoad
                 />
                 {fieldErrors.composition ? (
                   <p className="field__error">{fieldErrors.composition}</p>

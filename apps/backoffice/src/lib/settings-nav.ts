@@ -44,7 +44,7 @@ export const CATALOG_SECTIONS: CatalogSection[] = [
   {
     slug: 'items',
     title: 'Товары',
-    description: 'Цветы, материалы и готовые букеты',
+    description: 'Цветы и материалы для закупок и сборки (ингредиенты)',
     permission: 'master-data:read',
   },
   {
