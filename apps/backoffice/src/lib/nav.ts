@@ -50,6 +50,12 @@ export const PRIMARY_NAV: NavItem[] = [
     storeScoped: true,
   },
   {
+    href: '/organizations/{orgId}/catalog',
+    label: 'Справочник',
+    permission: 'master-data:read',
+    orgScoped: true,
+  },
+  {
     href: '/organizations/{orgId}/stores/{storeId}/write-offs',
     label: 'Списания',
     permission: 'write-offs:read',
@@ -57,15 +63,36 @@ export const PRIMARY_NAV: NavItem[] = [
   },
 ];
 
-/** Director-only settings entry (footer). */
-export const SETTINGS_NAV: NavItem[] = [
+/** Director — org-wide ERP settings. */
+export const ORG_SETTINGS_NAV: NavItem[] = [
   {
     href: '/organizations/{orgId}/settings',
-    label: 'Настройки',
+    label: 'Настройки ERP',
     permission: 'users:read',
     orgScoped: true,
   },
 ];
+
+/** Director — store-scoped settings (requires store in workspace). */
+export const STORE_SETTINGS_NAV: NavItem[] = [
+  {
+    href: '/organizations/{orgId}/stores/{storeId}/settings',
+    label: 'Магазин',
+    anyPermission: ['stores:create', 'payments:manage-methods'],
+    storeScoped: true,
+  },
+];
+
+/** Personal account — all authenticated users. */
+export const ACCOUNT_NAV: NavItem[] = [
+  {
+    href: '/account',
+    label: 'Профиль',
+  },
+];
+
+/** @deprecated Use ORG_SETTINGS_NAV */
+export const SETTINGS_NAV = ORG_SETTINGS_NAV;
 
 /** Action shortcuts that resolve to PRIMARY_NAV routes (not a second nav source). */
 export type NavActionShortcut = {
@@ -176,6 +203,9 @@ export function isNavItemActive(pathname: string, href: string): boolean {
   if (href.endsWith('/orders/calendar')) {
     const ordersBase = href.replace(/\/calendar$/, '');
     return pathname === href || pathname.startsWith(`${ordersBase}/`);
+  }
+  if (href.endsWith('/catalog')) {
+    return pathname === href || pathname.startsWith(`${href}/`) || pathname.includes('/master-data/');
   }
   return pathname === href || pathname.startsWith(`${href}/`);
 }

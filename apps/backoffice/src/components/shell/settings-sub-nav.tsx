@@ -5,9 +5,13 @@ import { useMemo } from 'react';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/components/auth-provider';
 import {
-  filterSettingsNav,
+  filterOrgSettingsNav,
+  filterStoreSettingsNav,
   isSettingsNavItemActive,
-  SETTINGS_ACCESS_PERMISSION,
+  canAccessOrgSettings,
+  canAccessStoreSettings,
+  isOrgSettingsAreaPath,
+  isStoreSettingsAreaPath,
 } from '@/lib/settings-nav';
 import { resolveNavWorkspace } from '@/lib/nav';
 
@@ -20,27 +24,28 @@ export function SettingsSubNav({ onNavigate }: { onNavigate?: () => void }) {
     [pathname, auth.organization?.id],
   );
 
-  if (!auth.hasPermission(SETTINGS_ACCESS_PERMISSION)) {
-    return null;
-  }
+  const inStoreSettings = isStoreSettingsAreaPath(pathname);
+  const inOrgSettings = isOrgSettingsAreaPath(pathname);
 
-  if (!workspace.organizationId) {
-    return null;
-  }
-
-  const categories = filterSettingsNav(
-    auth.hasPermission,
-    workspace.organizationId,
-    workspace.storeId,
-  );
+  const categories = useMemo(() => {
+    if (inStoreSettings && workspace.organizationId && workspace.storeId && canAccessStoreSettings(auth.hasPermission)) {
+      return filterStoreSettingsNav(auth.hasPermission, workspace.organizationId, workspace.storeId);
+    }
+    if (inOrgSettings && workspace.organizationId && canAccessOrgSettings(auth.hasPermission)) {
+      return filterOrgSettingsNav(auth.hasPermission, workspace.organizationId);
+    }
+    return [];
+  }, [auth, inOrgSettings, inStoreSettings, workspace.organizationId, workspace.storeId]);
 
   if (categories.length === 0) {
     return null;
   }
 
+  const heading = inStoreSettings ? 'Настройки магазина' : 'Настройки ERP';
+
   return (
-    <div className="shell__nav-settings" aria-label="Настройки">
-      <p className="shell__nav-settings-heading">Настройки</p>
+    <div className="shell__nav-settings" aria-label={heading}>
+      <p className="shell__nav-settings-heading">{heading}</p>
       {categories.map((category) => (
         <div key={category.id} className="shell__nav-settings-group">
           <p className="shell__nav-settings-category">{category.label}</p>

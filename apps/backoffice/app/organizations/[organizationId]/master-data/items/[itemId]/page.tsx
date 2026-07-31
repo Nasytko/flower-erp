@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useParams } from 'next/navigation';
 import { Button, Card, Input } from '@flower/ui';
+import { useAuth } from '@/components/auth-provider';
 import { getApiClient } from '@/lib/api-client';
 import { FancySelect } from '@/components/layout/fancy-select';
 import { Field } from '@/components/layout/field';
@@ -12,7 +13,7 @@ import { Section } from '@/components/layout/section';
 import { ErrorState, LoadingState } from '@/components/layout/states';
 import { StatusBadge } from '@/components/layout/status-badge';
 import { formatApiErrorMessage } from '@/lib/format-api-error';
-import { masterDataBreadcrumbs } from '@/lib/settings-nav';
+import { catalogBreadcrumbs, canManageCatalog } from '@/lib/settings-nav';
 
 function itemTypeLabel(type: string) {
   return type === 'MATERIAL' ? 'Материал' : 'Цветок';
@@ -47,8 +48,10 @@ type CatalogItem = {
 
 export default function ItemDetailPage() {
   const params = useParams<{ organizationId: string; itemId: string }>();
+  const auth = useAuth();
   const { organizationId, itemId } = params;
   const base = `/organizations/${organizationId}/master-data`;
+  const canManage = canManageCatalog(auth.hasPermission);
 
   const [item, setItem] = useState<{
     id: string;
@@ -241,13 +244,13 @@ export default function ItemDetailPage() {
         <PageHeader
           title={item?.name ?? 'Товар'}
           description={item ? `Код ${item.code}` : 'Загрузка…'}
-          breadcrumbs={masterDataBreadcrumbs(
+          breadcrumbs={catalogBreadcrumbs(
             organizationId,
             { label: 'Товары', href: `${base}/items` },
             { label: item?.name ?? 'Товар' },
           )}
           actions={
-            item && item.status !== 'ARCHIVED' ? (
+            canManage && item && item.status !== 'ARCHIVED' ? (
               <Button variant="ghost" onClick={() => void onArchive()}>
                 Архив
               </Button>

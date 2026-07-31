@@ -8,7 +8,7 @@ import {
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import type { Request } from 'express';
-import { hasPermission } from '@flower/permissions';
+import { hasPermission, hasAnyPermission } from '@flower/permissions';
 import { CLOCK_PORT, type ClockPort } from '@flower/shared-kernel';
 import { getRequestContext, requestContextStorage } from '../../../infrastructure/context/request-context';
 import { AuthUseCases } from '../application/auth.use-cases';
@@ -24,7 +24,7 @@ import {
   assertStoreInScope,
   assertUserCanAuthenticate,
 } from '../../identity/domain/identity-rules';
-import { IS_PUBLIC_KEY, PERMISSIONS_KEY, SKIP_ORG_MATCH_KEY, SKIP_STORE_SCOPE_KEY, ALLOW_MUST_CHANGE_PASSWORD_KEY } from '../presentation/auth.decorators';
+import { IS_PUBLIC_KEY, PERMISSIONS_KEY, ANY_PERMISSIONS_KEY, SKIP_ORG_MATCH_KEY, SKIP_STORE_SCOPE_KEY, ALLOW_MUST_CHANGE_PASSWORD_KEY } from '../presentation/auth.decorators';
 
 type AuthedRequest = Request & {
   authContext?: ReturnType<AuthUseCases['buildAuthContext']>;
@@ -137,14 +137,23 @@ export class PermissionsGuard implements CanActivate {
       context.getHandler(),
       context.getClass(),
     ]);
-    if (!required || required.length === 0) return true;
+    const requiredAny = this.reflector.getAllAndOverride<string[]>(ANY_PERMISSIONS_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+    if ((!required || required.length === 0) && (!requiredAny || requiredAny.length === 0)) {
+      return true;
+    }
 
     const request = context.switchToHttp().getRequest<AuthedRequest>();
     const auth = request.authContext;
     if (!auth) {
       throw new UnauthorizedException({ code: 'UNAUTHENTICATED', message: 'Authentication required' });
     }
-    if (!hasPermission(auth.permissions, required)) {
+    if (required?.length && !hasPermission(auth.permissions, required)) {
+      throw new ForbiddenException({ code: 'ACCESS_DENIED', message: 'Insufficient permissions' });
+    }
+    if (requiredAny?.length && !hasAnyPermission(auth.permissions, requiredAny)) {
       throw new ForbiddenException({ code: 'ACCESS_DENIED', message: 'Insufficient permissions' });
     }
     return true;

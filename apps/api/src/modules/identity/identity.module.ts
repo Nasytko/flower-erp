@@ -6,13 +6,12 @@ import { UserManagementUseCases } from './application/user-management.use-cases'
 import { BootstrapOwnerUseCases } from './application/bootstrap-owner.use-cases';
 import { CreateDirectorUseCases } from './application/create-director.use-cases';
 import { UserController } from './presentation/user.controller';
-import { RoleController } from './presentation/role.controller';
 import { OrganizationModule } from '../organization/organization.module';
 import { MasterDataModule } from '../master-data/master-data.module';
 
 @Module({
   imports: [OrganizationModule, MasterDataModule],
-  controllers: [UserController, RoleController],
+  controllers: [UserController],
   providers: [
     { provide: IDENTITY_REPOSITORY, useClass: PrismaIdentityRepository },
     { provide: SESSION_REPOSITORY, useClass: PrismaSessionRepository },

@@ -93,10 +93,12 @@ function AppShellInner({
           </button>
           {auth.user ? (
             <div className="shell__user-menu">
-              <span className="shell__avatar" aria-hidden="true">
-                {initials || '•'}
-              </span>
-              <span className="shell__user-name">{auth.user.displayName}</span>
+              <Link href="/account" className="shell__user-menu-link">
+                <span className="shell__avatar" aria-hidden="true">
+                  {initials || '•'}
+                </span>
+                <span className="shell__user-name">{auth.user.displayName}</span>
+              </Link>
               <button type="button" className="shell__logout" onClick={() => void auth.logout()}>
                 {t('logout')}
               </button>

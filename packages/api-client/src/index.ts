@@ -286,16 +286,6 @@ export function createApiClient(options: ApiClientOptions) {
           body: JSON.stringify(body),
         },
       ),
-    listRoles: (organizationId: string) =>
-      request<
-        Array<{
-          id: string;
-          code: string;
-          name: string;
-          isSystem: boolean;
-          permissions: string[];
-        }>
-      >(`/organizations/${organizationId}/roles`),
     listAudit: (
       organizationId: string,
       query?: {

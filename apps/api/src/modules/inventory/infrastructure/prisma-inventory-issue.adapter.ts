@@ -14,6 +14,7 @@ import type {
   IssuedAllocation,
   ReverseIssueCommand,
 } from '../application/ports/inventory-issue.port';
+import { BATCH_CONSUMPTION_ORDER } from '../domain/batch-consumption-order';
 
 type Client = PrismaClient | PrismaTransactionClient;
 
@@ -409,7 +410,7 @@ export class PrismaInventoryIssueAdapter implements InventoryIssuePort {
         status: 'ACTIVE',
         remainingQuantity: { gt: 0 },
       },
-      orderBy: [{ expiresAt: { sort: 'asc', nulls: 'last' } }, { receivedAt: 'asc' }],
+      orderBy: BATCH_CONSUMPTION_ORDER,
     });
 
     let remaining = needed;

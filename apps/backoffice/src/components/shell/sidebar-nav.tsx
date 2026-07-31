@@ -6,14 +6,20 @@ import { usePathname } from 'next/navigation';
 import { useAuth } from '@/components/auth-provider';
 import { t } from '@/i18n/ru';
 import {
+  ACCOUNT_NAV,
+  ORG_SETTINGS_NAV,
+  STORE_SETTINGS_NAV,
   countStoreScopedEligible,
   filterNavByPermissions,
   isNavItemActive,
   PRIMARY_NAV,
   resolveNavWorkspace,
-  SETTINGS_NAV,
+  resolveStoreHomePath,
 } from '@/lib/nav';
-import { isSettingsAreaPath } from '@/lib/settings-nav';
+import {
+  isOrgSettingsAreaPath,
+  isStoreSettingsAreaPath,
+} from '@/lib/settings-nav';
 import { NavIcon } from './nav-icons';
 import { SettingsSubNav } from './settings-sub-nav';
 
@@ -31,28 +37,56 @@ export function SidebarNav({
     [pathname, auth.organization?.id],
   );
 
-  const inSettingsArea = isSettingsAreaPath(pathname);
+  const inOrgSettings = isOrgSettingsAreaPath(pathname);
+  const inStoreSettings = isStoreSettingsAreaPath(pathname);
+  const inSettingsMode = inOrgSettings || inStoreSettings;
 
-  const items = filterNavByPermissions(
-    PRIMARY_NAV,
+  const backToWorkHref = useMemo(() => {
+    if (workspace.organizationId && workspace.storeId) {
+      return resolveStoreHomePath(workspace.organizationId, workspace.storeId, auth.hasPermission);
+    }
+    return '/organizations';
+  }, [auth.hasPermission, workspace.organizationId, workspace.storeId]);
+
+  const items = inSettingsMode
+    ? []
+    : filterNavByPermissions(
+        PRIMARY_NAV,
+        auth.hasPermission,
+        workspace.organizationId,
+        workspace.storeId,
+      );
+
+  const orgSettingsItems = filterNavByPermissions(
+    ORG_SETTINGS_NAV,
     auth.hasPermission,
     workspace.organizationId,
     workspace.storeId,
   );
 
-  const settingsItems = filterNavByPermissions(
-    SETTINGS_NAV,
+  const storeSettingsItems = filterNavByPermissions(
+    STORE_SETTINGS_NAV,
     auth.hasPermission,
     workspace.organizationId,
     workspace.storeId,
   );
+
+  const accountItems = auth.user ? ACCOUNT_NAV.map((item) => ({ ...item, href: item.href })) : [];
 
   const needsStoreHint =
-    !workspace.storeId && countStoreScopedEligible(PRIMARY_NAV, auth.hasPermission) > 0;
+    !inSettingsMode &&
+    !workspace.storeId &&
+    countStoreScopedEligible(PRIMARY_NAV, auth.hasPermission) > 0;
 
-  function renderLink(item: (typeof items)[number] | (typeof settingsItems)[number]) {
-    const active = isNavItemActive(pathname, item.href) || (item.label === 'Настройки' && inSettingsArea);
-    const isSettings = item.label === 'Настройки';
+  function renderLink(
+    item: (typeof items)[number] | (typeof orgSettingsItems)[number] | (typeof accountItems)[number],
+    options?: { isSettings?: boolean },
+  ) {
+    const isSettings = options?.isSettings ?? (item.label.includes('Настройки') || item.label === 'Магазин');
+    const active =
+      isNavItemActive(pathname, item.href) ||
+      (item.label === 'Настройки ERP' && inOrgSettings) ||
+      (item.label === 'Магазин' && inStoreSettings);
     return (
       <Link
         key={`${item.label}:${item.href}`}
@@ -75,13 +109,28 @@ export function SidebarNav({
     );
   }
 
+  const footerItems = [...orgSettingsItems, ...storeSettingsItems, ...accountItems];
+
   return (
     <nav className={`shell__nav shell__nav--${variant}`} aria-label={t('navigate')}>
-      {needsStoreHint ? <p className="shell__nav-hint">{t('selectStoreHint')}</p> : null}
-      <div className="shell__nav-primary">{items.map(renderLink)}</div>
-      {inSettingsArea ? <SettingsSubNav onNavigate={onNavigate} /> : null}
-      {settingsItems.length > 0 ? (
-        <div className="shell__nav-footer">{settingsItems.map(renderLink)}</div>
+      {inSettingsMode ? (
+        <div className="shell__nav-settings-mode">
+          <Link
+            href={backToWorkHref}
+            className="shell__nav-link shell__nav-link--settings"
+            onClick={onNavigate}
+          >
+            <span className="shell__nav-text">← К работе</span>
+          </Link>
+        </div>
+      ) : null}
+      {!inSettingsMode && needsStoreHint ? (
+        <p className="shell__nav-hint">{t('selectStoreHint')}</p>
+      ) : null}
+      {!inSettingsMode ? <div className="shell__nav-primary">{items.map((item) => renderLink(item))}</div> : null}
+      {inSettingsMode ? <SettingsSubNav onNavigate={onNavigate} /> : null}
+      {!inSettingsMode && footerItems.length > 0 ? (
+        <div className="shell__nav-footer">{footerItems.map((item) => renderLink(item, { isSettings: item.label !== 'Профиль' }))}</div>
       ) : null}
     </nav>
   );

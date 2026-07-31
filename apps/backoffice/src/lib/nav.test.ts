@@ -36,7 +36,7 @@ Object.defineProperty(globalThis, 'window', {
   configurable: true,
 });
 
-test('PRIMARY_NAV follows staff IA with Заказы first', () => {
+test('PRIMARY_NAV follows staff IA with Заказы first and catalog', () => {
   const labels = PRIMARY_NAV.map((item) => item.label);
   assert.deepEqual(labels, [
     'Заказы',
@@ -44,12 +44,13 @@ test('PRIMARY_NAV follows staff IA with Заказы first', () => {
     'Клиенты',
     'Остатки',
     'Поступления',
+    'Справочник',
     'Списания',
   ]);
 });
 
-test('SETTINGS_NAV is director-only settings hub', () => {
-  const settings = SETTINGS_NAV.find((item) => item.label === 'Настройки');
+test('SETTINGS_NAV is director-only ERP settings hub', () => {
+  const settings = SETTINGS_NAV.find((item) => item.label === 'Настройки ERP');
   assert.ok(settings);
   assert.equal(settings?.permission, 'users:read');
   assert.equal(

@@ -3,6 +3,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { useParams } from 'next/navigation';
 import { Button, Card, Input } from '@flower/ui';
+import { useAuth } from '@/components/auth-provider';
 import { getApiClient } from '@/lib/api-client';
 import { PageContainer } from '@/components/layout/page-container';
 import { PageHeader } from '@/components/layout/page-header';
@@ -12,7 +13,7 @@ import { StatusBadge } from '@/components/layout/status-badge';
 import { Field } from '@/components/layout/field';
 import { FancySelect } from '@/components/layout/fancy-select';
 import { formatApiErrorMessage } from '@/lib/format-api-error';
-import { masterDataBreadcrumbs } from '@/lib/settings-nav';
+import { catalogAdminBreadcrumbs, CATALOG_ADMIN_PERMISSION } from '@/lib/settings-nav';
 import {
   type FieldErrors,
   firstFieldError,
@@ -39,6 +40,7 @@ function trackingLabel(method: string) {
 
 export default function PoliciesPage() {
   const params = useParams<{ organizationId: string }>();
+  const auth = useAuth();
   const organizationId = params.organizationId;
 
   const [items, setItems] = useState<Policy[]>([]);
@@ -110,13 +112,23 @@ export default function PoliciesPage() {
     }
   }
 
+  if (!auth.hasPermission(CATALOG_ADMIN_PERMISSION)) {
+    return (
+      <main>
+        <PageContainer>
+          <ErrorState message="Раздел доступен только директору." />
+        </PageContainer>
+      </main>
+    );
+  }
+
   return (
     <main>
       <PageContainer>
         <PageHeader
-          title="Политики учёта"
-          description="Правила учёта остатков: партии и срок годности. Сами остатки здесь не хранятся."
-          breadcrumbs={masterDataBreadcrumbs(organizationId, { label: 'Политики учёта' })}
+          title="Учёт по партиям"
+          description="Шаблон срока годности при приёмке. Фактический срок и остаток — в партии; продажи и списания списывают с самой старой партии."
+          breadcrumbs={catalogAdminBreadcrumbs(organizationId, { label: 'Учёт по партиям' })}
         />
         <Section>
           <Card title="Список">

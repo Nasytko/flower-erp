@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { useParams } from 'next/navigation';
 import { Button, Card, Input } from '@flower/ui';
+import { useAuth } from '@/components/auth-provider';
 import { getApiClient } from '@/lib/api-client';
 import { PageContainer } from '@/components/layout/page-container';
 import { PageHeader } from '@/components/layout/page-header';
@@ -13,7 +14,7 @@ import { StatusBadge } from '@/components/layout/status-badge';
 import { Field } from '@/components/layout/field';
 import { FancySelect } from '@/components/layout/fancy-select';
 import { formatApiErrorMessage } from '@/lib/format-api-error';
-import { masterDataBreadcrumbs } from '@/lib/settings-nav';
+import { catalogBreadcrumbs, canManageCatalog, canOperateCatalog } from '@/lib/settings-nav';
 import {
   type FieldErrors,
   firstFieldError,
@@ -48,8 +49,11 @@ function formatWhen(value?: string) {
 
 export default function ItemsPage() {
   const params = useParams<{ organizationId: string }>();
+  const auth = useAuth();
   const organizationId = params.organizationId;
   const base = `/organizations/${organizationId}/master-data`;
+  const canOperate = canOperateCatalog(auth.hasPermission);
+  const canManage = canManageCatalog(auth.hasPermission);
 
   const [items, setItems] = useState<Item[]>([]);
   const [page, setPage] = useState(1);
@@ -147,8 +151,8 @@ export default function ItemsPage() {
       <PageContainer>
         <PageHeader
           title="Товары"
-          description="Цветы и материалы для сборки, либо готовые букеты с признаком «продаётся»."
-          breadcrumbs={masterDataBreadcrumbs(organizationId, { label: 'Товары' })}
+          description="Цветы и материалы. Готовые букеты для витрины — в разделе «Букеты на витрине»."
+          breadcrumbs={catalogBreadcrumbs(organizationId, { label: 'Товары' })}
         />
 
         <Section>
@@ -219,7 +223,13 @@ export default function ItemsPage() {
             {loading ? <LoadingState /> : null}
             {error ? <ErrorState message={error} /> : null}
             {!loading && !error && items.length === 0 ? (
-              <EmptyState message="Товаров пока нет. Создайте первый товар ниже." />
+              <EmptyState
+                message={
+                  canOperate
+                    ? 'Товаров пока нет. Создайте первый товар ниже.'
+                    : 'Товаров пока нет.'
+                }
+              />
             ) : null}
             <ul className="list-stack">
               {items.map((item) => (
@@ -264,7 +274,7 @@ export default function ItemsPage() {
                           : null}
                       </div>
                     </div>
-                    {item.status !== 'ARCHIVED' ? (
+                    {canManage && item.status !== 'ARCHIVED' ? (
                       <Button variant="ghost" onClick={() => void onArchive(item.id)}>
                         Архив
                       </Button>
@@ -295,6 +305,7 @@ export default function ItemsPage() {
           </Card>
         </Section>
 
+        {canOperate ? (
         <Section>
           <Card title="Создать товар">
             <form onSubmit={onCreate} className="form-grid" noValidate>
@@ -394,6 +405,7 @@ export default function ItemsPage() {
             </form>
           </Card>
         </Section>
+        ) : null}
       </PageContainer>
     </main>
   );

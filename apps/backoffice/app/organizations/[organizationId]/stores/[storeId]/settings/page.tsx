@@ -21,7 +21,7 @@ import {
   requiredText,
 } from '@/lib/form-validation';
 import { formatApiErrorMessage } from '@/lib/format-api-error';
-import { settingsBreadcrumbs, settingsHubHref } from '@/lib/settings-nav';
+import { storeSettingsBreadcrumbs, orgSettingsHubHref } from '@/lib/settings-nav';
 
 type Store = {
   id: string;
@@ -148,7 +148,7 @@ export default function StoreSettingsPage() {
         <PageHeader
           title="Настройки магазина"
           refCode={store?.code}
-          breadcrumbs={settingsBreadcrumbs(organizationId, { label: 'Магазин и склад' })}
+          breadcrumbs={storeSettingsBreadcrumbs(organizationId, storeId, { label: 'Профиль магазина' })}
           actions={store ? <StatusBadge status={store.status} /> : undefined}
         />
 
@@ -216,7 +216,7 @@ export default function StoreSettingsPage() {
                   <Button type="submit" disabled={saving}>
                     {saving ? 'Сохранение…' : 'Сохранить'}
                   </Button>
-                  <Link href={settingsHubHref(organizationId)}>К настройкам</Link>
+                  <Link href={orgSettingsHubHref(organizationId)}>К настройкам ERP</Link>
                 </div>
               </form>
             </Card>

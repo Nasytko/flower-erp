@@ -12,6 +12,7 @@ import type {
   ReverseWriteOffCommand,
   WriteOffPostingResult,
 } from '../application/ports/inventory-write-off.port';
+import { BATCH_CONSUMPTION_ORDER } from '../domain/batch-consumption-order';
 
 type Client = PrismaClient | PrismaTransactionClient;
 type Scope = { organizationId: string; storeId: string; warehouseId: string };
@@ -60,7 +61,7 @@ export class PrismaInventoryWriteOffAdapter implements InventoryWriteOffPort {
             status: 'ACTIVE',
             remainingQuantity: { gt: 0 },
           },
-          orderBy: [{ expiresAt: { sort: 'asc', nulls: 'last' } }, { receivedAt: 'asc' }],
+          orderBy: BATCH_CONSUMPTION_ORDER,
         });
 
         let lineCost = new Prisma.Decimal(0);

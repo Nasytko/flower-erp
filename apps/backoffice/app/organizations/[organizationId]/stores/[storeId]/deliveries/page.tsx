@@ -127,13 +127,6 @@ export default function DeliveriesBoardPage() {
               <Button type="button" variant="secondary" onClick={() => void load()}>
                 Обновить
               </Button>
-              {auth.hasPermission('delivery:manage-couriers') ? (
-                <Link href={`${base}/couriers`}>
-                  <Button type="button" variant="secondary">
-                    Курьеры
-                  </Button>
-                </Link>
-              ) : null}
             </div>
           }
         />

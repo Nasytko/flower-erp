@@ -12,7 +12,7 @@ import { ErrorState, LoadingState } from '@/components/layout/states';
 import { Field } from '@/components/layout/field';
 import { addDaysIso, startOfWeekMonday } from '@/lib/retail-price';
 import { formatApiErrorMessage } from '@/lib/format-api-error';
-import { masterDataBreadcrumbs } from '@/lib/settings-nav';
+import { catalogAdminBreadcrumbs, CATALOG_ADMIN_PERMISSION } from '@/lib/settings-nav';
 import { useToast } from '@/components/ui/toast';
 
 type PriceRow = {
@@ -36,7 +36,17 @@ export default function RetailPricesPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const canManage = auth.hasPermission('master-data:manage');
+  const canManage = auth.hasPermission(CATALOG_ADMIN_PERMISSION);
+
+  if (!canManage) {
+    return (
+      <main>
+        <PageContainer>
+          <ErrorState message="Раздел доступен только директору." />
+        </PageContainer>
+      </main>
+    );
+  }
 
   async function load(week: string) {
     setLoading(true);
@@ -155,7 +165,7 @@ export default function RetailPricesPage() {
         <PageHeader
           title="Розничные цены"
           description="Цветы — цена за штуку на неделю. Материалы и упаковка — фиксированная услуга (+1)."
-          breadcrumbs={masterDataBreadcrumbs(organizationId, { label: 'Розничные цены' })}
+          breadcrumbs={catalogAdminBreadcrumbs(organizationId, { label: 'Розничные цены' })}
         />
 
         <Section>

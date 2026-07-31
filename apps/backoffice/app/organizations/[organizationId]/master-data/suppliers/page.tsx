@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useEffect, useState, type FormEvent } from 'react';
 import { useParams } from 'next/navigation';
 import { Button, Card, Input } from '@flower/ui';
+import { useAuth } from '@/components/auth-provider';
 import { getApiClient } from '@/lib/api-client';
 import { PageContainer } from '@/components/layout/page-container';
 import { PageHeader } from '@/components/layout/page-header';
@@ -12,7 +13,7 @@ import { EmptyState, ErrorState, LoadingState } from '@/components/layout/states
 import { StatusBadge } from '@/components/layout/status-badge';
 import { Field } from '@/components/layout/field';
 import { formatApiErrorMessage } from '@/lib/format-api-error';
-import { masterDataBreadcrumbs } from '@/lib/settings-nav';
+import { catalogBreadcrumbs, canManageCatalog, canOperateCatalog } from '@/lib/settings-nav';
 import {
   type FieldErrors,
   firstFieldError,
@@ -33,8 +34,11 @@ type Supplier = {
 
 export default function SuppliersPage() {
   const params = useParams<{ organizationId: string }>();
+  const auth = useAuth();
   const organizationId = params.organizationId;
   const base = `/organizations/${organizationId}/master-data`;
+  const canOperate = canOperateCatalog(auth.hasPermission);
+  const canManage = canManageCatalog(auth.hasPermission);
 
   const [items, setItems] = useState<Supplier[]>([]);
   const [nameFilter, setNameFilter] = useState('');
@@ -122,7 +126,7 @@ export default function SuppliersPage() {
         <PageHeader
           title="Поставщики"
           description="Справочник поставщиков для закупок и поставок."
-          breadcrumbs={masterDataBreadcrumbs(organizationId, { label: 'Поставщики' })}
+          breadcrumbs={catalogBreadcrumbs(organizationId, { label: 'Поставщики' })}
         />
         <Section>
           <Card title="Поиск">
@@ -180,7 +184,7 @@ export default function SuppliersPage() {
                         {item.contactPerson ? <span>{item.contactPerson}</span> : null}
                       </div>
                     </div>
-                    {item.status !== 'ARCHIVED' ? (
+                    {canManage && item.status !== 'ARCHIVED' ? (
                       <Button variant="ghost" onClick={() => void onArchive(item.id)}>
                         Архив
                       </Button>
@@ -191,6 +195,7 @@ export default function SuppliersPage() {
             </ul>
           </Card>
         </Section>
+        {canOperate ? (
         <Section>
           <Card title="Создать поставщика">
             <form onSubmit={onCreate} className="form-grid" noValidate>
@@ -237,6 +242,7 @@ export default function SuppliersPage() {
             </form>
           </Card>
         </Section>
+        ) : null}
       </PageContainer>
     </main>
   );

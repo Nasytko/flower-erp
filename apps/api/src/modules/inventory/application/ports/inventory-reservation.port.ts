@@ -71,7 +71,7 @@ export type ReserveOrderStockResult = {
 
 export interface InventoryReservationPort {
   /**
-   * Partial allowed (ADR-015): reserves as much as available per line (FEFO/FIFO).
+   * Partial allowed (ADR-015): reserves as much as available per line (FIFO by receipt date).
    * Releases prior ACTIVE for these composition item ids first, then creates new ACTIVE holds.
    */
   reserveComposition(command: ReserveCompositionCommand): Promise<ReserveCompositionResult>;

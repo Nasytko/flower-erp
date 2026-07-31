@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { Button, Card } from '@flower/ui';
+import { useAuth } from '@/components/auth-provider';
 import { ApiClientError } from '@flower/api-client';
 import { getApiClient } from '@/lib/api-client';
 import { PageContainer } from '@/components/layout/page-container';
@@ -10,12 +11,14 @@ import { PageHeader } from '@/components/layout/page-header';
 import { Section } from '@/components/layout/section';
 import { ErrorState, LoadingState } from '@/components/layout/states';
 import { StatusBadge } from '@/components/layout/status-badge';
-import { masterDataBreadcrumbs } from '@/lib/settings-nav';
+import { catalogBreadcrumbs, canManageCatalog } from '@/lib/settings-nav';
 
 export default function SupplierDetailPage() {
   const params = useParams<{ organizationId: string; supplierId: string }>();
+  const auth = useAuth();
   const { organizationId, supplierId } = params;
   const base = `/organizations/${organizationId}/master-data`;
+  const canManage = canManageCatalog(auth.hasPermission);
 
   const [supplier, setSupplier] = useState<{
     id: string;
@@ -68,13 +71,13 @@ export default function SupplierDetailPage() {
         <PageHeader
           title={supplier?.name ?? 'Поставщик'}
           description={supplier ? supplier.code : 'Загрузка…'}
-          breadcrumbs={masterDataBreadcrumbs(
+          breadcrumbs={catalogBreadcrumbs(
             organizationId,
             { label: 'Поставщики', href: `${base}/suppliers` },
             { label: supplier?.name ?? 'Поставщик' },
           )}
           actions={
-            supplier && supplier.status !== 'ARCHIVED' ? (
+            canManage && supplier && supplier.status !== 'ARCHIVED' ? (
               <Button variant="ghost" onClick={() => void onArchive()}>
                 Архив
               </Button>

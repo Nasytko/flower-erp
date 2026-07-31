@@ -1,5 +1,5 @@
 /**
- * Settings area — director-only configuration hub with expandable subcategories.
+ * ERP settings — split into org-wide admin, store admin, operational catalog, and user account.
  */
 
 export type SettingsNavItem = {
@@ -17,17 +17,30 @@ export type SettingsNavCategory = {
   items: SettingsNavItem[];
 };
 
-export type MasterDataSection = {
+export type CatalogSection = {
   slug: string;
   title: string;
   description: string;
   permission: string;
 };
 
-/** Permission gate for the entire settings area (director-only). */
-export const SETTINGS_ACCESS_PERMISSION = 'users:read';
+/** Org ERP settings hub — directors / platform admins only. */
+export const ORG_SETTINGS_ACCESS_PERMISSION = 'users:read';
 
-export const MASTER_DATA_SECTIONS: MasterDataSection[] = [
+/** Store settings — store profile and payment methods. */
+export const STORE_SETTINGS_ACCESS_ANY = ['stores:create', 'payments:manage-methods'] as const;
+
+/** Operational catalog (flowers, suppliers) — staff with read access. */
+export const CATALOG_ACCESS_PERMISSION = 'master-data:read';
+
+/** Full catalog admin (policies, retail prices). */
+export const CATALOG_ADMIN_PERMISSION = 'master-data:manage';
+
+/** @deprecated Use ORG_SETTINGS_ACCESS_PERMISSION */
+export const SETTINGS_ACCESS_PERMISSION = ORG_SETTINGS_ACCESS_PERMISSION;
+
+/** Operational sections — florist / courier / director. */
+export const CATALOG_SECTIONS: CatalogSection[] = [
   {
     slug: 'items',
     title: 'Товары',
@@ -35,22 +48,32 @@ export const MASTER_DATA_SECTIONS: MasterDataSection[] = [
     permission: 'master-data:read',
   },
   {
-    slug: 'categories',
-    title: 'Категории',
-    description: 'Дерево категорий без ограничения глубины',
-    permission: 'master-data:read',
-  },
-  {
     slug: 'suppliers',
     title: 'Поставщики',
-    description: 'Поставщики организации',
+    description: 'Поставщики цветов и материалов',
     permission: 'master-data:read',
   },
   {
-    slug: 'policies',
-    title: 'Политики учёта',
-    description: 'Метод учёта и срок годности по умолчанию',
+    slug: 'categories',
+    title: 'Категории',
+    description: 'Группы товаров в справочнике',
     permission: 'master-data:read',
+  },
+  {
+    slug: 'showcase-bouquets',
+    title: 'Букеты на витрине',
+    description: 'Готовые рецепты для заказов «Букет с витрины»',
+    permission: 'master-data:read',
+  },
+];
+
+/** Director-only catalog administration. */
+export const CATALOG_ADMIN_SECTIONS: CatalogSection[] = [
+  {
+    slug: 'policies',
+    title: 'Учёт по партиям',
+    description: 'Шаблон срока годности при приёмке',
+    permission: 'master-data:manage',
   },
   {
     slug: 'retail-prices',
@@ -60,80 +83,49 @@ export const MASTER_DATA_SECTIONS: MasterDataSection[] = [
   },
 ];
 
-export const SETTINGS_NAV_CATEGORIES: SettingsNavCategory[] = [
+/** @deprecated Use CATALOG_SECTIONS */
+export const MASTER_DATA_SECTIONS = [...CATALOG_SECTIONS, ...CATALOG_ADMIN_SECTIONS];
+
+export const ORG_SETTINGS_NAV_CATEGORIES: SettingsNavCategory[] = [
   {
     id: 'organization',
     label: 'Организация',
     items: [
       {
-        href: '/organizations/{orgId}',
+        href: '/organizations/{orgId}/settings/stores',
         label: 'Магазины',
-        description: 'Список магазинов и создание новых точек',
+        description: 'Точки продаж и создание новых',
         permission: 'organization:read',
-        storeScoped: false,
       },
       {
         href: '/organizations/{orgId}/integrations',
         label: 'Карты и навигация',
-        description: 'Яндекс.Карты, геокодирование, центр карты',
+        description: 'Яндекс.Карты, геокодирование',
         permission: 'organization:manage',
       },
     ],
   },
   {
     id: 'people',
-    label: 'Люди и доступ',
+    label: 'Команда',
     items: [
       {
         href: '/organizations/{orgId}/users',
         label: 'Сотрудники',
-        description: 'Учётные записи, роли и доступ к магазинам',
+        description: 'Учётные записи, роли, доступ к магазинам',
         permission: 'users:read',
       },
-      {
-        href: '/organizations/{orgId}/roles',
-        label: 'Роли и права',
-        description: 'Справочник системных ролей (назначение — в «Сотрудники»)',
-        permission: 'roles:manage',
-      },
     ],
   },
   {
-    id: 'master-data',
-    label: 'Справочники',
+    id: 'catalog-admin',
+    label: 'Справочники (админ)',
     items: [
       {
-        href: '/organizations/{orgId}/master-data',
-        label: 'Справочники',
-        description: 'Товары, категории, поставщики, политики, цены',
-        permission: 'master-data:read',
-      },
-    ],
-  },
-  {
-    id: 'store',
-    label: 'Магазин',
-    items: [
-      {
-        href: '/organizations/{orgId}/stores/{storeId}/settings',
-        label: 'Магазин и склад',
-        description: 'Название, адрес, часовой пояс, склад',
-        permission: 'stores:create',
-        storeScoped: true,
-      },
-      {
-        href: '/organizations/{orgId}/stores/{storeId}/payment-methods',
-        label: 'Способы оплаты',
-        description: 'Каталог методов оплаты',
-        permission: 'payments:manage-methods',
-        storeScoped: true,
-      },
-      {
-        href: '/organizations/{orgId}/stores/{storeId}/couriers',
-        label: 'Курьеры',
-        description: 'Профили курьеров для доставок',
-        permission: 'delivery:manage-couriers',
-        storeScoped: true,
+        href: '/organizations/{orgId}/settings/catalog',
+        label: 'Учёт и цены',
+        description: 'Политики партий и розничные цены',
+        permission: 'master-data:manage',
       },
     ],
   },
@@ -144,51 +136,173 @@ export const SETTINGS_NAV_CATEGORIES: SettingsNavCategory[] = [
       {
         href: '/organizations/{orgId}/audit',
         label: 'Журнал действий',
-        description: 'Аудит изменений в системе',
+        description: 'Аудит изменений',
         permission: 'audit:read',
       },
     ],
   },
 ];
 
-const SETTINGS_PATH_PATTERNS = [
-  /^\/organizations\/[^/]+\/settings(\/|$)/,
-  /^\/organizations\/[^/]+\/users(\/|$)/,
-  /^\/organizations\/[^/]+\/roles(\/|$)/,
-  /^\/organizations\/[^/]+\/audit(\/|$)/,
-  /^\/organizations\/[^/]+\/integrations(\/|$)/,
-  /^\/organizations\/[^/]+\/master-data(\/|$)/,
-  /^\/organizations\/[^/]+\/stores\/[^/]+\/settings(\/|$)/,
-  /^\/organizations\/[^/]+\/stores\/[^/]+\/payment-methods(\/|$)/,
-  /^\/organizations\/[^/]+\/stores\/[^/]+\/couriers(\/|$)/,
-  /^\/organizations\/[^/]+$/,
+export const STORE_SETTINGS_NAV_CATEGORIES: SettingsNavCategory[] = [
+  {
+    id: 'store',
+    label: 'Магазин',
+    items: [
+      {
+        href: '/organizations/{orgId}/stores/{storeId}/settings',
+        label: 'Профиль магазина',
+        description: 'Название, адрес, часовой пояс, склад',
+        anyPermission: ['stores:create'],
+        storeScoped: true,
+      },
+      {
+        href: '/organizations/{orgId}/stores/{storeId}/payment-methods',
+        label: 'Способы оплаты',
+        description: 'Каталог методов оплаты',
+        anyPermission: ['payments:manage-methods'],
+        storeScoped: true,
+      },
+    ],
+  },
 ];
 
-export function settingsHubHref(organizationId: string): string {
+/** @deprecated Split into ORG + STORE categories */
+export const SETTINGS_NAV_CATEGORIES = ORG_SETTINGS_NAV_CATEGORIES;
+
+const ORG_SETTINGS_PATH_PATTERNS = [
+  /^\/organizations\/[^/]+\/settings(\/|$)/,
+  /^\/organizations\/[^/]+\/users(\/|$)/,
+  /^\/organizations\/[^/]+\/audit(\/|$)/,
+  /^\/organizations\/[^/]+\/integrations(\/|$)/,
+];
+
+const STORE_SETTINGS_PATH_PATTERNS = [
+  /^\/organizations\/[^/]+\/stores\/[^/]+\/settings(\/|$)/,
+  /^\/organizations\/[^/]+\/stores\/[^/]+\/payment-methods(\/|$)/,
+];
+
+const CATALOG_PATH_PATTERNS = [
+  /^\/organizations\/[^/]+\/catalog(\/|$)/,
+  /^\/organizations\/[^/]+\/master-data(\/|$)/,
+];
+
+const ACCOUNT_PATH_PATTERNS = [/^\/account(\/|$)/, /^\/change-password(\/|$)/];
+
+export function orgSettingsHubHref(organizationId: string): string {
   return `/organizations/${organizationId}/settings`;
 }
 
-export function settingsBreadcrumbs(
+/** @deprecated Use orgSettingsHubHref */
+export function settingsHubHref(organizationId: string): string {
+  return orgSettingsHubHref(organizationId);
+}
+
+export function storeSettingsHubHref(organizationId: string, storeId: string): string {
+  return `/organizations/${organizationId}/stores/${storeId}/settings`;
+}
+
+export function catalogHubHref(organizationId: string): string {
+  return `/organizations/${organizationId}/catalog`;
+}
+
+export function accountSettingsHref(): string {
+  return '/account';
+}
+
+export function orgSettingsBreadcrumbs(
   organizationId: string,
   ...trail: Array<{ label: string; href?: string }>
 ) {
   return [
     { label: 'Организации', href: '/organizations' },
-    { label: 'Настройки', href: settingsHubHref(organizationId) },
+    { label: 'Настройки ERP', href: orgSettingsHubHref(organizationId) },
     ...trail,
   ];
 }
 
+/** @deprecated Use orgSettingsBreadcrumbs */
+export function settingsBreadcrumbs(
+  organizationId: string,
+  ...trail: Array<{ label: string; href?: string }>
+) {
+  return orgSettingsBreadcrumbs(organizationId, ...trail);
+}
+
+export function storeSettingsBreadcrumbs(
+  organizationId: string,
+  storeId: string,
+  ...trail: Array<{ label: string; href?: string }>
+) {
+  return [
+    { label: 'Организации', href: '/organizations' },
+    { label: 'Настройки магазина', href: storeSettingsHubHref(organizationId, storeId) },
+    ...trail,
+  ];
+}
+
+export function catalogBreadcrumbs(
+  organizationId: string,
+  ...trail: Array<{ label: string; href?: string }>
+) {
+  return [
+    { label: 'Организации', href: '/organizations' },
+    { label: 'Справочник', href: catalogHubHref(organizationId) },
+    ...trail,
+  ];
+}
+
+export function catalogAdminBreadcrumbs(
+  organizationId: string,
+  ...trail: Array<{ label: string; href?: string }>
+) {
+  const base = `/organizations/${organizationId}/settings/catalog`;
+  return orgSettingsBreadcrumbs(organizationId, { label: 'Учёт и цены', href: base }, ...trail);
+}
+
+/** @deprecated Use catalogBreadcrumbs or catalogAdminBreadcrumbs */
 export function masterDataBreadcrumbs(
   organizationId: string,
   ...trail: Array<{ label: string; href?: string }>
 ) {
-  const base = `/organizations/${organizationId}/master-data`;
-  return settingsBreadcrumbs(organizationId, { label: 'Справочники', href: base }, ...trail);
+  return catalogBreadcrumbs(organizationId, ...trail);
+}
+
+export function isOrgSettingsAreaPath(pathname: string): boolean {
+  return ORG_SETTINGS_PATH_PATTERNS.some((pattern) => pattern.test(pathname));
+}
+
+export function isStoreSettingsAreaPath(pathname: string): boolean {
+  return STORE_SETTINGS_PATH_PATTERNS.some((pattern) => pattern.test(pathname));
+}
+
+export function isCatalogAreaPath(pathname: string): boolean {
+  return CATALOG_PATH_PATTERNS.some((pattern) => pattern.test(pathname));
+}
+
+export function isAccountAreaPath(pathname: string): boolean {
+  return ACCOUNT_PATH_PATTERNS.some((pattern) => pattern.test(pathname));
 }
 
 export function isSettingsAreaPath(pathname: string): boolean {
-  return SETTINGS_PATH_PATTERNS.some((pattern) => pattern.test(pathname));
+  return isOrgSettingsAreaPath(pathname) || isStoreSettingsAreaPath(pathname);
+}
+
+export function canAccessOrgSettings(hasPermission: (code: string) => boolean): boolean {
+  return hasPermission(ORG_SETTINGS_ACCESS_PERMISSION);
+}
+
+export function canAccessStoreSettings(hasPermission: (code: string) => boolean): boolean {
+  return STORE_SETTINGS_ACCESS_ANY.some((code) => hasPermission(code));
+}
+
+export function canOperateCatalog(hasPermission: (code: string) => boolean): boolean {
+  return (
+    hasPermission('master-data:operate') || hasPermission('master-data:manage')
+  );
+}
+
+export function canManageCatalog(hasPermission: (code: string) => boolean): boolean {
+  return hasPermission(CATALOG_ADMIN_PERMISSION);
 }
 
 function itemAllowed(item: SettingsNavItem, hasPermission: (code: string) => boolean): boolean {
@@ -212,28 +326,54 @@ export function resolveSettingsHref(
     .replace('{storeId}', storeId ?? '');
 }
 
+function filterCategories(
+  categories: SettingsNavCategory[],
+  hasPermission: (code: string) => boolean,
+  organizationId: string,
+  storeId?: string | null,
+) {
+  return categories
+    .map((category) => ({
+      ...category,
+      items: category.items
+        .filter((item) => itemAllowed(item, hasPermission))
+        .map((item) => {
+          const href = resolveSettingsHref(item, organizationId, storeId);
+          return href ? { ...item, href } : null;
+        })
+        .filter((item): item is SettingsNavItem & { href: string } => item !== null),
+    }))
+    .filter((category) => category.items.length > 0);
+}
+
+export function filterOrgSettingsNav(
+  hasPermission: (code: string) => boolean,
+  organizationId: string,
+) {
+  return filterCategories(ORG_SETTINGS_NAV_CATEGORIES, hasPermission, organizationId);
+}
+
+export function filterStoreSettingsNav(
+  hasPermission: (code: string) => boolean,
+  organizationId: string,
+  storeId: string,
+) {
+  return filterCategories(STORE_SETTINGS_NAV_CATEGORIES, hasPermission, organizationId, storeId);
+}
+
+/** @deprecated Use filterOrgSettingsNav or filterStoreSettingsNav */
 export function filterSettingsNav(
   hasPermission: (code: string) => boolean,
   organizationId: string,
   storeId?: string | null,
-): Array<SettingsNavCategory & { items: Array<SettingsNavItem & { href: string }> }> {
-  return SETTINGS_NAV_CATEGORIES.map((category) => ({
-    ...category,
-    items: category.items
-      .filter((item) => itemAllowed(item, hasPermission))
-      .map((item) => {
-        const href = resolveSettingsHref(item, organizationId, storeId);
-        return href ? { ...item, href } : null;
-      })
-      .filter((item): item is SettingsNavItem & { href: string } => item !== null),
-  })).filter((category) => category.items.length > 0);
+) {
+  const org = filterOrgSettingsNav(hasPermission, organizationId);
+  if (!storeId) return org;
+  return [...org, ...filterStoreSettingsNav(hasPermission, organizationId, storeId)];
 }
 
 export function isSettingsNavItemActive(pathname: string, href: string): boolean {
-  if (href.match(/\/organizations\/[^/]+$/)) {
-    return pathname === href;
-  }
-  if (href.endsWith('/master-data')) {
+  if (href.endsWith('/master-data') || href.endsWith('/catalog') || href.endsWith('/settings/catalog')) {
     return pathname === href || pathname.startsWith(`${href}/`);
   }
   return pathname === href || pathname.startsWith(`${href}/`);

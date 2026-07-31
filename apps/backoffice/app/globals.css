@@ -651,6 +651,19 @@ input {
   box-shadow: var(--shadow-sm);
 }
 
+.shell__user-menu-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  color: inherit;
+  text-decoration: none;
+}
+
+.shell__user-menu-link:hover .shell__user-name {
+  color: var(--color-primary);
+}
+
 .shell__user-menu .shell__user-name {
   color: var(--color-foreground);
   font-weight: var(--font-semibold);
@@ -4711,6 +4724,35 @@ a.attention-item:hover {
 }
 
 /* ─── Settings hub links ─────────────────────────────────────────────────── */
+
+.settings-hub__grid {
+  display: grid;
+  gap: var(--space-5);
+}
+
+@media (min-width: 960px) {
+  .settings-hub__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+  }
+}
+
+.settings-hub__back-link {
+  font-size: var(--text-sm);
+  font-weight: var(--font-semibold);
+  color: var(--color-primary);
+  text-decoration: none;
+}
+
+.settings-hub__back-link:hover {
+  text-decoration: underline;
+}
+
+.shell__nav-settings-mode {
+  padding-bottom: var(--space-2);
+  margin-bottom: var(--space-2);
+  border-bottom: 1px solid var(--color-border);
+}
 
 .settings-links {
   list-style: none;

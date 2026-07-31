@@ -257,6 +257,10 @@ export interface DeliveryRepository {
     organizationId: string,
     courierId: string,
   ): Promise<CourierProfileView | null>;
+  findCourierByMembershipId(
+    organizationId: string,
+    membershipId: string,
+  ): Promise<CourierProfileView | null>;
   listCouriers(
     organizationId: string,
     status?: CourierStatus,

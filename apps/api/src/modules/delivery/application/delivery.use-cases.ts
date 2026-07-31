@@ -900,6 +900,45 @@ export class DeliveryUseCases implements DeliveryReadinessPort, DeliveryFulfillm
     return updated;
   }
 
+  /** Courier in delivery = user with COURIER role; profile is synced automatically. */
+  async syncCourierMembership(input: {
+    organizationId: string;
+    membershipId: string;
+    displayName: string;
+    phoneSnapshot?: string | null;
+    isCourier: boolean;
+  }) {
+    await this.organizations.getOrganization(input.organizationId);
+    const existing = await this.deliveries.findCourierByMembershipId(
+      input.organizationId,
+      input.membershipId,
+    );
+
+    if (input.isCourier) {
+      if (existing) {
+        if (existing.status === CourierStatus.ARCHIVED) {
+          await this.deliveries.updateCourierStatus(
+            input.organizationId,
+            existing.id,
+            CourierStatus.ACTIVE,
+          );
+        }
+        return existing;
+      }
+      return this.createCourier({
+        organizationId: input.organizationId,
+        membershipId: input.membershipId,
+        displayNameSnapshot: input.displayName,
+        phoneSnapshot: input.phoneSnapshot ?? null,
+      });
+    }
+
+    if (existing && existing.status !== CourierStatus.ARCHIVED) {
+      await this.archiveCourier(input.organizationId, existing.id);
+    }
+    return null;
+  }
+
   async getDelivery(
     organizationId: string,
     storeId: string,

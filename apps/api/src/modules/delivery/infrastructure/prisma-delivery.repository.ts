@@ -374,6 +374,16 @@ export class PrismaDeliveryRepository implements DeliveryRepository {
     return row ? mapCourier(row as Parameters<typeof mapCourier>[0]) : null;
   }
 
+  async findCourierByMembershipId(
+    organizationId: string,
+    membershipId: string,
+  ): Promise<CourierProfileView | null> {
+    const row = await this.client().courierProfile.findFirst({
+      where: { organizationId, membershipId },
+    });
+    return row ? mapCourier(row as Parameters<typeof mapCourier>[0]) : null;
+  }
+
   async listCouriers(
     organizationId: string,
     status?: CourierStatus,

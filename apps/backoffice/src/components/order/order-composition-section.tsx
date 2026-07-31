@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { Input } from '@flower/ui';
 import { getApiClient } from '@/lib/api-client';
@@ -309,7 +310,11 @@ export function OrderCompositionSection({
           </>
         ) : (
           <p className="field__hint">
-            Нет букетов на витрине. Отметьте позицию «На витрине» в справочнике.
+            Нет букетов на витрине.{' '}
+            <Link href={`/organizations/${organizationId}/master-data/showcase-bouquets`}>
+              Добавьте в справочнике
+            </Link>
+            .
           </p>
         )
       ) : (

@@ -16,6 +16,7 @@ import type {
   ReserveOrderStockCommand,
   ReserveOrderStockResult,
 } from '../application/ports/inventory-reservation.port';
+import { BATCH_CONSUMPTION_ORDER } from '../domain/batch-consumption-order';
 
 type Client = PrismaClient | PrismaTransactionClient;
 
@@ -87,10 +88,7 @@ export class PrismaInventoryReservationAdapter implements InventoryReservationPo
             status: 'ACTIVE',
             remainingQuantity: { gt: 0 },
           },
-          orderBy: [
-            { expiresAt: { sort: 'asc', nulls: 'last' } },
-            { receivedAt: 'asc' },
-          ],
+          orderBy: BATCH_CONSUMPTION_ORDER,
         });
 
         let remaining = toReserve;

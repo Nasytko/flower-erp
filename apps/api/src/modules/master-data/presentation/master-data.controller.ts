@@ -12,7 +12,7 @@ import {
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { PaginatedResponse } from '@flower/contracts';
-import { RequirePermissions } from '../../auth/presentation/auth.decorators';
+import { RequirePermissions, RequireAnyPermissions } from '../../auth/presentation/auth.decorators';
 import { SupplierUseCases } from '../application/supplier.use-cases';
 import { CategoryUseCases } from '../application/category.use-cases';
 import { PolicyUseCases } from '../application/policy.use-cases';
@@ -80,7 +80,7 @@ export class MasterDataController {
   }
 
   @Post('suppliers')
-  @RequirePermissions('master-data:manage')
+  @RequireAnyPermissions('master-data:manage', 'master-data:operate')
   @ApiOperation({ summary: 'Create supplier' })
   createSupplier(@Param() params: OrganizationIdParamDto, @Body() body: CreateSupplierDto) {
     return this.suppliers.createSupplier({ organizationId: params.organizationId, ...body });
@@ -122,7 +122,7 @@ export class MasterDataController {
   // ─── Categories ───────────────────────────────────────────────────────────
 
   @Post('categories')
-  @RequirePermissions('master-data:manage')
+  @RequireAnyPermissions('master-data:manage', 'master-data:operate')
   @ApiOperation({ summary: 'Create item category' })
   createCategory(@Param() params: OrganizationIdParamDto, @Body() body: CreateCategoryDto) {
     return this.categories.createCategory({
@@ -206,7 +206,7 @@ export class MasterDataController {
   // ─── Items ────────────────────────────────────────────────────────────────
 
   @Post('items')
-  @RequirePermissions('master-data:manage')
+  @RequireAnyPermissions('master-data:manage', 'master-data:operate')
   @ApiOperation({ summary: 'Create item' })
   createItem(@Param() params: OrganizationIdParamDto, @Body() body: CreateItemDto) {
     return this.items.createItem({ organizationId: params.organizationId, ...body });
@@ -239,7 +239,7 @@ export class MasterDataController {
   }
 
   @Patch('items/:itemId')
-  @RequirePermissions('master-data:manage')
+  @RequireAnyPermissions('master-data:manage', 'master-data:operate')
   @ApiOperation({ summary: 'Update item' })
   updateItem(@Param() params: ItemIdParamDto, @Body() body: UpdateItemDto) {
     return this.items.updateItem({

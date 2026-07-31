@@ -38,7 +38,7 @@ async function boot() {
   return moduleRef;
 }
 
-test('write-off uses FEFO, rejects reserved stock, and reverses', { skip: !runIntegration }, async () => {
+test('write-off uses FIFO by receipt date, rejects reserved stock, and reverses', { skip: !runIntegration }, async () => {
   const auth = await bootstrapDirector();
   const moduleRef = await boot();
   const categories = moduleRef.get(CategoryUseCases);

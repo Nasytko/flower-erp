@@ -37,6 +37,13 @@ test('florist lacks admin permissions', () => {
   assert.equal(hasPermission(FLORIST_PERMISSIONS, ['supply:reverse']), false);
   assert.equal(hasPermission(FLORIST_PERMISSIONS, ['delivery:manage-couriers']), false);
   assert.equal(hasPermission(FLORIST_PERMISSIONS, ['delivery:complete']), false);
+  assert.equal(hasPermission(FLORIST_PERMISSIONS, ['master-data:manage']), false);
+});
+
+test('florist and courier can operate catalog', () => {
+  assert.equal(hasPermission(FLORIST_PERMISSIONS, ['master-data:operate']), true);
+  assert.equal(hasPermission(COURIER_PERMISSIONS, ['master-data:operate']), true);
+  assert.equal(hasPermission(COURIER_PERMISSIONS, ['master-data:read']), true);
 });
 
 test('courier has delivery execution permissions only', () => {

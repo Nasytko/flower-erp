@@ -3,6 +3,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { useParams } from 'next/navigation';
 import { Button, Card, Input } from '@flower/ui';
+import { useAuth } from '@/components/auth-provider';
 import { getApiClient } from '@/lib/api-client';
 import { PageContainer } from '@/components/layout/page-container';
 import { PageHeader } from '@/components/layout/page-header';
@@ -12,7 +13,7 @@ import { StatusBadge } from '@/components/layout/status-badge';
 import { Field } from '@/components/layout/field';
 import { FancySelect } from '@/components/layout/fancy-select';
 import { formatApiErrorMessage } from '@/lib/format-api-error';
-import { masterDataBreadcrumbs } from '@/lib/settings-nav';
+import { catalogBreadcrumbs, canManageCatalog, canOperateCatalog } from '@/lib/settings-nav';
 import {
   type FieldErrors,
   firstFieldError,
@@ -30,7 +31,10 @@ type Category = {
 
 export default function CategoriesPage() {
   const params = useParams<{ organizationId: string }>();
+  const auth = useAuth();
   const organizationId = params.organizationId;
+  const canOperate = canOperateCatalog(auth.hasPermission);
+  const canManage = canManageCatalog(auth.hasPermission);
 
   const [items, setItems] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
@@ -104,7 +108,7 @@ export default function CategoriesPage() {
         <PageHeader
           title="Категории"
           description="Дерево категорий товаров. Архивация запрещена, если есть дочерние категории или товары."
-          breadcrumbs={masterDataBreadcrumbs(organizationId, { label: 'Категории' })}
+          breadcrumbs={catalogBreadcrumbs(organizationId, { label: 'Категории' })}
         />
         <Section>
           <Card title="Список">
@@ -135,7 +139,7 @@ export default function CategoriesPage() {
                         <span style={{ fontSize: 'var(--text-xs)' }}>{parentName(item.parentId)}</span>
                       </div>
                     </div>
-                    {item.status !== 'ARCHIVED' ? (
+                    {canManage && item.status !== 'ARCHIVED' ? (
                       <Button variant="ghost" onClick={() => void onArchive(item.id)}>
                         Архив
                       </Button>
@@ -146,6 +150,7 @@ export default function CategoriesPage() {
             </ul>
           </Card>
         </Section>
+        {canOperate ? (
         <Section>
           <Card title="Создать категорию">
             <form onSubmit={onCreate} className="form-grid" noValidate>
@@ -183,6 +188,7 @@ export default function CategoriesPage() {
             </form>
           </Card>
         </Section>
+        ) : null}
       </PageContainer>
     </main>
   );

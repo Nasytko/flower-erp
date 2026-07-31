@@ -27,6 +27,7 @@ import {
   STORE_REPOSITORY,
   type StoreRepository,
 } from '../../organization/application/ports/repositories';
+import { DeliveryUseCases } from '../../delivery/application/delivery.use-cases';
 
 @Injectable()
 export class UserManagementUseCases {
@@ -37,6 +38,7 @@ export class UserManagementUseCases {
     @Inject(UNIT_OF_WORK) private readonly uow: UnitOfWork,
     @Inject(AUDIT_PORT) private readonly audit: AuditPort,
     private readonly passwords: Argon2PasswordService,
+    private readonly deliveries: DeliveryUseCases,
   ) {}
 
   async listUsers(organizationId: string) {
@@ -173,6 +175,15 @@ export class UserManagementUseCases {
       await this.identity.replaceMembershipRoles(membership.id, roleIds);
       await this.auditUser(organizationId, userId, 'ROLES_ASSIGNED', { roleCodes });
     });
+
+    const user = await this.identity.findUserById(userId);
+    await this.deliveries.syncCourierMembership({
+      organizationId,
+      membershipId: membership.id,
+      displayName: user?.displayName ?? userId,
+      phoneSnapshot: user?.email ?? null,
+      isCourier: roleCodes.includes('COURIER'),
+    });
   }
 
   async setStoreAccess(
@@ -195,10 +206,6 @@ export class UserManagementUseCases {
       await this.identity.setStoreAccess(membership.id, input.mode, storeIds);
       await this.auditUser(organizationId, userId, 'STORE_ACCESS_CHANGED', input);
     });
-  }
-
-  listRoles(organizationId: string) {
-    return this.identity.ensureSystemRoles(organizationId).then(() => this.identity.listRoles(organizationId));
   }
 
   private async ensureMembership(organizationId: string, userId: string) {

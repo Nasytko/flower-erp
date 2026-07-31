@@ -11,6 +11,7 @@ export type PermissionCode =
   | 'stores:archive'
   | 'master-data:read'
   | 'master-data:manage'
+  | 'master-data:operate'
   | 'supply:read'
   | 'supply:create'
   | 'supply:submit'
@@ -76,7 +77,8 @@ export const PERMISSION_REGISTRY: readonly PermissionDefinition[] = [
   { code: 'stores:create', description: 'Create stores and default warehouses' },
   { code: 'stores:archive', description: 'Archive stores' },
   { code: 'master-data:read', description: 'View master data' },
-  { code: 'master-data:manage', description: 'Create and archive master data' },
+  { code: 'master-data:operate', description: 'Add flowers, suppliers and categories to the catalog' },
+  { code: 'master-data:manage', description: 'Full master data administration (policies, prices, archive)' },
   { code: 'supply:read', description: 'View supplies and goods receipts' },
   { code: 'supply:create', description: 'Create and edit draft supplies' },
   { code: 'supply:submit', description: 'Submit supplies to supplier' },
@@ -143,6 +145,7 @@ export const FLORIST_PERMISSIONS: readonly PermissionCode[] = [
   'organization:read',
   'stores:read',
   'master-data:read',
+  'master-data:operate',
   'supply:read',
   'supply:create',
   'supply:submit',
@@ -178,6 +181,8 @@ export const FLORIST_PERMISSIONS: readonly PermissionCode[] = [
 export const COURIER_PERMISSIONS: readonly PermissionCode[] = [
   'organization:read',
   'stores:read',
+  'master-data:read',
+  'master-data:operate',
   'delivery:read',
   'delivery:dispatch',
   'delivery:complete',
