@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Rebuild and restart api + backoffice without full deploy health gate.
-# Use when migrations are already applied but deploy.sh fails on health checks.
+# Runs pending DB migrations by default — use SKIP_MIGRATE=1 only when you are sure schema is current.
 set -Eeuo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -10,9 +10,12 @@ DEPLOY_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 source "${SCRIPT_DIR}/lib/common.sh"
 # shellcheck source=lib/compose.sh
 source "${SCRIPT_DIR}/lib/compose.sh"
+# shellcheck source=lib/database.sh
+source "${SCRIPT_DIR}/lib/database.sh"
 
 NO_CACHE="${NO_CACHE:-0}"
 FORCE_RECREATE="${FORCE_RECREATE:-1}"
+SKIP_MIGRATE="${SKIP_MIGRATE:-0}"
 
 cd "${DEPLOY_ROOT}"
 deploy_common_init
@@ -22,6 +25,14 @@ deploy_compose_validate
 
 read -r git_commit git_branch <<< "$(deploy_git_info)"
 deploy_log "Restart api + backoffice (git ${git_commit} on ${git_branch})"
+
+if [[ "${SKIP_MIGRATE}" != "1" ]]; then
+  deploy_log "Applying pending database migrations..."
+  deploy_compose_migrate build migrate
+  prisma_migrate_deploy
+else
+  deploy_warn "SKIP_MIGRATE=1 — schema may be out of date; API errors like missing is_showcase are possible."
+fi
 
 build_args=()
 if [[ "${NO_CACHE}" == "1" ]]; then

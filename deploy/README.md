@@ -101,6 +101,7 @@ Optional env:
 |----------|---------|
 | `DRY_RUN=1` | Print steps without changes |
 | `SKIP_DOCKER_CLEANUP=1` | Skip `docker image prune` |
+| `SKIP_MIGRATE=1` | `restart-apps.sh` only — skip migrate (not recommended after git pull) |
 | `PRE_MIGRATE_BACKUP=1` | Run `backup-db.sh` before migrate |
 | `ALLOW_DIRTY_DEPLOY=1` | Skip clean git tree check (emergency only) |
 
@@ -164,6 +165,7 @@ Set `DIRECTOR_RESET_PASSWORD=1` and re-run `create-director-user.sh` for existin
 
 | Symptom | Action |
 |---------|--------|
+| `items.is_showcase does not exist` (or similar missing column) | Schema behind code — run `./deploy/scripts/migrate.sh` or full `./deploy/scripts/deploy.sh`; avoid `SKIP_MIGRATE=1` on restart |
 | Migration failed | Read Prisma output; fix SQL; `migrate resolve`; redeploy |
 | API unhealthy | `./deploy/scripts/status.sh`; check `docker compose logs api` |
 | Backoffice unhealthy | Check `http://127.0.0.1:3100/health`; rebuild backoffice if URL changed |
