@@ -61,8 +61,8 @@ export const CATALOG_SECTIONS: CatalogSection[] = [
   },
   {
     slug: 'showcase-bouquets',
-    title: 'Букеты на витрине',
-    description: 'Готовые рецепты для заказов «Букет с витрины»',
+    title: 'Каталог букетов',
+    description: 'Готовые букеты с рецептом — состав, витрина для заказов, продажи',
     permission: 'master-data:read',
   },
 ];
@@ -199,6 +199,10 @@ export function settingsHubHref(organizationId: string): string {
 
 export function storeSettingsHubHref(organizationId: string, storeId: string): string {
   return `/organizations/${organizationId}/stores/${storeId}/settings`;
+}
+
+export function bouquetCatalogHref(organizationId: string): string {
+  return `/organizations/${organizationId}/master-data/showcase-bouquets`;
 }
 
 export function catalogHubHref(organizationId: string): string {

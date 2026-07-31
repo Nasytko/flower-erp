@@ -30,20 +30,19 @@ import {
   customCompositionItemsFromMap,
   OrderCompositionSection,
   type OrderCompositionMode,
+  validateShowcaseBouquetSelection,
 } from '@/components/order/order-composition-section';
+import {
+  compositionLinesToMap,
+  detectBouquetFromComposition,
+} from '@/lib/bouquet-composition-match';
 
 type OrderDetail = Awaited<ReturnType<ReturnType<typeof getApiClient>['getOrder']>>;
 
 function compositionToMap(
   items: Array<{ itemId: string; plannedQuantity: string }>,
 ): Map<string, number> {
-  const map = new Map<string, number>();
-  for (const line of items) {
-    const qty = Number(line.plannedQuantity) || 0;
-    if (qty <= 0) continue;
-    map.set(line.itemId, (map.get(line.itemId) ?? 0) + qty);
-  }
-  return map;
+  return compositionLinesToMap(items);
 }
 
 export default function OrderDetailPage() {
@@ -67,6 +66,9 @@ export default function OrderDetailPage() {
   const [compositionMode, setCompositionMode] = useState<OrderCompositionMode>('CUSTOM');
   const [showcaseBouquetId, setShowcaseBouquetId] = useState('');
   const [customQtyByItem, setCustomQtyByItem] = useState<Map<string, number>>(() => new Map());
+  const [bouquetCatalog, setBouquetCatalog] = useState<
+    Array<{ id: string; recipeLineCount: number }>
+  >([]);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -85,8 +87,22 @@ export default function OrderDetailPage() {
       const { date, time } = splitReadyAt(detail.readyAt);
       setReadyDate(date);
       setReadyTime(time);
-      setCustomQtyByItem(compositionToMap(detail.composition?.items ?? []));
-      setCompositionMode('CUSTOM');
+      const compositionItems = detail.composition?.items ?? [];
+      const compositionMap = compositionToMap(compositionItems);
+      const matchedBouquetId = await detectBouquetFromComposition(
+        getApiClient(),
+        organizationId,
+        compositionMap,
+      );
+      if (matchedBouquetId) {
+        setCompositionMode('SHOWCASE');
+        setShowcaseBouquetId(matchedBouquetId);
+        setCustomQtyByItem(new Map());
+      } else {
+        setCompositionMode('CUSTOM');
+        setShowcaseBouquetId('');
+        setCustomQtyByItem(compositionMap);
+      }
 
       if (detail.type === 'DELIVERY') {
         const deliveries = await getApiClient().listDeliveries(organizationId, storeId);
@@ -126,8 +142,11 @@ export default function OrderDetailPage() {
     if (orderType === 'DELIVERY') {
       errors.deliveryAddress = requiredText(deliveryAddress, 'Укажите адрес доставки');
     }
-    if (compositionMode === 'SHOWCASE' && !showcaseBouquetId) {
-      errors.showcaseBouquet = 'Выберите букет';
+    if (compositionMode === 'SHOWCASE') {
+      errors.showcaseBouquet = validateShowcaseBouquetSelection(
+        showcaseBouquetId,
+        bouquetCatalog,
+      );
     }
     if (
       compositionMode === 'CUSTOM' &&
@@ -362,6 +381,7 @@ export default function OrderDetailPage() {
                   }}
                   disabled={!canUpdate || busy}
                   showcaseError={fieldErrors.showcaseBouquet}
+                  onBouquetOptionsChange={setBouquetCatalog}
                   reservedLines={!canUpdate ? order.composition?.items : undefined}
                 />
                 {fieldErrors.composition ? (

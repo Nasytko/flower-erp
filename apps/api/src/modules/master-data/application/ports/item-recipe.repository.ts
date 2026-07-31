@@ -28,8 +28,15 @@ export type ShowcaseBouquetView = {
   id: string;
   name: string;
   code: string;
+  isShowcase: boolean;
+  recipeLineCount: number;
   previewLines: ShowcaseBouquetPreviewLine[];
   previewMoreCount: number;
+};
+
+export type BouquetCatalogListFilter = {
+  /** When true, only bouquets visible in order picker (isShowcase). */
+  showcaseOnly?: boolean;
 };
 
 export interface ItemRecipeRepository {
@@ -39,5 +46,8 @@ export interface ItemRecipeRepository {
     parentItemId: string,
     lines: ItemRecipeLineInput[],
   ): Promise<ItemRecipeLineView[]>;
-  listShowcaseBouquets(organizationId: string): Promise<ShowcaseBouquetView[]>;
+  listBouquetCatalog(
+    organizationId: string,
+    filter?: BouquetCatalogListFilter,
+  ): Promise<ShowcaseBouquetView[]>;
 }

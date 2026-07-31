@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { Input } from '@flower/ui';
+import { StockShortageAlert } from '@/components/inventory/stock-shortage-alert';
 import { getApiClient } from '@/lib/api-client';
 import { Field } from '@/components/layout/field';
 import { FancySelect } from '@/components/layout/fancy-select';
@@ -12,8 +13,9 @@ import {
   computeReservedShortages,
   computeStockShortages,
   type CompositionNeedLine,
-  type StockShortage,
 } from '@/lib/order-composition-stock';
+import { listAllCatalogItems } from '@/lib/catalog-items';
+import { bouquetCatalogHref } from '@/lib/settings-nav';
 
 export type OrderCompositionMode = 'SHOWCASE' | 'CUSTOM';
 
@@ -24,10 +26,11 @@ type CatalogItem = {
   itemType: string;
 };
 
-type ShowcaseBouquet = {
+type BouquetOption = {
   id: string;
   name: string;
   code: string;
+  recipeLineCount: number;
   previewLines: Array<{ componentName: string; quantity: string }>;
   previewMoreCount: number;
 };
@@ -72,25 +75,6 @@ function QtyStepper({
   );
 }
 
-function StockShortageAlert({ shortages }: { shortages: StockShortage[] }) {
-  if (shortages.length === 0) return null;
-  return (
-    <InlineAlert tone="warning" title="Не хватает на складе">
-      <p className="field__hint" style={{ margin: '0 0 8px' }}>
-        Заказ можно сохранить — нехватка будет видна в этом блоке.
-      </p>
-      <ul className="form-checklist">
-        {shortages.map((row) => (
-          <li key={row.itemId}>
-            <strong>{row.name}</strong>: нужно {row.needed}, доступно {row.available}
-            {row.missing ? ` (не хватает ${row.missing})` : null}
-          </li>
-        ))}
-      </ul>
-    </InlineAlert>
-  );
-}
-
 export type OrderCompositionSectionProps = {
   organizationId: string;
   storeId: string;
@@ -102,15 +86,14 @@ export type OrderCompositionSectionProps = {
   onCustomQtyChange: (itemId: string, qty: number) => void;
   disabled?: boolean;
   showcaseError?: string;
-  /** When editing an existing order — reserved deficit from API. */
   reservedLines?: Array<{
     itemId: string;
     plannedQuantity: string;
     deficitQuantity?: string;
     item?: { name: string } | null;
   }>;
-  /** On first catalog load, pick SHOWCASE vs CUSTOM from available data. */
   autoPickModeOnLoad?: boolean;
+  onBouquetOptionsChange?: (options: Array<{ id: string; recipeLineCount: number }>) => void;
 };
 
 export function OrderCompositionSection({
@@ -126,10 +109,11 @@ export function OrderCompositionSection({
   showcaseError,
   reservedLines,
   autoPickModeOnLoad = false,
+  onBouquetOptionsChange,
 }: OrderCompositionSectionProps) {
   const [loading, setLoading] = useState(true);
-  const [showcaseBouquets, setShowcaseBouquets] = useState<ShowcaseBouquet[]>([]);
-  const [showcaseLoadError, setShowcaseLoadError] = useState<string | null>(null);
+  const [bouquetOptions, setBouquetOptions] = useState<BouquetOption[]>([]);
+  const [catalogLoadError, setCatalogLoadError] = useState<string | null>(null);
   const [catalog, setCatalog] = useState<CatalogItem[]>([]);
   const [stockByItemId, setStockByItemId] = useState<Map<string, string>>(new Map());
   const [recipeLines, setRecipeLines] = useState<CompositionNeedLine[]>([]);
@@ -137,45 +121,45 @@ export function OrderCompositionSection({
   const [modePicked, setModePicked] = useState(false);
 
   const itemsHref = `/organizations/${organizationId}/master-data/items`;
-  const showcaseHref = `/organizations/${organizationId}/master-data/showcase-bouquets`;
+  const bouquetCatalogLink = bouquetCatalogHref(organizationId);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    setShowcaseLoadError(null);
+    setCatalogLoadError(null);
     void (async () => {
       try {
         const client = getApiClient();
-        const [stock, bouquetsResult, items] = await Promise.all([
+        const [stock, bouquetsResult, ingredients] = await Promise.all([
           client.getOperationalStock(organizationId, storeId),
           client.listShowcaseBouquets(organizationId).then(
             (bouquets) => ({ bouquets, error: null as string | null }),
             (err: unknown) => ({
-              bouquets: [] as ShowcaseBouquet[],
+              bouquets: [] as BouquetOption[],
               error:
-                err instanceof Error
-                  ? err.message
-                  : 'Не удалось загрузить букеты на витрине',
+                err instanceof Error ? err.message : 'Не удалось загрузить каталог букетов',
             }),
           ),
-          client.listItems(organizationId, {
-            pageSize: 500,
+          listAllCatalogItems(client, organizationId, {
             status: 'ACTIVE',
             isSellable: false,
           }),
         ]);
         if (cancelled) return;
         setStockByItemId(buildAvailableStockMap(stock.items));
-        setShowcaseBouquets(bouquetsResult.bouquets);
-        setShowcaseLoadError(bouquetsResult.error);
+        setBouquetOptions(bouquetsResult.bouquets);
+        onBouquetOptionsChange?.(
+          bouquetsResult.bouquets.map((b) => ({ id: b.id, recipeLineCount: b.recipeLineCount })),
+        );
+        setCatalogLoadError(bouquetsResult.error);
         setCatalog(
-          items.items.filter(
+          ingredients.filter(
             (item) =>
               !item.isSellable &&
               (item.itemType === 'FLOWER' || item.itemType === 'MATERIAL'),
           ),
         );
-        if (bouquetsResult.bouquets[0] && !showcaseBouquetId) {
+        if (autoPickModeOnLoad && bouquetsResult.bouquets[0] && !showcaseBouquetId) {
           onShowcaseBouquetIdChange(bouquetsResult.bouquets[0]!.id);
         }
       } finally {
@@ -190,7 +174,7 @@ export function OrderCompositionSection({
 
   useEffect(() => {
     if (!autoPickModeOnLoad || loading || modePicked) return;
-    if (showcaseBouquets.length > 0) {
+    if (bouquetOptions.length > 0) {
       onModeChange('SHOWCASE');
     } else if (catalog.length > 0) {
       onModeChange('CUSTOM');
@@ -200,7 +184,7 @@ export function OrderCompositionSection({
     autoPickModeOnLoad,
     loading,
     modePicked,
-    showcaseBouquets.length,
+    bouquetOptions.length,
     catalog.length,
     onModeChange,
   ]);
@@ -231,10 +215,16 @@ export function OrderCompositionSection({
     };
   }, [organizationId, mode, showcaseBouquetId]);
 
-  const selectedShowcase = useMemo(
-    () => showcaseBouquets.find((item) => item.id === showcaseBouquetId) ?? null,
-    [showcaseBouquets, showcaseBouquetId],
+  const selectedBouquet = useMemo(
+    () => bouquetOptions.find((item) => item.id === showcaseBouquetId) ?? null,
+    [bouquetOptions, showcaseBouquetId],
   );
+
+  const emptyRecipeError =
+    mode === 'SHOWCASE' && selectedBouquet && selectedBouquet.recipeLineCount === 0
+      ? 'У выбранного букета нет состава — задайте рецепт в каталоге'
+      : undefined;
+  const bouquetFieldError = showcaseError ?? emptyRecipeError;
 
   const flowers = useMemo(
     () => catalog.filter((item) => item.itemType === 'FLOWER'),
@@ -245,10 +235,10 @@ export function OrderCompositionSection({
     [catalog],
   );
 
-  const filterCatalog = (items: CatalogItem[]) => {
+  const filterCatalog = (list: CatalogItem[]) => {
     const q = catalogQuery.trim().toLowerCase();
-    if (!q) return items;
-    return items.filter(
+    if (!q) return list;
+    return list.filter(
       (item) =>
         item.name.toLowerCase().includes(q) || item.code.toLowerCase().includes(q),
     );
@@ -289,8 +279,8 @@ export function OrderCompositionSection({
           onClick={() => onModeChange('SHOWCASE')}
           disabled={disabled}
         >
-          <span className="sale-mode__title">Букет с витрины</span>
-          <span className="sale-mode__hint">Готовый рецепт</span>
+          <span className="sale-mode__title">Готовый букет</span>
+          <span className="sale-mode__hint">Из каталога букетов</span>
         </button>
         <button
           type="button"
@@ -301,33 +291,46 @@ export function OrderCompositionSection({
           disabled={disabled}
         >
           <span className="sale-mode__title">Собрать</span>
-          <span className="sale-mode__hint">Цветы и доп. услуги</span>
+          <span className="sale-mode__hint">Любые цветы и услуги</span>
         </button>
       </div>
 
-      {showcaseLoadError ? (
-        <InlineAlert tone="warning" title="Букеты на витрине недоступны">
-          {showcaseLoadError}. Проверьте, что на сервере применены миграции БД.
+      {previewShortages.length > 0 ? (
+        <StockShortageAlert shortages={previewShortages} context="order" />
+      ) : null}
+
+      {catalogLoadError ? (
+        <InlineAlert tone="warning" title="Каталог букетов недоступен">
+          {catalogLoadError}. Проверьте, что на сервере применены миграции БД.
         </InlineAlert>
       ) : null}
 
       {mode === 'SHOWCASE' ? (
-        showcaseBouquets.length > 0 ? (
+        bouquetOptions.length > 0 ? (
           <>
-            <Field label="Букет" required error={showcaseError}>
+            <Field label="Букет" required error={bouquetFieldError}>
               <FancySelect
                 value={showcaseBouquetId}
                 onChange={onShowcaseBouquetIdChange}
-                options={showcaseBouquets.map((item) => ({
+                options={bouquetOptions.map((item) => ({
                   value: item.id,
                   label: item.name,
-                  hint: item.code,
+                  hint:
+                    item.recipeLineCount === 0
+                      ? `${item.code} · без состава`
+                      : item.code,
                 }))}
                 searchable
-                placeholder="Выберите букет"
+                placeholder="Выберите букет из каталога"
                 disabled={disabled}
               />
             </Field>
+            {emptyRecipeError ? (
+              <InlineAlert tone="warning" title="Букет без состава">
+                Добавьте рецепт в{' '}
+                <Link href={bouquetCatalogLink}>каталоге букетов</Link>, иначе заказ не сохранится.
+              </InlineAlert>
+            ) : null}
             {recipeLines.length > 0 ? (
               <ul className="order-composition-preview">
                 {recipeLines.map((line) => {
@@ -348,9 +351,9 @@ export function OrderCompositionSection({
                   );
                 })}
               </ul>
-            ) : selectedShowcase && selectedShowcase.previewLines.length > 0 ? (
+            ) : selectedBouquet && selectedBouquet.previewLines.length > 0 ? (
               <div className="field__hint">
-                {selectedShowcase.previewLines
+                {selectedBouquet.previewLines
                   .map((line) => `${line.componentName} × ${line.quantity}`)
                   .join(' · ')}
               </div>
@@ -358,25 +361,31 @@ export function OrderCompositionSection({
           </>
         ) : loading ? null : (
           <p className="field__hint">
-            Нет букетов на витрине. Добавьте их в{' '}
-            <Link href={showcaseHref}>Справочник → Букеты на витрине</Link>. Для сборки по
-            штукам переключитесь на «Собрать» и добавьте{' '}
+            Нет букетов в каталоге.{' '}
+            <Link href={bouquetCatalogLink}>Добавьте в «Каталог букетов»</Link> или соберите
+            заказ вручную через «Собрать» и{' '}
             <Link href={itemsHref}>товары-ингредиенты</Link>.
           </p>
         )
       ) : (
         <>
-          {showcaseBouquets.length > 0 ? (
+          {bouquetOptions.length > 0 ? (
             <p className="field__hint">
-              Готовые букеты с рецептом — на вкладке{' '}
+              Готовые букеты — вкладка{' '}
               <button
                 type="button"
                 className="text-link"
-                style={{ border: 'none', background: 'none', padding: 0, cursor: 'pointer', font: 'inherit' }}
+                style={{
+                  border: 'none',
+                  background: 'none',
+                  padding: 0,
+                  cursor: 'pointer',
+                  font: 'inherit',
+                }}
                 onClick={() => onModeChange('SHOWCASE')}
                 disabled={disabled}
               >
-                «Букет с витрины»
+                «Готовый букет»
               </button>
               .
             </p>
@@ -392,15 +401,13 @@ export function OrderCompositionSection({
           <h4 className="order-composition-section__heading">Цветы</h4>
           {filterCatalog(flowers).length === 0 ? (
             <p className="sale-cells__empty">
-              {loading
-                ? 'Загрузка…'
-                : (
-                    <>
-                      Нет цветов-ингредиентов.{' '}
-                      <Link href={itemsHref}>Добавьте в «Товары»</Link> (не в букеты на
-                      витрине).
-                    </>
-                  )}
+              {loading ? (
+                'Загрузка…'
+              ) : (
+                <>
+                  Нет цветов. <Link href={itemsHref}>Добавьте в «Товары»</Link>.
+                </>
+              )}
             </p>
           ) : (
             <div className="sale-cells" role="list">
@@ -479,11 +486,12 @@ export function OrderCompositionSection({
         </>
       )}
 
-      <StockShortageAlert shortages={previewShortages} />
       {loading ? <p className="field__hint">Обновление остатков…</p> : null}
     </div>
   );
 }
+
+export { validateShowcaseBouquetSelection } from '@/lib/bouquet-composition-match';
 
 /** Build API payload from custom picker state. */
 export function customCompositionItemsFromMap(

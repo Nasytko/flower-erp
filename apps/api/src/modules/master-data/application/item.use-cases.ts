@@ -486,9 +486,13 @@ export class ItemUseCases {
     }
   }
 
-  async listShowcaseBouquets(organizationId: string) {
+  async listBouquetCatalog(organizationId: string, showcaseOnly?: boolean) {
     await this.organizations.getOrganization(organizationId);
-    return this.recipes.listShowcaseBouquets(organizationId);
+    return this.recipes.listBouquetCatalog(organizationId, { showcaseOnly });
+  }
+
+  async listShowcaseBouquets(organizationId: string) {
+    return this.listBouquetCatalog(organizationId, true);
   }
 
   async getRecipeForTemplate(organizationId: string, templateItemId: string) {

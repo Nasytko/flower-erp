@@ -28,6 +28,7 @@ import {
   CreatePolicyDto,
   CreateSupplierDto,
   ItemIdParamDto,
+  ListBouquetCatalogQueryDto,
   ListItemsQueryDto,
   ListRetailPricesQueryDto,
   ListSuppliersQueryDto,
@@ -280,9 +281,12 @@ export class MasterDataController {
   }
 
   @Get('showcase-bouquets')
-  @ApiOperation({ summary: 'List showcase bouquets with composition preview' })
-  listShowcaseBouquets(@Param() params: OrganizationIdParamDto) {
-    return this.items.listShowcaseBouquets(params.organizationId);
+  @ApiOperation({ summary: 'List bouquet catalog with composition preview' })
+  listShowcaseBouquets(
+    @Param() params: OrganizationIdParamDto,
+    @Query() query: ListBouquetCatalogQueryDto,
+  ) {
+    return this.items.listBouquetCatalog(params.organizationId, query.showcaseOnly);
   }
 
   @Get('master-data/retail-prices')

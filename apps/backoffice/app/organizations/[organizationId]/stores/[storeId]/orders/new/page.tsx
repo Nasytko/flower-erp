@@ -25,6 +25,7 @@ import {
   customCompositionItemsFromMap,
   OrderCompositionSection,
   type OrderCompositionMode,
+  validateShowcaseBouquetSelection,
 } from '@/components/order/order-composition-section';
 
 export default function NewOrderPage() {
@@ -53,6 +54,9 @@ export default function NewOrderPage() {
   const [compositionMode, setCompositionMode] = useState<OrderCompositionMode>('SHOWCASE');
   const [showcaseBouquetId, setShowcaseBouquetId] = useState('');
   const [customQtyByItem, setCustomQtyByItem] = useState<Map<string, number>>(() => new Map());
+  const [bouquetCatalog, setBouquetCatalog] = useState<
+    Array<{ id: string; recipeLineCount: number }>
+  >([]);
 
   const canCreate = auth.hasPermission('orders:create');
 
@@ -81,8 +85,11 @@ export default function NewOrderPage() {
     if (orderType === 'DELIVERY') {
       errors.deliveryAddress = requiredText(deliveryAddress, 'Укажите адрес доставки');
     }
-    if (compositionMode === 'SHOWCASE' && !showcaseBouquetId) {
-      errors.showcaseBouquet = 'Выберите букет';
+    if (compositionMode === 'SHOWCASE') {
+      errors.showcaseBouquet = validateShowcaseBouquetSelection(
+        showcaseBouquetId,
+        bouquetCatalog,
+      );
     }
     if (compositionMode === 'CUSTOM' && customCompositionItemsFromMap(customQtyByItem).length === 0) {
       errors.composition = 'Добавьте цветы или услуги';
@@ -324,6 +331,7 @@ export default function NewOrderPage() {
                     }
                   }}
                   showcaseError={fieldErrors.showcaseBouquet}
+                  onBouquetOptionsChange={setBouquetCatalog}
                   autoPickModeOnLoad
                 />
                 {fieldErrors.composition ? (

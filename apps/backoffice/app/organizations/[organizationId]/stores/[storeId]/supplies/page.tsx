@@ -23,6 +23,7 @@ import {
   hasFieldErrors,
   requiredText,
 } from '@/lib/form-validation';
+import { listAllSuppliers } from '@/lib/catalog-items';
 
 type SupplyRow = {
   id: string;
@@ -79,11 +80,11 @@ export default function SuppliesPage() {
       const client = getApiClient();
       const [list, supplierList] = await Promise.all([
         client.listSupplies(organizationId, storeId),
-        client.listSuppliers(organizationId, { pageSize: 100, status: 'ACTIVE' }),
+        listAllSuppliers(client, organizationId),
       ]);
       setItems(list);
-      setSuppliers(supplierList.items);
-      if (supplierList.items[0]) setSupplierId(supplierList.items[0].id);
+      setSuppliers(supplierList);
+      if (supplierList[0]) setSupplierId(supplierList[0].id);
     } catch (err) {
       setError(err instanceof ApiClientError ? err.message : 'Не удалось загрузить');
     } finally {

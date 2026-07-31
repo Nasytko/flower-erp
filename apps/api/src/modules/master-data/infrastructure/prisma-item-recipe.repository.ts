@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../../../infrastructure/prisma/prisma.service';
 import { resolvePrismaClient } from '../../../infrastructure/persistence/prisma-transaction-context';
 import type {
+  BouquetCatalogListFilter,
   ItemRecipeLineInput,
   ItemRecipeLineView,
   ItemRecipeRepository,
@@ -74,18 +75,23 @@ export class PrismaItemRecipeRepository implements ItemRecipeRepository {
     return this.listByParent(organizationId, parentItemId);
   }
 
-  async listShowcaseBouquets(organizationId: string): Promise<ShowcaseBouquetView[]> {
+  async listBouquetCatalog(
+    organizationId: string,
+    filter: BouquetCatalogListFilter = {},
+  ): Promise<ShowcaseBouquetView[]> {
     const items = await this.client().item.findMany({
       where: {
         organizationId,
         status: MasterDataStatus.ACTIVE,
-        isShowcase: true,
+        isSellable: true,
+        ...(filter.showcaseOnly ? { isShowcase: true } : {}),
       },
-      orderBy: [{ name: 'asc' }],
+      orderBy: [{ isShowcase: 'desc' }, { name: 'asc' }],
       select: {
         id: true,
         name: true,
         code: true,
+        isShowcase: true,
         recipeAsParent: {
           orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
           select: {
@@ -107,9 +113,16 @@ export class PrismaItemRecipeRepository implements ItemRecipeRepository {
         id: item.id,
         name: item.name,
         code: item.code,
+        isShowcase: item.isShowcase,
+        recipeLineCount: allLines.length,
         previewLines,
         previewMoreCount,
       };
     });
+  }
+
+  /** @deprecated Use listBouquetCatalog */
+  async listShowcaseBouquets(organizationId: string): Promise<ShowcaseBouquetView[]> {
+    return this.listBouquetCatalog(organizationId, { showcaseOnly: true });
   }
 }

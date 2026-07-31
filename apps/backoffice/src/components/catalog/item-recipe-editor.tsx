@@ -1,11 +1,13 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { Button, Input } from '@flower/ui';
 import { getApiClient } from '@/lib/api-client';
 import { Field } from '@/components/layout/field';
 import { FancySelect } from '@/components/layout/fancy-select';
 import { formatApiErrorMessage } from '@/lib/format-api-error';
+import { filterRecipeIngredients } from '@/lib/catalog-items';
 
 export type RecipeCatalogItem = {
   id: string;
@@ -53,18 +55,11 @@ export function ItemRecipeEditor({
 
   const componentOptions = useMemo(
     () =>
-      catalog
-        .filter(
-          (row) =>
-            row.id !== itemId &&
-            !row.isSellable &&
-            (row.itemType === 'FLOWER' || row.itemType === 'MATERIAL'),
-        )
-        .map((row) => ({
-          value: row.id,
-          label: row.name,
-          hint: `${row.code} · ${itemTypeLabel(row.itemType)}`,
-        })),
+      filterRecipeIngredients(catalog, itemId).map((row) => ({
+        value: row.id,
+        label: row.name,
+        hint: `${row.code} · ${itemTypeLabel(row.itemType)}`,
+      })),
     [catalog, itemId],
   );
 
@@ -140,6 +135,12 @@ export function ItemRecipeEditor({
       <p className="field__hint" style={{ margin: 0 }}>
         Укажите цветы и материалы — при заказе и продаже спишутся они, а не сам букет.
       </p>
+      {componentOptions.length === 0 ? (
+        <p className="field__hint">
+          Нет ингредиентов в справочнике. Сначала добавьте цветы и материалы в{' '}
+          <Link href={`/organizations/${organizationId}/master-data/items`}>Товары</Link>.
+        </p>
+      ) : null}
       {error ? <p className="field__hint" style={{ color: 'var(--color-danger)' }}>{error}</p> : null}
       {message ? <p className="page-state">{message}</p> : null}
       <div className="stack-form">

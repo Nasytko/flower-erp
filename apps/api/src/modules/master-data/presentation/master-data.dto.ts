@@ -387,6 +387,21 @@ export class ListItemsQueryDto extends PaginationQueryDto {
   sortDir?: 'asc' | 'desc';
 }
 
+export class ListBouquetCatalogQueryDto {
+  @ApiPropertyOptional({
+    description: 'When true, only bouquets shown in order picker (isShowcase)',
+  })
+  @IsOptional()
+  @Transform(({ value }) => {
+    if (value === undefined || value === null || value === '') return undefined;
+    if (value === true || value === 'true') return true;
+    if (value === false || value === 'false') return false;
+    return value;
+  })
+  @IsBoolean()
+  showcaseOnly?: boolean;
+}
+
 export class ListRetailPricesQueryDto {
   @ApiProperty({ description: 'Week start or effective date (YYYY-MM-DD)' })
   @IsString()

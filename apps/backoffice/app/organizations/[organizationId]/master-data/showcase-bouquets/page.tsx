@@ -1,11 +1,16 @@
 'use client';
 
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import { useParams } from 'next/navigation';
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useParams, useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 import { Button, Card, Input } from '@flower/ui';
 import { useAuth } from '@/components/auth-provider';
-import { CatalogExpandRow } from '@/components/catalog/catalog-expand-row';
-import { ItemRecipeEditor, type RecipeCatalogItem } from '@/components/catalog/item-recipe-editor';
+import {
+  BouquetCatalogCard,
+  BouquetCatalogStat,
+  type BouquetCatalogEntry,
+} from '@/components/catalog/bouquet-catalog-card';
+import type { RecipeCatalogItem } from '@/components/catalog/item-recipe-editor';
 import { getApiClient } from '@/lib/api-client';
 import { PageContainer } from '@/components/layout/page-container';
 import { PageHeader } from '@/components/layout/page-header';
@@ -13,6 +18,7 @@ import { Section } from '@/components/layout/section';
 import { EmptyState, ErrorState, LoadingState } from '@/components/layout/states';
 import { Field } from '@/components/layout/field';
 import { formatApiErrorMessage } from '@/lib/format-api-error';
+import { listAllCatalogItems } from '@/lib/catalog-items';
 import { catalogBreadcrumbs, canOperateCatalog } from '@/lib/settings-nav';
 import {
   type FieldErrors,
@@ -21,27 +27,20 @@ import {
   requiredText,
 } from '@/lib/form-validation';
 
-type ShowcaseBouquet = {
-  id: string;
-  name: string;
-  code: string;
-  previewLines: Array<{ componentName: string; quantity: string }>;
-  previewMoreCount: number;
-};
-
-export default function ShowcaseBouquetsPage() {
+export default function BouquetCatalogPage() {
   const params = useParams<{ organizationId: string }>();
+  const searchParams = useSearchParams();
   const auth = useAuth();
   const organizationId = params.organizationId;
+  const base = `/organizations/${organizationId}/master-data`;
   const canOperate = canOperateCatalog(auth.hasPermission);
 
-  const [items, setItems] = useState<ShowcaseBouquet[]>([]);
+  const [items, setItems] = useState<BouquetCatalogEntry[]>([]);
   const [catalog, setCatalog] = useState<RecipeCatalogItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [showcaseFlags, setShowcaseFlags] = useState<Record<string, boolean>>({});
-  const [savingShowcaseId, setSavingShowcaseId] = useState<string | null>(null);
+  const [query, setQuery] = useState('');
 
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -55,26 +54,15 @@ export default function ShowcaseBouquetsPage() {
       const client = getApiClient();
       const [list, ingredients] = await Promise.all([
         client.listShowcaseBouquets(organizationId),
-        client.listItems(organizationId, {
-          pageSize: 200,
+        listAllCatalogItems(client, organizationId, {
           status: 'ACTIVE',
           isSellable: false,
         }),
       ]);
       setItems(list);
-      setCatalog(ingredients.items);
-      const details = await Promise.all(
-        list.map((item) => client.getItem(organizationId, item.id).catch(() => null)),
-      );
-      setShowcaseFlags((prev) => {
-        const next = { ...prev };
-        for (const detail of details) {
-          if (detail) next[detail.id] = Boolean(detail.isShowcase);
-        }
-        return next;
-      });
+      setCatalog(ingredients);
     } catch (err) {
-      setError(formatApiErrorMessage(err, 'Не удалось загрузить букеты'));
+      setError(formatApiErrorMessage(err, 'Не удалось загрузить каталог букетов'));
     } finally {
       setLoading(false);
     }
@@ -83,6 +71,27 @@ export default function ShowcaseBouquetsPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    const expandId = searchParams.get('expand');
+    if (expandId && items.some((item) => item.id === expandId)) {
+      setExpandedId(expandId);
+    }
+  }, [searchParams, items]);
+
+  const stats = useMemo(() => {
+    const withoutRecipe = items.filter((item) => item.recipeLineCount === 0).length;
+    return { total: items.length, withoutRecipe };
+  }, [items]);
+
+  const filteredItems = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return items;
+    return items.filter(
+      (item) =>
+        item.name.toLowerCase().includes(q) || item.code.toLowerCase().includes(q),
+    );
+  }, [items, query]);
 
   async function onCreate(event: FormEvent) {
     event.preventDefault();
@@ -102,7 +111,7 @@ export default function ShowcaseBouquetsPage() {
         description: description || undefined,
         itemType: 'FLOWER',
         isSellable: true,
-        isShowcase: true,
+        isShowcase: false,
         isPurchasable: false,
       });
       setName('');
@@ -116,128 +125,33 @@ export default function ShowcaseBouquetsPage() {
     }
   }
 
-  async function onSaveShowcase(itemId: string) {
-    setSavingShowcaseId(itemId);
-    setError(null);
-    try {
-      await getApiClient().updateItem(organizationId, itemId, {
-        isShowcase: showcaseFlags[itemId] ?? false,
-      });
-      await load();
-    } catch (err) {
-      setError(formatApiErrorMessage(err, 'Не удалось сохранить настройки витрины'));
-    } finally {
-      setSavingShowcaseId(null);
-    }
-  }
-
-  function previewText(item: ShowcaseBouquet) {
-    if (item.previewLines.length === 0) {
-      return 'Состав не задан — раскройте и добавьте цветы и материалы';
-    }
-    const lines = item.previewLines
-      .map((line) => `${line.componentName} × ${line.quantity}`)
-      .join(' · ');
-    return item.previewMoreCount > 0 ? `${lines} · ещё ${item.previewMoreCount}` : lines;
-  }
-
   return (
-    <main>
+    <main className="bouquet-catalog-page">
       <PageContainer>
         <PageHeader
-          title="Букеты на витрине"
-          description="Готовые рецепты для заказов и продаж. Букет — это шаблон: со склада списываются цветы и материалы из состава."
-          breadcrumbs={catalogBreadcrumbs(organizationId, { label: 'Букеты на витрине' })}
+          title="Каталог букетов"
+          description="Шаблоны с рецептом для заказов и продаж. Состав виден всегда — все букеты доступны при оформлении."
+          breadcrumbs={catalogBreadcrumbs(organizationId, { label: 'Каталог букетов' })}
         />
 
-        <Section>
-          <Card title="Список">
-            {loading ? <LoadingState /> : null}
-            {error ? <ErrorState message={error} /> : null}
-            {!loading && items.length === 0 ? (
-              <EmptyState
-                message={
-                  canOperate
-                    ? 'Букетов на витрине пока нет. Создайте первый ниже и задайте состав.'
-                    : 'Букетов на витрине пока нет.'
-                }
-              />
-            ) : null}
-            <ul className="list-stack">
-              {items.map((item) => (
-                <li key={item.id}>
-                  <CatalogExpandRow
-                    expanded={expandedId === item.id}
-                    onToggle={() =>
-                      setExpandedId((current) => (current === item.id ? null : item.id))
-                    }
-                    title={
-                      <>
-                        {item.name} ({item.code})
-                      </>
-                    }
-                    meta={<span>{previewText(item)}</span>}
-                  >
-                    {canOperate ? (
-                      <>
-                        <label
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 8,
-                            marginBottom: 12,
-                            fontSize: 'var(--text-sm)',
-                          }}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={showcaseFlags[item.id] ?? true}
-                            onChange={(event) =>
-                              setShowcaseFlags((prev) => ({
-                                ...prev,
-                                [item.id]: event.target.checked,
-                              }))
-                            }
-                          />
-                          Показывать при создании заказа («Букет с витрины»)
-                        </label>
-                        <div className="meta-row" style={{ marginBottom: 12 }}>
-                          <Button
-                            type="button"
-                            variant="secondary"
-                            disabled={savingShowcaseId === item.id}
-                            onClick={() => void onSaveShowcase(item.id)}
-                          >
-                            {savingShowcaseId === item.id ? 'Сохранение…' : 'Сохранить витрину'}
-                          </Button>
-                        </div>
-                        <ItemRecipeEditor
-                          organizationId={organizationId}
-                          itemId={item.id}
-                          catalog={catalog}
-                          canEdit={canOperate}
-                          onSaved={() => void load()}
-                        />
-                      </>
-                    ) : (
-                      <p className="field__hint" style={{ margin: 0 }}>
-                        {previewText(item)}
-                      </p>
-                    )}
-                  </CatalogExpandRow>
-                </li>
-              ))}
-            </ul>
-          </Card>
-        </Section>
+        {!loading && catalog.length === 0 ? (
+          <Section>
+            <Card title="Сначала добавьте ингредиенты">
+              <p className="field__hint" style={{ margin: 0 }}>
+                Для состава букета нужны цветы и материалы в{' '}
+                <Link href={`${base}/items`}>Справочник → Товары</Link>.
+              </p>
+            </Card>
+          </Section>
+        ) : null}
 
         {canOperate ? (
           <Section>
-            <Card title="Добавить букет">
+            <Card title="Новый букет">
               <p className="field__hint" style={{ marginTop: 0 }}>
-                После создания строка раскроется — укажите состав из цветов и материалов.
+                После создания карточка раскроется — задайте состав из цветов и материалов.
               </p>
-              <form onSubmit={onCreate} className="form-grid" noValidate>
+              <form onSubmit={onCreate} className="form-grid bouquet-catalog-create__form" noValidate>
                 <Field label="Название" required error={fieldErrors.name}>
                   <Input
                     value={name}
@@ -255,13 +169,74 @@ export default function ShowcaseBouquetsPage() {
                     aria-label="Описание букета"
                   />
                 </Field>
-                <Button type="submit" disabled={creating}>
-                  {creating ? 'Создание…' : 'Создать букет'}
-                </Button>
+                <div className="bouquet-catalog-create__actions">
+                  <Button type="submit" disabled={creating}>
+                    {creating ? 'Создание…' : 'Создать букет'}
+                  </Button>
+                </div>
               </form>
             </Card>
           </Section>
         ) : null}
+
+        <Section>
+          <Card title="Букеты">
+            {loading ? <LoadingState /> : null}
+            {error ? <ErrorState message={error} /> : null}
+
+            {!loading && items.length > 0 ? (
+              <>
+                <div className="bouquet-catalog-stats">
+                  <BouquetCatalogStat label="Всего" value={stats.total} />
+                  <BouquetCatalogStat
+                    label="Без состава"
+                    value={stats.withoutRecipe}
+                    hint={stats.withoutRecipe > 0 ? 'нужен рецепт' : undefined}
+                  />
+                </div>
+                <Field label="Поиск">
+                  <Input
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    placeholder="Название или код…"
+                    aria-label="Поиск букета"
+                  />
+                </Field>
+              </>
+            ) : null}
+
+            {!loading && items.length === 0 ? (
+              <EmptyState
+                message={
+                  canOperate
+                    ? 'Каталог пуст. Создайте первый букет выше и задайте состав.'
+                    : 'В каталоге пока нет букетов.'
+                }
+              />
+            ) : null}
+
+            {!loading && items.length > 0 && filteredItems.length === 0 ? (
+              <p className="sale-cells__empty">Ничего не найдено по запросу</p>
+            ) : null}
+
+            <div className="bouquet-catalog-list">
+              {filteredItems.map((item) => (
+                <BouquetCatalogCard
+                  key={item.id}
+                  bouquet={item}
+                  expanded={expandedId === item.id}
+                  onToggle={() =>
+                    setExpandedId((current) => (current === item.id ? null : item.id))
+                  }
+                  canEdit={canOperate}
+                  organizationId={organizationId}
+                  catalog={catalog}
+                  onRecipeSaved={() => void load()}
+                />
+              ))}
+            </div>
+          </Card>
+        </Section>
       </PageContainer>
     </main>
   );

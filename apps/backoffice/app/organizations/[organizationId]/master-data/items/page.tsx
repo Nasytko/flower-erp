@@ -173,7 +173,7 @@ export default function ItemsPage() {
       <PageContainer>
         <PageHeader
           title="Товары"
-          description="Цветы и материалы для закупок и сборки. Готовые букеты — в разделе «Букеты на витрине»."
+          description="Цветы и материалы для закупок и сборки. Готовые букеты — в «Каталог букетов»."
           breadcrumbs={catalogBreadcrumbs(organizationId, { label: 'Товары' })}
         />
 

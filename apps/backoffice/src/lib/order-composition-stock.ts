@@ -12,7 +12,7 @@ export type StockShortage = {
   missing: string;
 };
 
-function qtyNumber(value: string | undefined | null): number {
+export function qtyNumber(value: string | undefined | null): number {
   const n = Number(value ?? '0');
   return Number.isFinite(n) ? n : 0;
 }
@@ -26,6 +26,17 @@ export function buildAvailableStockMap(
   rows: Array<{ itemId: string; availableQuantity: string }>,
 ): Map<string, string> {
   return new Map(rows.map((row) => [row.itemId, row.availableQuantity]));
+}
+
+export function scaleRecipeLines(
+  lines: CompositionNeedLine[],
+  multiplier: number,
+): CompositionNeedLine[] {
+  if (multiplier <= 0) return [];
+  return lines.map((line) => ({
+    ...line,
+    quantity: formatQty(qtyNumber(line.quantity) * multiplier),
+  }));
 }
 
 export function aggregateCompositionNeeds(lines: CompositionNeedLine[]): CompositionNeedLine[] {

@@ -22,6 +22,7 @@ import {
 import { useToast } from '@/components/ui/toast';
 import { newIdempotencyKey } from '@/lib/idempotency';
 import { formatApiErrorMessage } from '@/lib/format-api-error';
+import { listAllCatalogItems } from '@/lib/catalog-items';
 
 type PendingConfirm =
   | { kind: 'receive' }
@@ -128,7 +129,7 @@ export default function SupplyDetailPage() {
       const client = getApiClient();
       const [s, items, history] = await Promise.all([
         client.getSupply(organizationId, storeId, supplyId),
-        client.listItems(organizationId, { pageSize: 100, status: 'ACTIVE' }),
+        listAllCatalogItems(client, organizationId, { status: 'ACTIVE', isSellable: false }),
         client.listSupplyAuditTrail(organizationId, storeId, supplyId).catch(() => []),
       ]);
       setSupply(s);
@@ -137,7 +138,7 @@ export default function SupplyDetailPage() {
       setSupplierDocumentNumber(s.supplierDocumentNumber ?? '');
       setHeaderComment(s.comment ?? '');
       setAuditTrail(history);
-      const purchasable = items.items.filter((item) => item.isPurchasable !== false);
+      const purchasable = items.filter((item) => item.isPurchasable !== false);
       setCatalog(purchasable);
       setItemId((current) => {
         if (selectItemId && purchasable.some((item) => item.id === selectItemId)) {

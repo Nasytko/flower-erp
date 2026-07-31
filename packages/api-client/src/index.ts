@@ -738,16 +738,29 @@ export function createApiClient(options: ApiClientOptions) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       }),
-    listShowcaseBouquets: (organizationId: string) =>
-      request<
+    listShowcaseBouquets: (
+      organizationId: string,
+      params: { showcaseOnly?: boolean } = {},
+    ) => {
+      const q = new URLSearchParams();
+      if (params.showcaseOnly !== undefined) {
+        q.set('showcaseOnly', String(params.showcaseOnly));
+      }
+      const query = q.toString();
+      return request<
         Array<{
           id: string;
           name: string;
           code: string;
+          isShowcase: boolean;
+          recipeLineCount: number;
           previewLines: Array<{ componentName: string; quantity: string }>;
           previewMoreCount: number;
         }>
-      >(`/organizations/${organizationId}/showcase-bouquets`),
+      >(
+        `/organizations/${organizationId}/showcase-bouquets${query ? `?${query}` : ''}`,
+      );
+    },
     listRetailPrices: (organizationId: string, effectiveFrom: string) =>
       request<{
         effectiveFrom: string;

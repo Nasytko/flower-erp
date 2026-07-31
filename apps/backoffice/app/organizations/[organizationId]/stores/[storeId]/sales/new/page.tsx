@@ -1,5 +1,6 @@
 ﻿'use client';
 
+import Link from 'next/link';
 import { Suspense, useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { Button, Card, Input } from '@flower/ui';
@@ -21,8 +22,18 @@ import { PageHeader } from '@/components/layout/page-header';
 import { Section } from '@/components/layout/section';
 import { ErrorState, LoadingState } from '@/components/layout/states';
 import { InlineAlert } from '@/components/workspace/workspace-ui';
+import { StockShortageAlert } from '@/components/inventory/stock-shortage-alert';
 import { formatApiError, type FormattedError } from '@/lib/format-api-error';
 import { formatRetailLineHint } from '@/lib/retail-price';
+import { listAllCatalogItems } from '@/lib/catalog-items';
+import {
+  buildAvailableStockMap,
+  computeStockShortages,
+  qtyNumber,
+  scaleRecipeLines,
+  type CompositionNeedLine,
+} from '@/lib/order-composition-stock';
+import { bouquetCatalogHref } from '@/lib/settings-nav';
 import { storeStockHint } from '@/lib/store-context';
 
 type CatalogItem = {
@@ -171,6 +182,20 @@ function NewSalePageInner() {
     materialsTotal: string;
   } | null>(null);
   const [retailLineHints, setRetailLineHints] = useState<Map<string, string>>(new Map());
+  const [stockByItemId, setStockByItemId] = useState<Map<string, string>>(new Map());
+  const [recipeByBouquetId, setRecipeByBouquetId] = useState<
+    Map<string, CompositionNeedLine[]>
+  >(new Map());
+  const [bouquetRecipeLineCount, setBouquetRecipeLineCount] = useState<Map<string, number>>(
+    new Map(),
+  );
+  const [fromOrderComposition, setFromOrderComposition] = useState<
+    Array<{
+      itemId: string;
+      plannedQuantity: string;
+      item?: { name: string } | null;
+    }>
+  >([]);
 
   const canPay =
     auth.hasPermission('payments:create') && auth.hasPermission('payments:complete');
@@ -364,18 +389,27 @@ function NewSalePageInner() {
     Promise.all([
       client.getStore(organizationId, storeId),
       fromOrderId
-        ? Promise.resolve({ items: [] as CatalogItem[] })
-        : client.listItems(organizationId, { pageSize: 100, status: 'ACTIVE' }),
+        ? Promise.resolve([] as CatalogItem[])
+        : listAllCatalogItems(client, organizationId, { status: 'ACTIVE' }),
+      client.getOperationalStock(organizationId, storeId),
       fromOrderId ? client.getOrder(organizationId, storeId, fromOrderId) : Promise.resolve(null),
       fromOrderId && canListPay
         ? client.getOrderPaymentSummary(organizationId, storeId, fromOrderId)
         : Promise.resolve(null),
+      fromOrderId
+        ? Promise.resolve([])
+        : client.listShowcaseBouquets(organizationId),
     ])
-      .then(([store, catalog, order, orderPay]) => {
+      .then(([store, catalogItems, stock, order, orderPay, showcaseBouquets]) => {
         if (cancelled) return;
         setStoreName(store.name);
-        const catalogItems = catalog.items as CatalogItem[];
-        setItems(catalogItems);
+        setItems(catalogItems as CatalogItem[]);
+        setStockByItemId(buildAvailableStockMap(stock.items));
+        if (!fromOrderId) {
+          setBouquetRecipeLineCount(
+            new Map(showcaseBouquets.map((b) => [b.id, b.recipeLineCount])),
+          );
+        }
         if (!fromOrderId) {
           setPositions([emptyCustomPosition()]);
           setBuilderMode('CUSTOM');
@@ -384,6 +418,9 @@ function NewSalePageInner() {
           setOrderPrice(order.plannedPrice ?? '');
           setOrderTitle(`Заказ ${order.number}`);
           setComment(order.comment ?? '');
+          setFromOrderComposition(order.composition?.items ?? []);
+        } else {
+          setFromOrderComposition([]);
         }
         setOrderBalanceDue(orderPay?.balanceDue ?? null);
       })
@@ -450,6 +487,101 @@ function NewSalePageInner() {
     };
   }, [builderMode, activeCustom, organizationId, items]);
 
+  const readyPositions = useMemo(
+    () =>
+      positions.filter(
+        (p): p is Extract<SalePosition, { kind: 'READY' }> =>
+          p.kind === 'READY' && Boolean(p.itemId) && Number(p.quantity) > 0,
+      ),
+    [positions],
+  );
+
+  useEffect(() => {
+    if (fromOrderId) return;
+    const ids = [...new Set(readyPositions.map((pos) => pos.itemId))];
+    const missing = ids.filter((id) => !recipeByBouquetId.has(id));
+    if (missing.length === 0) return;
+
+    let cancelled = false;
+    const client = getApiClient();
+    void Promise.all(
+      missing.map((id) =>
+        client.getItemRecipe(organizationId, id).then((recipe) => ({
+          id,
+          lines: recipe.lines.map((line) => ({
+            itemId: line.componentItemId,
+            name: line.componentName,
+            quantity: line.quantity,
+          })),
+        })),
+      ),
+    )
+      .then((results) => {
+        if (cancelled) return;
+        setRecipeByBouquetId((prev) => {
+          const next = new Map(prev);
+          for (const row of results) {
+            next.set(row.id, row.lines);
+          }
+          return next;
+        });
+      })
+      .catch(() => {
+        /* recipe preview optional */
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [fromOrderId, organizationId, readyPositions, recipeByBouquetId]);
+
+  const stockNeedLines = useMemo(() => {
+    if (fromOrderId) {
+      return fromOrderComposition
+        .filter((line) => qtyNumber(line.plannedQuantity) > 0)
+        .map((line) => ({
+          itemId: line.itemId,
+          name: line.item?.name ?? '…',
+          quantity: line.plannedQuantity,
+        }));
+    }
+    const lines: CompositionNeedLine[] = [];
+
+    if (builderMode === 'CUSTOM' && activeCustom) {
+      for (const line of activeCustom.composition) {
+        if (!line.itemId || Number(line.quantity) <= 0) continue;
+        const item = items.find((row) => row.id === line.itemId);
+        lines.push({
+          itemId: line.itemId,
+          name: item?.name ?? '…',
+          quantity: line.quantity,
+        });
+      }
+    }
+
+    for (const pos of readyPositions) {
+      const bouquetQty = Number(pos.quantity) || 0;
+      if (bouquetQty <= 0) continue;
+      const recipe = recipeByBouquetId.get(pos.itemId) ?? [];
+      lines.push(...scaleRecipeLines(recipe, bouquetQty));
+    }
+
+    return lines;
+  }, [
+    fromOrderId,
+    fromOrderComposition,
+    builderMode,
+    activeCustom,
+    items,
+    readyPositions,
+    recipeByBouquetId,
+  ]);
+
+  const stockShortages = useMemo(
+    () => computeStockShortages(stockNeedLines, stockByItemId),
+    [stockNeedLines, stockByItemId],
+  );
+
   function discountPayload() {
     if (discountType === 'NONE' || !auth.hasPermission('sales:discount')) return undefined;
     if (discountType === 'PERCENT') {
@@ -463,6 +595,7 @@ function NewSalePageInner() {
   }
 
   function bumpReadyQty(itemId: string, delta: number) {
+    if (delta > 0 && (bouquetRecipeLineCount.get(itemId) ?? 0) === 0) return;
     setPositions((prev) => {
       const existing = prev.find((p) => p.kind === 'READY' && p.itemId === itemId);
       if (existing && existing.kind === 'READY') {
@@ -750,10 +883,7 @@ function NewSalePageInner() {
     return <p className="page-state">Доступ запрещён</p>;
   }
 
-  const selectedReady = positions.filter(
-    (p): p is Extract<SalePosition, { kind: 'READY' }> =>
-      p.kind === 'READY' && Boolean(p.itemId) && Number(p.quantity) > 0,
-  );
+  const selectedReady = readyPositions;
   const customPartsCount = activeCustom?.composition.filter(
     (line) => line.itemId && Number(line.quantity) > 0,
   ).length ?? 0;
@@ -815,6 +945,9 @@ function NewSalePageInner() {
 
                     {fromOrderId ? (
                       <>
+                        {stockShortages.length > 0 ? (
+                          <StockShortageAlert shortages={stockShortages} context="sale" />
+                        ) : null}
                         <Field label="Название" required>
                           <Input
                             value={orderTitle}
@@ -857,6 +990,10 @@ function NewSalePageInner() {
                           </button>
                         </div>
 
+                        {stockShortages.length > 0 ? (
+                          <StockShortageAlert shortages={stockShortages} context="sale" />
+                        ) : null}
+
                         {builderMode === 'CUSTOM' ? (
                           <div className="sale-custom-meta">
                             <Field label="Название букета" required>
@@ -893,7 +1030,7 @@ function NewSalePageInner() {
                         ) : null}
 
                         <Field
-                          label={builderMode === 'READY' ? 'Каталог готовых' : 'Цветы и материалы'}
+                          label={builderMode === 'READY' ? 'Каталог букетов' : 'Цветы и материалы'}
                         >
                           <Input
                             value={catalogQuery}
@@ -904,9 +1041,12 @@ function NewSalePageInner() {
                         </Field>
 
                         {builderMode === 'READY' && readyBouquets.length === 0 ? (
-                          <InlineAlert tone="warning" title="Нет готовых букетов">
-                            В справочнике нет позиций с признаком «Продаётся». Создайте букет в
-                            «Справочники → Номенклатура» и включите продажу.
+                          <InlineAlert tone="warning" title="Каталог букетов пуст">
+                            Создайте букет в{' '}
+                            <Link href={bouquetCatalogHref(organizationId)}>
+                              Справочник → Каталог букетов
+                            </Link>
+                            .
                           </InlineAlert>
                         ) : null}
 
@@ -919,15 +1059,21 @@ function NewSalePageInner() {
                               <div className="sale-cells" role="list">
                                 {filteredFlowers.map((item) => {
                                   const qty = customQtyByItem.get(item.id) ?? 0;
+                                  const shortage = stockShortages.find((row) => row.itemId === item.id);
                                   return (
                                     <div
                                       key={item.id}
                                       role="listitem"
-                                      className={`sale-cell${qty > 0 ? ' sale-cell--active' : ''}`}
+                                      className={`sale-cell${qty > 0 ? ' sale-cell--active' : ''}${shortage ? ' sale-cell--short' : ''}`}
                                     >
                                       <div className="sale-cell__top">
                                         <strong className="sale-cell__name">{item.name}</strong>
                                         <span className="sale-cell__meta">{item.code}</span>
+                                        {shortage ? (
+                                          <span className="sale-cell__meta sale-cell__meta--warn">
+                                            доступно {shortage.available}
+                                          </span>
+                                        ) : null}
                                         {retailLineHints.get(item.id) ? (
                                           <span className="sale-cell__meta">{retailLineHints.get(item.id)}</span>
                                         ) : null}
@@ -953,15 +1099,21 @@ function NewSalePageInner() {
                               <div className="sale-cells" role="list">
                                 {filteredMaterials.map((item) => {
                                   const qty = customQtyByItem.get(item.id) ?? 0;
+                                  const shortage = stockShortages.find((row) => row.itemId === item.id);
                                   return (
                                     <div
                                       key={item.id}
                                       role="listitem"
-                                      className={`sale-cell${qty > 0 ? ' sale-cell--active' : ''}`}
+                                      className={`sale-cell${qty > 0 ? ' sale-cell--active' : ''}${shortage ? ' sale-cell--short' : ''}`}
                                     >
                                       <div className="sale-cell__top">
                                         <strong className="sale-cell__name">{item.name}</strong>
                                         <span className="sale-cell__meta">+1 · {item.code}</span>
+                                        {shortage ? (
+                                          <span className="sale-cell__meta sale-cell__meta--warn">
+                                            доступно {shortage.available}
+                                          </span>
+                                        ) : null}
                                         {retailLineHints.get(item.id) ? (
                                           <span className="sale-cell__meta">{retailLineHints.get(item.id)}</span>
                                         ) : null}
@@ -990,21 +1142,40 @@ function NewSalePageInner() {
                             {filteredCatalog.map((item) => {
                               const qty = readyQtyByItem.get(item.id) ?? 0;
                               const readyPos = selectedReady.find((p) => p.itemId === item.id);
+                              const recipeLineCount = bouquetRecipeLineCount.get(item.id) ?? 0;
+                              const emptyRecipe = recipeLineCount === 0;
+                              const bouquetNeeds = scaleRecipeLines(
+                                recipeByBouquetId.get(item.id) ?? [],
+                                qty,
+                              );
+                              const bouquetShort =
+                                qty > 0 &&
+                                computeStockShortages(bouquetNeeds, stockByItemId).length > 0;
                               return (
                                 <div
                                   key={item.id}
                                   role="listitem"
-                                  className={`sale-cell${qty > 0 ? ' sale-cell--active' : ''}`}
+                                  className={`sale-cell${qty > 0 ? ' sale-cell--active' : ''}${bouquetShort ? ' sale-cell--short' : ''}${emptyRecipe ? ' sale-cell--disabled' : ''}`}
                                 >
                                   <div className="sale-cell__top">
                                     <strong className="sale-cell__name">{item.name}</strong>
                                     <span className="sale-cell__meta">
                                       {itemTypeLabel(item.itemType)} · {item.code}
                                     </span>
+                                    {emptyRecipe ? (
+                                      <span className="sale-cell__meta sale-cell__meta--warn">
+                                        без состава
+                                      </span>
+                                    ) : null}
+                                    {bouquetShort ? (
+                                      <span className="sale-cell__meta sale-cell__meta--warn">
+                                        не хватает ингредиентов
+                                      </span>
+                                    ) : null}
                                   </div>
                                   <QtyStepper
                                     value={qty}
-                                    disabled={busy}
+                                    disabled={busy || emptyRecipe}
                                     onDecrease={() => bumpReadyQty(item.id, -1)}
                                     onIncrease={() => bumpReadyQty(item.id, 1)}
                                   />
