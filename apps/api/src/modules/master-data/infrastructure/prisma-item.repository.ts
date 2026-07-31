@@ -147,6 +147,7 @@ export class PrismaItemRepository implements ItemRepository {
       ...(filter.status ? { status: filter.status } : {}),
       ...(filter.name ? { name: { contains: filter.name, mode: 'insensitive' } } : {}),
       ...(filter.code ? { code: { contains: filter.code.toUpperCase(), mode: 'insensitive' } } : {}),
+      ...(filter.isSellable !== undefined ? { isSellable: filter.isSellable } : {}),
     };
     const sortBy = filter.sortBy ?? 'createdAt';
     const sortDir = filter.sortDir ?? 'desc';

@@ -15,6 +15,10 @@ import { StatusBadge } from '@/components/layout/status-badge';
 import { Field } from '@/components/layout/field';
 import { FancySelect } from '@/components/layout/fancy-select';
 import { ConfirmDialog } from '@/components/workspace/workspace-ui';
+import {
+  SupplyWorkflowSteps,
+  supplyWorkflowNextHint,
+} from '@/components/supply/supply-workflow-steps';
 import { useToast } from '@/components/ui/toast';
 import { newIdempotencyKey } from '@/lib/idempotency';
 import { formatApiErrorMessage } from '@/lib/format-api-error';
@@ -431,14 +435,18 @@ export default function SupplyDetailPage() {
       return sum + (part ? Number(part) : 0);
     }, 0) ?? 0;
   const canReceive =
-    open &&
-    supply.items.length > 0 &&
-    supply.items.every(
-      (line) =>
-        line.plannedUnitPrice != null &&
-        Number(line.plannedUnitPrice) >= 0 &&
-        Number(line.orderedQuantity) > 0,
+    Boolean(
+      open &&
+        supply &&
+        supply.items.length > 0 &&
+        supply.items.every(
+          (line) =>
+            line.plannedUnitPrice != null &&
+            Number(line.plannedUnitPrice) >= 0 &&
+            Number(line.orderedQuantity) > 0,
+        ),
     );
+  const workflowStep: 2 | 3 = canReceive ? 3 : 2;
 
   return (
     <main>
@@ -466,6 +474,16 @@ export default function SupplyDetailPage() {
         {error ? <ErrorState message={error} /> : null}
         {supply ? (
           <>
+            {open ? (
+              <Section>
+                <SupplyWorkflowSteps current={workflowStep} />
+                <p className="field__hint" style={{ margin: '0 0 12px' }}>
+                  {supply.items.length === 0
+                    ? 'Шаг 2: добавьте хотя бы один товар с количеством и закупочной ценой.'
+                    : supplyWorkflowNextHint(workflowStep)}
+                </p>
+              </Section>
+            ) : null}
             {supply.supplier?.name ? (
               <p style={{ margin: '0 0 12px', color: 'var(--color-muted)', fontSize: 'var(--text-sm)' }}>
                 Поставщик: <strong style={{ color: 'var(--color-foreground)' }}>{supply.supplier.name}</strong>
@@ -814,7 +832,7 @@ export default function SupplyDetailPage() {
                     disabled={busy || !canReceive || editingItemId != null}
                     onClick={() => void onReceive()}
                   >
-                    Провести на склад
+                    {canReceive ? 'Шаг 3: провести на склад' : 'Провести на склад'}
                   </Button>
                 ) : null}
                 {open ? (

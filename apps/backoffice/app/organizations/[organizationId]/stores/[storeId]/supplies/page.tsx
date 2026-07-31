@@ -14,6 +14,10 @@ import { StatusBadge } from '@/components/layout/status-badge';
 import { Field } from '@/components/layout/field';
 import { FancySelect } from '@/components/layout/fancy-select';
 import {
+  SupplyWorkflowSteps,
+  supplyWorkflowNextHint,
+} from '@/components/supply/supply-workflow-steps';
+import {
   type FieldErrors,
   firstFieldError,
   hasFieldErrors,
@@ -92,6 +96,12 @@ export default function SuppliesPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [organizationId, storeId]);
 
+  useEffect(() => {
+    if (!loading && items.length === 0) {
+      setShowCreate(true);
+    }
+  }, [loading, items.length]);
+
   async function onCreate(event: FormEvent) {
     event.preventDefault();
     const errors: FieldErrors = {
@@ -140,8 +150,12 @@ export default function SuppliesPage() {
 
         {showCreate ? (
           <Section>
-            <Card title="Новая приёмка">
-              <form onSubmit={onCreate} className="form-grid" noValidate>
+            <Card title="Новая приёмка · шаг 1">
+              <SupplyWorkflowSteps current={1} />
+              <p className="field__hint" style={{ marginTop: 0 }}>
+                {supplyWorkflowNextHint(1)}
+              </p>
+              <form onSubmit={onCreate} className="form-grid" noValidate style={{ marginTop: 16 }}>
                 <Field label="Поставщик" required error={fieldErrors.supplierId}>
                   <FancySelect
                     value={supplierId}
@@ -187,7 +201,7 @@ export default function SuppliesPage() {
                   />
                 </Field>
                 <Button type="submit" disabled={creating || !supplierId}>
-                  {creating ? 'Создание…' : 'Создать и заполнить'}
+                  {creating ? 'Создание…' : 'Далее: добавить товары →'}
                 </Button>
               </form>
             </Card>

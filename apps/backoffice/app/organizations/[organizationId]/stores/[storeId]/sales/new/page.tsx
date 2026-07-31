@@ -180,7 +180,12 @@ function NewSalePageInner() {
     auth.hasPermission('payments:read');
 
   const ingredients = useMemo(
-    () => items.filter((item) => item.itemType === 'FLOWER' || item.itemType === 'MATERIAL'),
+    () =>
+      items.filter(
+        (item) =>
+          !item.isSellable &&
+          (item.itemType === 'FLOWER' || item.itemType === 'MATERIAL'),
+      ),
     [items],
   );
   const readyBouquets = useMemo(

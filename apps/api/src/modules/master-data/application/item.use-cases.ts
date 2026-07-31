@@ -235,6 +235,7 @@ export class ItemUseCases {
         const isSellable = input.isSellable ?? false;
         const isShowcase = input.isShowcase ?? false;
         assertShowcaseFlag({ isSellable }, isShowcase);
+        const isPurchasable = isSellable ? false : (input.isPurchasable ?? true);
 
         const minimumStockQuantity = normalizeMinimumStockQuantity(input.minimumStockQuantity);
         if (minimumStockQuantity !== null && input.itemType !== ItemType.FLOWER) {
@@ -254,7 +255,7 @@ export class ItemUseCases {
           code,
           itemType: input.itemType,
           description,
-          isPurchasable: input.isPurchasable ?? true,
+          isPurchasable,
           isSellable,
           isShowcase,
           minimumStockQuantity,
@@ -440,7 +441,12 @@ export class ItemUseCases {
         const componentMap = new Map(
           components.map((row) => [
             row.id,
-            { id: row.id, itemType: row.itemType, status: row.status },
+            {
+              id: row.id,
+              itemType: row.itemType,
+              status: row.status,
+              isSellable: row.isSellable,
+            },
           ]),
         );
         validateRecipeLines(input.lines, componentMap);

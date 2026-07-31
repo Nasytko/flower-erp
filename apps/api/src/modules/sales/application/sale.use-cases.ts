@@ -18,6 +18,10 @@ import {
   type InventoryIssuePort,
 } from '../../inventory/application/ports/inventory-issue.port';
 import { ItemUseCases } from '../../master-data/application/item.use-cases';
+import {
+  expandRecipeForQuantity,
+  mergeIssueLines,
+} from '../../master-data/domain/recipe-issue-lines';
 import { assertAvailableForNewDocuments } from '../../master-data/domain/master-data-rules';
 import { OrganizationUseCases } from '../../organization/application/organization.use-cases';
 import {
@@ -389,10 +393,13 @@ export class SaleUseCases {
             message: 'Direct sale has no inventory lines to issue',
           });
         }
-        issueLines = stockLines.map((line) => ({
-          itemId: line.itemId!,
-          quantity: line.quantity,
-        }));
+        issueLines = await this.resolveDirectIssueLines(
+          input.organizationId,
+          stockLines.map((line) => ({
+            itemId: line.itemId!,
+            quantity: line.quantity,
+          })),
+        );
       }
 
       const issueResult = await this.inventoryIssue.issueForSale({
@@ -692,6 +699,26 @@ export class SaleUseCases {
         netAmount: computeNet(line.grossAmount, discountAmount),
       };
     });
+  }
+
+  private async resolveDirectIssueLines(
+    organizationId: string,
+    saleLines: Array<{ itemId: string; quantity: string }>,
+  ): Promise<Array<{ itemId: string; quantity: string }>> {
+    const expanded: Array<{ itemId: string; quantity: string }> = [];
+    for (const line of saleLines) {
+      const item = await this.items.getItem(organizationId, line.itemId);
+      if (item.isSellable) {
+        const { lines: recipe } = await this.items.getRecipeForTemplate(
+          organizationId,
+          line.itemId,
+        );
+        expanded.push(...expandRecipeForQuantity(line.quantity, recipe));
+        continue;
+      }
+      expanded.push({ itemId: line.itemId, quantity: line.quantity });
+    }
+    return mergeIssueLines(expanded);
   }
 
   private async requireSale(

@@ -44,15 +44,24 @@ test('recipe validation rejects duplicate components and wrong types', () => {
     id: 'flower-1',
     itemType: ItemType.FLOWER,
     status: MasterDataStatus.ACTIVE,
+    isSellable: false,
   };
   const material = {
     id: 'mat-1',
     itemType: ItemType.MATERIAL,
     status: MasterDataStatus.ACTIVE,
+    isSellable: false,
+  };
+  const bouquet = {
+    id: 'bouquet-1',
+    itemType: ItemType.FLOWER,
+    status: MasterDataStatus.ACTIVE,
+    isSellable: true,
   };
   const components = new Map([
     [flower.id, flower],
     [material.id, material],
+    [bouquet.id, bouquet],
   ]);
 
   assert.doesNotThrow(() =>
@@ -83,6 +92,13 @@ test('recipe validation rejects duplicate components and wrong types', () => {
       validateRecipeLines([{ componentItemId: 'missing', quantity: '1' }], components),
     (err: unknown) =>
       err instanceof DomainError && err.code === 'RECIPE_COMPONENT_NOT_FOUND',
+  );
+
+  assert.throws(
+    () =>
+      validateRecipeLines([{ componentItemId: bouquet.id, quantity: '1' }], components),
+    (err: unknown) =>
+      err instanceof DomainError && err.code === 'RECIPE_NESTED_BOUQUET',
   );
 });
 

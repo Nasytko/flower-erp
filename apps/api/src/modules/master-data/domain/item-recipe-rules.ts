@@ -9,6 +9,7 @@ export type RecipeComponentInfo = {
   id: string;
   itemType: ItemType;
   status: MasterDataStatus;
+  isSellable: boolean;
 };
 
 export function assertRecipeParentSellable(item: Pick<ItemProps, 'isSellable' | 'status'>): void {
@@ -70,6 +71,12 @@ export function validateRecipeLines(
       throw new DomainError(
         'RECIPE_INVALID_COMPONENT_TYPE',
         'Recipe components must be flowers or materials',
+      );
+    }
+    if (component.isSellable) {
+      throw new DomainError(
+        'RECIPE_NESTED_BOUQUET',
+        'Ready bouquets cannot be used as recipe components — add flowers and materials',
       );
     }
   }

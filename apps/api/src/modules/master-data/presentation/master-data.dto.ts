@@ -14,7 +14,7 @@ import {
   MinLength,
   ValidateNested,
 } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Type, Transform } from 'class-transformer';
 import {
   ItemType,
   InventoryPolicyPresetCode,
@@ -364,6 +364,17 @@ export class ListItemsQueryDto extends PaginationQueryDto {
   @IsString()
   @MaxLength(32)
   code?: string;
+
+  @ApiPropertyOptional({ description: 'Filter by ready-bouquet flag' })
+  @IsOptional()
+  @Transform(({ value }) => {
+    if (value === undefined || value === null || value === '') return undefined;
+    if (value === true || value === 'true') return true;
+    if (value === false || value === 'false') return false;
+    return value;
+  })
+  @IsBoolean()
+  isSellable?: boolean;
 
   @ApiPropertyOptional({ enum: ['createdAt', 'name', 'code'] })
   @IsOptional()

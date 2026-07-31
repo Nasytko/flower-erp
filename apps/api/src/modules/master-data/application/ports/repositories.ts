@@ -41,6 +41,7 @@ export type ItemListFilter = {
   status?: MasterDataStatus;
   name?: string;
   code?: string;
+  isSellable?: boolean;
   sortBy?: 'createdAt' | 'name' | 'code';
   sortDir?: SortDirection;
 };

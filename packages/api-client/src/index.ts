@@ -579,6 +579,7 @@ export function createApiClient(options: ApiClientOptions) {
         status?: string;
         name?: string;
         code?: string;
+        isSellable?: boolean;
         sortBy?: string;
         sortDir?: string;
       } = {},
@@ -591,6 +592,7 @@ export function createApiClient(options: ApiClientOptions) {
       if (params.status) q.set('status', params.status);
       if (params.name) q.set('name', params.name);
       if (params.code) q.set('code', params.code);
+      if (params.isSellable !== undefined) q.set('isSellable', String(params.isSellable));
       if (params.sortBy) q.set('sortBy', params.sortBy);
       if (params.sortDir) q.set('sortDir', params.sortDir);
       return request<{
@@ -606,6 +608,7 @@ export function createApiClient(options: ApiClientOptions) {
           isSellable?: boolean;
           isPurchasable?: boolean;
           isShowcase?: boolean;
+          minimumStockQuantity?: string | null;
           createdAt?: string;
           createdByMembershipId?: string | null;
           createdByDisplayName?: string | null;

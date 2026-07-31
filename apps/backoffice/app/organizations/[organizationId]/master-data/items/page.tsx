@@ -1,10 +1,10 @@
 ﻿'use client';
 
-import Link from 'next/link';
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { useParams } from 'next/navigation';
 import { Button, Card, Input } from '@flower/ui';
 import { useAuth } from '@/components/auth-provider';
+import { CatalogExpandRow } from '@/components/catalog/catalog-expand-row';
 import { getApiClient } from '@/lib/api-client';
 import { PageContainer } from '@/components/layout/page-container';
 import { PageHeader } from '@/components/layout/page-header';
@@ -28,7 +28,6 @@ type Item = {
   code: string;
   itemType: string;
   status: string;
-  isSellable?: boolean;
   minimumStockQuantity?: string | null;
   createdAt?: string;
   createdByDisplayName?: string | null;
@@ -51,7 +50,6 @@ export default function ItemsPage() {
   const params = useParams<{ organizationId: string }>();
   const auth = useAuth();
   const organizationId = params.organizationId;
-  const base = `/organizations/${organizationId}/master-data`;
   const canOperate = canOperateCatalog(auth.hasPermission);
   const canManage = canManageCatalog(auth.hasPermission);
 
@@ -63,12 +61,13 @@ export default function ItemsPage() {
   const [statusFilter, setStatusFilter] = useState('ACTIVE');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [thresholdDrafts, setThresholdDrafts] = useState<Record<string, string>>({});
+  const [savingThresholdId, setSavingThresholdId] = useState<string | null>(null);
 
   const [name, setName] = useState('');
   const [itemType, setItemType] = useState<'FLOWER' | 'MATERIAL'>('FLOWER');
   const [description, setDescription] = useState('');
-  const [isSellable, setIsSellable] = useState(false);
-  const [isShowcase, setIsShowcase] = useState(false);
   const [minimumStock, setMinimumStock] = useState('');
   const [creating, setCreating] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
@@ -77,18 +76,27 @@ export default function ItemsPage() {
     setLoading(true);
     setError(null);
     try {
-      const client = getApiClient();
-      const list = await client.listItems(organizationId, {
-          page,
-          pageSize: 10,
-          name: nameFilter || undefined,
-          itemType: typeFilter || undefined,
-          status: statusFilter || undefined,
-          sortBy: 'name',
-          sortDir: 'asc',
-        });
+      const list = await getApiClient().listItems(organizationId, {
+        page,
+        pageSize: 10,
+        name: nameFilter || undefined,
+        itemType: typeFilter || undefined,
+        status: statusFilter || undefined,
+        isSellable: false,
+        sortBy: 'name',
+        sortDir: 'asc',
+      });
       setItems(list.items);
       setTotalPages(list.totalPages);
+      setThresholdDrafts((prev) => {
+        const next = { ...prev };
+        for (const item of list.items) {
+          if (next[item.id] === undefined) {
+            next[item.id] = item.minimumStockQuantity ?? '';
+          }
+        }
+        return next;
+      });
     } catch (err) {
       setError(formatApiErrorMessage(err, 'Не удалось загрузить товары'));
     } finally {
@@ -117,16 +125,13 @@ export default function ItemsPage() {
         name,
         itemType,
         description: description.trim() || undefined,
-        isSellable,
-        isShowcase: isSellable ? isShowcase : false,
         isPurchasable: true,
+        isSellable: false,
         minimumStockQuantity:
           itemType === 'FLOWER' && minimumStock.trim() ? minimumStock.trim() : undefined,
       });
       setName('');
       setDescription('');
-      setIsSellable(false);
-      setIsShowcase(false);
       setMinimumStock('');
       await load();
     } catch (err) {
@@ -140,9 +145,26 @@ export default function ItemsPage() {
     setError(null);
     try {
       await getApiClient().archiveItem(organizationId, itemId);
+      if (expandedId === itemId) setExpandedId(null);
       await load();
     } catch (err) {
       setError(formatApiErrorMessage(err, 'Не удалось архивировать'));
+    }
+  }
+
+  async function onSaveThreshold(item: Item) {
+    setSavingThresholdId(item.id);
+    setError(null);
+    try {
+      const draft = thresholdDrafts[item.id] ?? '';
+      await getApiClient().updateItem(organizationId, item.id, {
+        minimumStockQuantity: draft.trim() ? draft.trim() : null,
+      });
+      await load();
+    } catch (err) {
+      setError(formatApiErrorMessage(err, 'Не удалось сохранить порог'));
+    } finally {
+      setSavingThresholdId(null);
     }
   }
 
@@ -151,7 +173,7 @@ export default function ItemsPage() {
       <PageContainer>
         <PageHeader
           title="Товары"
-          description="Цветы и материалы. Готовые букеты для витрины — в разделе «Букеты на витрине»."
+          description="Цветы и материалы для закупок и сборки. Готовые букеты — в разделе «Букеты на витрине»."
           breadcrumbs={catalogBreadcrumbs(organizationId, { label: 'Товары' })}
         />
 
@@ -234,52 +256,69 @@ export default function ItemsPage() {
             <ul className="list-stack">
               {items.map((item) => (
                 <li key={item.id}>
-                  <div
-                    style={{
-                      display: 'flex',
-                      flexWrap: 'wrap',
-                      gap: 12,
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      padding: 12,
-                      border: '1px solid var(--color-border)',
-                      borderRadius: 10,
-                      background: 'var(--color-surface)',
-                    }}
-                  >
-                    <div>
-                      <Link href={`${base}/items/${item.id}`}>
-                        <strong>
-                          {item.name} ({item.code})
-                        </strong>
-                      </Link>
-                      <div className="meta-row" style={{ marginTop: 4 }}>
+                  <CatalogExpandRow
+                    expanded={expandedId === item.id}
+                    onToggle={() =>
+                      setExpandedId((current) => (current === item.id ? null : item.id))
+                    }
+                    title={
+                      <>
+                        {item.name} ({item.code})
+                      </>
+                    }
+                    meta={
+                      <div className="meta-row">
                         <StatusBadge status={itemTypeLabel(item.itemType)} />
                         <StatusBadge status={item.status} />
-                        {item.isSellable ? (
-                          <span className="sale-type-pill">Готовый букет</span>
-                        ) : null}
+                        <span>
+                          Добавил: {item.createdByDisplayName ?? 'неизвестно'}
+                          {formatWhen(item.createdAt) ? ` · ${formatWhen(item.createdAt)}` : null}
+                        </span>
                       </div>
-                      <div
-                        style={{
-                          marginTop: 6,
-                          fontSize: 'var(--text-xs)',
-                          color: 'var(--color-muted)',
+                    }
+                    actions={
+                      canManage && item.status !== 'ARCHIVED' ? (
+                        <Button variant="ghost" onClick={() => void onArchive(item.id)}>
+                          Архив
+                        </Button>
+                      ) : undefined
+                    }
+                  >
+                    {item.itemType === 'FLOWER' && item.status !== 'ARCHIVED' && canOperate ? (
+                      <form
+                        className="form-grid"
+                        onSubmit={(event) => {
+                          event.preventDefault();
+                          void onSaveThreshold(item);
                         }}
                       >
-                        Добавил: {item.createdByDisplayName ?? 'неизвестно'}
-                        {formatWhen(item.createdAt) ? ` · ${formatWhen(item.createdAt)}` : null}
-                        {item.itemType === 'FLOWER' && item.minimumStockQuantity
-                          ? ` · порог ${item.minimumStockQuantity}`
-                          : null}
-                      </div>
-                    </div>
-                    {canManage && item.status !== 'ARCHIVED' ? (
-                      <Button variant="ghost" onClick={() => void onArchive(item.id)}>
-                        Архив
-                      </Button>
-                    ) : null}
-                  </div>
+                        <Field label="Минимальный остаток" hint="KPI «Ниже порога» на главной магазина">
+                          <Input
+                            type="number"
+                            min={0}
+                            step="any"
+                            value={thresholdDrafts[item.id] ?? ''}
+                            onChange={(event) =>
+                              setThresholdDrafts((prev) => ({
+                                ...prev,
+                                [item.id]: event.target.value,
+                              }))
+                            }
+                            placeholder="Не задан"
+                          />
+                        </Field>
+                        <div style={{ display: 'flex', alignItems: 'flex-end' }}>
+                          <Button type="submit" variant="secondary" disabled={savingThresholdId === item.id}>
+                            {savingThresholdId === item.id ? 'Сохранение…' : 'Сохранить порог'}
+                          </Button>
+                        </div>
+                      </form>
+                    ) : (
+                      <p className="field__hint" style={{ margin: 0 }}>
+                        Код: {item.code}
+                      </p>
+                    )}
+                  </CatalogExpandRow>
                 </li>
               ))}
             </ul>
@@ -306,105 +345,65 @@ export default function ItemsPage() {
         </Section>
 
         {canOperate ? (
-        <Section>
-          <Card title="Создать товар">
-            <form onSubmit={onCreate} className="form-grid" noValidate>
-              <Field
-                label="Название"
-                required
-                error={fieldErrors.name}
-                hint="Как товар будет отображаться в поставках и на складе"
-              >
-                <Input
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  required
-                  minLength={2}
-                  aria-label="Название товара"
-                />
-              </Field>
-              <Field
-                label="Тип"
-                required
-                hint="Цветок — партии и срок годности; материал — без партий (политика подставится сама)"
-              >
-                <FancySelect
-                  value={itemType}
-                  onChange={(value) => setItemType(value as 'FLOWER' | 'MATERIAL')}
-                  options={[
-                    { value: 'FLOWER', label: 'Цветок' },
-                    { value: 'MATERIAL', label: 'Материал' },
-                  ]}
-                  searchable={false}
-                  aria-label="Тип товара"
-                />
-              </Field>
-              <Field label="Описание" hint="Необязательно">
-                <Input
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  aria-label="Описание товара"
-                />
-              </Field>
-              {itemType === 'FLOWER' ? (
+          <Section>
+            <Card title="Создать товар">
+              <form onSubmit={onCreate} className="form-grid" noValidate>
                 <Field
-                  label="Минимальный остаток"
-                  hint="KPI «Ниже порога» на главной магазина; необязательно"
+                  label="Название"
+                  required
+                  error={fieldErrors.name}
+                  hint="Цветок или материал для закупок, склада и сборки букетов"
                 >
                   <Input
-                    type="number"
-                    min={0}
-                    step="any"
-                    value={minimumStock}
-                    onChange={(e) => setMinimumStock(e.target.value)}
-                    placeholder="Не задан"
-                    aria-label="Минимальный остаток"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    required
+                    minLength={2}
+                    aria-label="Название товара"
                   />
                 </Field>
-              ) : null}
-              <label
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  minHeight: 40,
-                  fontSize: 'var(--text-sm)',
-                }}
-              >
-                <input
-                  type="checkbox"
-                  checked={isSellable}
-                  onChange={(e) => {
-                    setIsSellable(e.target.checked);
-                    if (!e.target.checked) setIsShowcase(false);
-                  }}
-                />
-                Готовый букет (продаётся в магазине как готовая позиция)
-              </label>
-              {isSellable ? (
-                <label
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 8,
-                    minHeight: 40,
-                    fontSize: 'var(--text-sm)',
-                  }}
+                <Field
+                  label="Тип"
+                  required
+                  hint="Цветок — партии и срок годности; материал — без партий"
                 >
-                  <input
-                    type="checkbox"
-                    checked={isShowcase}
-                    onChange={(e) => setIsShowcase(e.target.checked)}
+                  <FancySelect
+                    value={itemType}
+                    onChange={(value) => setItemType(value as 'FLOWER' | 'MATERIAL')}
+                    options={[
+                      { value: 'FLOWER', label: 'Цветок' },
+                      { value: 'MATERIAL', label: 'Материал' },
+                    ]}
+                    searchable={false}
+                    aria-label="Тип товара"
                   />
-                  На витрине (доступен при создании заказа)
-                </label>
-              ) : null}
-              <Button type="submit" disabled={creating}>
-                {creating ? 'Создание…' : 'Создать'}
-              </Button>
-            </form>
-          </Card>
-        </Section>
+                </Field>
+                <Field label="Описание" hint="Необязательно">
+                  <Input
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    aria-label="Описание товара"
+                  />
+                </Field>
+                {itemType === 'FLOWER' ? (
+                  <Field label="Минимальный остаток" hint="Необязательно">
+                    <Input
+                      type="number"
+                      min={0}
+                      step="any"
+                      value={minimumStock}
+                      onChange={(e) => setMinimumStock(e.target.value)}
+                      placeholder="Не задан"
+                      aria-label="Минимальный остаток"
+                    />
+                  </Field>
+                ) : null}
+                <Button type="submit" disabled={creating}>
+                  {creating ? 'Создание…' : 'Создать'}
+                </Button>
+              </form>
+            </Card>
+          </Section>
         ) : null}
       </PageContainer>
     </main>

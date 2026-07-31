@@ -225,6 +225,7 @@ export class MasterDataController {
         status: query.status,
         name: query.name,
         code: query.code,
+        isSellable: query.isSellable,
         sortBy: query.sortBy,
         sortDir: query.sortDir,
       },
