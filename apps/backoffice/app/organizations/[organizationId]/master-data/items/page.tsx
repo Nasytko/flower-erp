@@ -13,6 +13,7 @@ import { StatusBadge } from '@/components/layout/status-badge';
 import { Field } from '@/components/layout/field';
 import { FancySelect } from '@/components/layout/fancy-select';
 import { formatApiErrorMessage } from '@/lib/format-api-error';
+import { masterDataBreadcrumbs } from '@/lib/settings-nav';
 import {
   type FieldErrors,
   firstFieldError,
@@ -147,12 +148,7 @@ export default function ItemsPage() {
         <PageHeader
           title="Товары"
           description="Цветы и материалы для сборки, либо готовые букеты с признаком «продаётся»."
-          breadcrumbs={[
-            { label: 'Организации', href: '/organizations' },
-            { label: 'Организация', href: `/organizations/${organizationId}` },
-            { label: 'Справочники', href: base },
-            { label: 'Товары' },
-          ]}
+          breadcrumbs={masterDataBreadcrumbs(organizationId, { label: 'Товары' })}
         />
 
         <Section>

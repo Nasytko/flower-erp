@@ -13,6 +13,7 @@ import { StatusBadge } from '@/components/layout/status-badge';
 import { Field } from '@/components/layout/field';
 import { FancySelect } from '@/components/layout/fancy-select';
 import { formatApiErrorMessage } from '@/lib/format-api-error';
+import { settingsBreadcrumbs } from '@/lib/settings-nav';
 
 type PaymentMethod = Awaited<
   ReturnType<ReturnType<typeof getApiClient>['listPaymentMethods']>
@@ -31,7 +32,6 @@ export default function PaymentMethodsPage() {
   const params = useParams<{ organizationId: string; storeId: string }>();
   const auth = useAuth();
   const { organizationId, storeId } = params;
-  const base = `/organizations/${organizationId}/stores/${storeId}`;
 
   const [methods, setMethods] = useState<PaymentMethod[]>([]);
   const [loading, setLoading] = useState(true);
@@ -103,12 +103,7 @@ export default function PaymentMethodsPage() {
         <PageHeader
           title="Способы оплаты"
           description="Справочник методов оплаты магазина."
-          breadcrumbs={[
-            { label: 'Организации', href: '/organizations' },
-            { label: 'Организация', href: `/organizations/${organizationId}` },
-            { label: 'Магазин', href: base },
-            { label: 'Способы оплаты' },
-          ]}
+          breadcrumbs={settingsBreadcrumbs(organizationId, { label: 'Способы оплаты' })}
           actions={
             <Button type="button" disabled={busy} onClick={() => void onEnsureDefaults()}>
               Создать стандартные

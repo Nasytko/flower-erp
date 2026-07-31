@@ -17,8 +17,48 @@ export type SettingsNavCategory = {
   items: SettingsNavItem[];
 };
 
+export type MasterDataSection = {
+  slug: string;
+  title: string;
+  description: string;
+  permission: string;
+};
+
 /** Permission gate for the entire settings area (director-only). */
 export const SETTINGS_ACCESS_PERMISSION = 'users:read';
+
+export const MASTER_DATA_SECTIONS: MasterDataSection[] = [
+  {
+    slug: 'items',
+    title: 'Товары',
+    description: 'Цветы, материалы и готовые букеты',
+    permission: 'master-data:read',
+  },
+  {
+    slug: 'categories',
+    title: 'Категории',
+    description: 'Дерево категорий без ограничения глубины',
+    permission: 'master-data:read',
+  },
+  {
+    slug: 'suppliers',
+    title: 'Поставщики',
+    description: 'Поставщики организации',
+    permission: 'master-data:read',
+  },
+  {
+    slug: 'policies',
+    title: 'Политики учёта',
+    description: 'Метод учёта и срок годности по умолчанию',
+    permission: 'master-data:read',
+  },
+  {
+    slug: 'retail-prices',
+    title: 'Розничные цены',
+    description: 'Цветы за штуку, материалы — по неделям',
+    permission: 'master-data:manage',
+  },
+];
 
 export const SETTINGS_NAV_CATEGORIES: SettingsNavCategory[] = [
   {
@@ -28,14 +68,14 @@ export const SETTINGS_NAV_CATEGORIES: SettingsNavCategory[] = [
       {
         href: '/organizations/{orgId}',
         label: 'Магазины',
-        description: 'Список магазинов, создание новых точек',
+        description: 'Список магазинов и создание новых точек',
         permission: 'organization:read',
         storeScoped: false,
       },
       {
         href: '/organizations/{orgId}/integrations',
         label: 'Карты и навигация',
-        description: 'Яндекс.Карты, геокодирование',
+        description: 'Яндекс.Карты, геокодирование, центр карты',
         permission: 'organization:manage',
       },
     ],
@@ -47,13 +87,13 @@ export const SETTINGS_NAV_CATEGORIES: SettingsNavCategory[] = [
       {
         href: '/organizations/{orgId}/users',
         label: 'Сотрудники',
-        description: 'Учётные записи, роли, доступ к магазинам',
+        description: 'Учётные записи, роли и доступ к магазинам',
         permission: 'users:read',
       },
       {
         href: '/organizations/{orgId}/roles',
-        label: 'Роли',
-        description: 'Назначение ролей и прав',
+        label: 'Роли и права',
+        description: 'Справочник системных ролей (назначение — в «Сотрудники»)',
         permission: 'roles:manage',
       },
     ],
@@ -64,34 +104,9 @@ export const SETTINGS_NAV_CATEGORIES: SettingsNavCategory[] = [
     items: [
       {
         href: '/organizations/{orgId}/master-data',
-        label: 'Обзор справочников',
-        description: 'Товары, категории, поставщики, политики',
+        label: 'Справочники',
+        description: 'Товары, категории, поставщики, политики, цены',
         permission: 'master-data:read',
-      },
-      {
-        href: '/organizations/{orgId}/master-data/items',
-        label: 'Товары',
-        permission: 'master-data:read',
-      },
-      {
-        href: '/organizations/{orgId}/master-data/categories',
-        label: 'Категории',
-        permission: 'master-data:read',
-      },
-      {
-        href: '/organizations/{orgId}/master-data/suppliers',
-        label: 'Поставщики',
-        permission: 'master-data:read',
-      },
-      {
-        href: '/organizations/{orgId}/master-data/policies',
-        label: 'Политики учёта',
-        permission: 'master-data:read',
-      },
-      {
-        href: '/organizations/{orgId}/master-data/retail-prices',
-        label: 'Розничные цены',
-        permission: 'master-data:manage',
       },
     ],
   },
@@ -109,12 +124,14 @@ export const SETTINGS_NAV_CATEGORIES: SettingsNavCategory[] = [
       {
         href: '/organizations/{orgId}/stores/{storeId}/payment-methods',
         label: 'Способы оплаты',
+        description: 'Каталог методов оплаты',
         permission: 'payments:manage-methods',
         storeScoped: true,
       },
       {
         href: '/organizations/{orgId}/stores/{storeId}/couriers',
         label: 'Курьеры',
+        description: 'Профили курьеров для доставок',
         permission: 'delivery:manage-couriers',
         storeScoped: true,
       },
@@ -146,6 +163,29 @@ const SETTINGS_PATH_PATTERNS = [
   /^\/organizations\/[^/]+\/stores\/[^/]+\/couriers(\/|$)/,
   /^\/organizations\/[^/]+$/,
 ];
+
+export function settingsHubHref(organizationId: string): string {
+  return `/organizations/${organizationId}/settings`;
+}
+
+export function settingsBreadcrumbs(
+  organizationId: string,
+  ...trail: Array<{ label: string; href?: string }>
+) {
+  return [
+    { label: 'Организации', href: '/organizations' },
+    { label: 'Настройки', href: settingsHubHref(organizationId) },
+    ...trail,
+  ];
+}
+
+export function masterDataBreadcrumbs(
+  organizationId: string,
+  ...trail: Array<{ label: string; href?: string }>
+) {
+  const base = `/organizations/${organizationId}/master-data`;
+  return settingsBreadcrumbs(organizationId, { label: 'Справочники', href: base }, ...trail);
+}
 
 export function isSettingsAreaPath(pathname: string): boolean {
   return SETTINGS_PATH_PATTERNS.some((pattern) => pattern.test(pathname));
@@ -192,6 +232,9 @@ export function filterSettingsNav(
 export function isSettingsNavItemActive(pathname: string, href: string): boolean {
   if (href.match(/\/organizations\/[^/]+$/)) {
     return pathname === href;
+  }
+  if (href.endsWith('/master-data')) {
+    return pathname === href || pathname.startsWith(`${href}/`);
   }
   return pathname === href || pathname.startsWith(`${href}/`);
 }

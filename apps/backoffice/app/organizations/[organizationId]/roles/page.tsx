@@ -7,6 +7,7 @@ import { useAuth } from '@/components/auth-provider';
 import { PageContainer } from '@/components/layout/page-container';
 import { PageHeader } from '@/components/layout/page-header';
 import { ErrorState, LoadingState } from '@/components/layout/states';
+import { settingsBreadcrumbs } from '@/lib/settings-nav';
 
 type RoleRow = {
   id: string;
@@ -40,13 +41,9 @@ export default function RolesPage() {
     <main>
       <PageContainer>
         <PageHeader
-          title="Роли"
-          description="Системные роли и наборы разрешений"
-          breadcrumbs={[
-            { label: 'Организации', href: '/organizations' },
-            { label: 'Организация', href: `/organizations/${params.organizationId}` },
-            { label: 'Роли' },
-          ]}
+          title="Роли и права"
+          description="Системные роли и наборы разрешений. Назначение роли — в разделе «Сотрудники»."
+          breadcrumbs={settingsBreadcrumbs(params.organizationId, { label: 'Роли и права' })}
         />
         {loading ? <LoadingState /> : null}
         {error ? <ErrorState message={error} /> : null}

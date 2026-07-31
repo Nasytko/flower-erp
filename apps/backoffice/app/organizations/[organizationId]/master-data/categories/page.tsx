@@ -12,6 +12,7 @@ import { StatusBadge } from '@/components/layout/status-badge';
 import { Field } from '@/components/layout/field';
 import { FancySelect } from '@/components/layout/fancy-select';
 import { formatApiErrorMessage } from '@/lib/format-api-error';
+import { masterDataBreadcrumbs } from '@/lib/settings-nav';
 import {
   type FieldErrors,
   firstFieldError,
@@ -30,7 +31,6 @@ type Category = {
 export default function CategoriesPage() {
   const params = useParams<{ organizationId: string }>();
   const organizationId = params.organizationId;
-  const base = `/organizations/${organizationId}/master-data`;
 
   const [items, setItems] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
@@ -104,12 +104,7 @@ export default function CategoriesPage() {
         <PageHeader
           title="Категории"
           description="Дерево категорий товаров. Архивация запрещена, если есть дочерние категории или товары."
-          breadcrumbs={[
-            { label: 'Организации', href: '/organizations' },
-            { label: 'Организация', href: `/organizations/${organizationId}` },
-            { label: 'Справочники', href: base },
-            { label: 'Категории' },
-          ]}
+          breadcrumbs={masterDataBreadcrumbs(organizationId, { label: 'Категории' })}
         />
         <Section>
           <Card title="Список">

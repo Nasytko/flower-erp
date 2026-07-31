@@ -13,6 +13,7 @@ import { PageHeader } from '@/components/layout/page-header';
 import { Section } from '@/components/layout/section';
 import { EmptyState, ErrorState, LoadingState } from '@/components/layout/states';
 import { StatusBadge } from '@/components/layout/status-badge';
+import { settingsBreadcrumbs } from '@/lib/settings-nav';
 
 type Org = { id: string; name: string; status: string };
 type Store = {
@@ -86,10 +87,7 @@ export default function OrganizationDetailPage() {
       <PageContainer>
         <PageHeader
           title={org?.name ?? 'Организация'}
-          breadcrumbs={[
-            { label: 'Настройки', href: `${base}/settings` },
-            { label: org?.name ?? 'Магазины' },
-          ]}
+          breadcrumbs={settingsBreadcrumbs(organizationId, { label: 'Магазины' })}
           actions={org ? <StatusBadge status={org.status} /> : undefined}
         />
 

@@ -67,9 +67,6 @@ export const SETTINGS_NAV: NavItem[] = [
   },
 ];
 
-/** @deprecated Use SETTINGS_NAV — kept for tests migrating off ADMIN_NAV. */
-export const ADMIN_NAV: NavItem[] = [];
-
 /** Action shortcuts that resolve to PRIMARY_NAV routes (not a second nav source). */
 export type NavActionShortcut = {
   id: string;

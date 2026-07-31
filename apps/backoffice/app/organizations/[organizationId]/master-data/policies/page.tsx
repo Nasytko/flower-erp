@@ -12,6 +12,7 @@ import { StatusBadge } from '@/components/layout/status-badge';
 import { Field } from '@/components/layout/field';
 import { FancySelect } from '@/components/layout/fancy-select';
 import { formatApiErrorMessage } from '@/lib/format-api-error';
+import { masterDataBreadcrumbs } from '@/lib/settings-nav';
 import {
   type FieldErrors,
   firstFieldError,
@@ -39,7 +40,6 @@ function trackingLabel(method: string) {
 export default function PoliciesPage() {
   const params = useParams<{ organizationId: string }>();
   const organizationId = params.organizationId;
-  const base = `/organizations/${organizationId}/master-data`;
 
   const [items, setItems] = useState<Policy[]>([]);
   const [loading, setLoading] = useState(true);
@@ -116,12 +116,7 @@ export default function PoliciesPage() {
         <PageHeader
           title="Политики учёта"
           description="Правила учёта остатков: партии и срок годности. Сами остатки здесь не хранятся."
-          breadcrumbs={[
-            { label: 'Организации', href: '/organizations' },
-            { label: 'Организация', href: `/organizations/${organizationId}` },
-            { label: 'Справочники', href: base },
-            { label: 'Политики' },
-          ]}
+          breadcrumbs={masterDataBreadcrumbs(organizationId, { label: 'Политики учёта' })}
         />
         <Section>
           <Card title="Список">

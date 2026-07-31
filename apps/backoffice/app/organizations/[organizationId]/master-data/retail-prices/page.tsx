@@ -12,6 +12,7 @@ import { ErrorState, LoadingState } from '@/components/layout/states';
 import { Field } from '@/components/layout/field';
 import { addDaysIso, startOfWeekMonday } from '@/lib/retail-price';
 import { formatApiErrorMessage } from '@/lib/format-api-error';
+import { masterDataBreadcrumbs } from '@/lib/settings-nav';
 import { useToast } from '@/components/ui/toast';
 
 type PriceRow = {
@@ -27,7 +28,6 @@ export default function RetailPricesPage() {
   const auth = useAuth();
   const toast = useToast();
   const organizationId = params.organizationId;
-  const base = `/organizations/${organizationId}/master-data`;
 
   const [weekStart, setWeekStart] = useState(startOfWeekMonday());
   const [flowers, setFlowers] = useState<PriceRow[]>([]);
@@ -155,12 +155,7 @@ export default function RetailPricesPage() {
         <PageHeader
           title="Розничные цены"
           description="Цветы — цена за штуку на неделю. Материалы и упаковка — фиксированная услуга (+1)."
-          breadcrumbs={[
-            { label: 'Организации', href: '/organizations' },
-            { label: 'Организация', href: `/organizations/${organizationId}` },
-            { label: 'Справочники', href: base },
-            { label: 'Розничные цены' },
-          ]}
+          breadcrumbs={masterDataBreadcrumbs(organizationId, { label: 'Розничные цены' })}
         />
 
         <Section>

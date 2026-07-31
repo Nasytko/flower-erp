@@ -13,6 +13,7 @@ import { Section } from '@/components/layout/section';
 import { EmptyState, ErrorState, LoadingState } from '@/components/layout/states';
 import { StatusBadge } from '@/components/layout/status-badge';
 import { ConfirmDialog } from '@/components/workspace/workspace-ui';
+import { settingsBreadcrumbs } from '@/lib/settings-nav';
 
 export default function CouriersPage() {
   const params = useParams<{ organizationId: string; storeId: string }>();
@@ -99,10 +100,7 @@ export default function CouriersPage() {
         <PageHeader
           title="Курьеры"
           description="Профили курьеров организации для доставок магазина."
-          breadcrumbs={[
-            { label: 'Доставка', href: `${base}/deliveries` },
-            { label: 'Курьеры' },
-          ]}
+          breadcrumbs={settingsBreadcrumbs(organizationId, { label: 'Курьеры' })}
           actions={
             <Link href={`${base}/deliveries`}>
               <Button type="button" variant="secondary">

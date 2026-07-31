@@ -10,9 +10,9 @@ import { PageContainer } from '@/components/layout/page-container';
 import { PageHeader } from '@/components/layout/page-header';
 import { Section } from '@/components/layout/section';
 import { ErrorState, LoadingState } from '@/components/layout/states';
-import { SettingsLinks } from '@/components/layout/settings-links';
 import { Field } from '@/components/layout/field';
 import { useToast } from '@/components/ui/toast';
+import { settingsBreadcrumbs } from '@/lib/settings-nav';
 import {
   type FieldErrors,
   firstFieldError,
@@ -52,42 +52,6 @@ export default function UsersPage() {
   const [creating, setCreating] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [pending, setPending] = useState<Record<string, boolean>>({});
-
-  const base = `/organizations/${params.organizationId}`;
-  const settingsLinks = useMemo(
-    () =>
-      [
-        auth.hasPermission('users:read')
-          ? {
-              href: `${base}/roles`,
-              label: 'Роли',
-              description: 'Права доступа и системные роли',
-            }
-          : null,
-        auth.hasPermission('customers:read')
-          ? {
-              href: `${base}/customers`,
-              label: 'Клиенты',
-              description: 'База клиентов организации',
-            }
-          : null,
-        auth.hasPermission('audit:read')
-          ? {
-              href: `${base}/audit`,
-              label: 'Журнал действий',
-              description: 'Системный аудит изменений',
-            }
-          : null,
-        auth.hasPermission('organization:read')
-          ? {
-              href: `${base}/integrations`,
-              label: 'Карты и навигация',
-              description: 'Яндекс.Карты, подсказки адресов',
-            }
-          : null,
-      ].filter((item): item is { href: string; label: string; description: string } => item != null),
-    [auth, base],
-  );
 
   const roleOptions = useMemo(
     () => [
@@ -218,21 +182,12 @@ export default function UsersPage() {
     <main>
       <PageContainer>
         <PageHeader
-          title="Пользователи"
-          breadcrumbs={[
-            { label: 'Организации', href: '/organizations' },
-            { label: 'Организация', href: base },
-            { label: 'Пользователи' },
-          ]}
+          title="Сотрудники"
+          description="Учётные записи, назначение ролей и доступ к магазинам."
+          breadcrumbs={settingsBreadcrumbs(params.organizationId, { label: 'Сотрудники' })}
         />
         {loading ? <LoadingState /> : null}
         {error ? <ErrorState message={error} /> : null}
-
-        {settingsLinks.length > 0 ? (
-          <Section>
-            <SettingsLinks links={settingsLinks} />
-          </Section>
-        ) : null}
 
         {auth.hasPermission('users:manage') ? (
           <Section>

@@ -1,43 +1,40 @@
 ﻿'use client';
 
 import Link from 'next/link';
+import { useMemo } from 'react';
 import { useParams } from 'next/navigation';
 import { Card } from '@flower/ui';
+import { useAuth } from '@/components/auth-provider';
 import { PageContainer } from '@/components/layout/page-container';
 import { PageHeader } from '@/components/layout/page-header';
 import { Section } from '@/components/layout/section';
-
-const SECTIONS = [
-  { href: 'items', title: 'Товары', description: 'Единый справочник Item (FLOWER / MATERIAL)' },
-  { href: 'retail-prices', title: 'Розничные цены', description: 'Цветы за штуку, материалы как услуга — по неделям' },
-  { href: 'categories', title: 'Категории', description: 'Дерево категорий без ограничения глубины' },
-  { href: 'suppliers', title: 'Поставщики', description: 'Поставщики организации' },
-  { href: 'policies', title: 'Политики учета', description: 'InventoryPolicy без остатков и партий' },
-] as const;
+import { MASTER_DATA_SECTIONS, masterDataBreadcrumbs } from '@/lib/settings-nav';
 
 export default function MasterDataHubPage() {
   const params = useParams<{ organizationId: string }>();
+  const auth = useAuth();
   const organizationId = params.organizationId;
   const base = `/organizations/${organizationId}/master-data`;
+
+  const sections = useMemo(
+    () => MASTER_DATA_SECTIONS.filter((section) => auth.hasPermission(section.permission)),
+    [auth],
+  );
 
   return (
     <main>
       <PageContainer>
         <PageHeader
           title="Справочники"
-          description="Справочники и розничные цены."
-          breadcrumbs={[
-            { label: 'Организации', href: '/organizations' },
-            { label: 'Организация', href: `/organizations/${organizationId}` },
-            { label: 'Справочники' },
-          ]}
+          description="Товары, категории, поставщики и розничные цены организации."
+          breadcrumbs={masterDataBreadcrumbs(organizationId)}
         />
 
         <Section>
           <ul className="list-stack">
-            {SECTIONS.map((section) => (
-              <li key={section.href}>
-                <Link href={`${base}/${section.href}`}>
+            {sections.map((section) => (
+              <li key={section.slug}>
+                <Link href={`${base}/${section.slug}`}>
                   <Card title={section.title}>
                     <p style={{ margin: 0, color: 'var(--color-muted)', fontSize: 'var(--text-sm)' }}>
                       {section.description}

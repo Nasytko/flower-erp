@@ -12,6 +12,7 @@ import { Section } from '@/components/layout/section';
 import { ErrorState, LoadingState } from '@/components/layout/states';
 import { StatusBadge } from '@/components/layout/status-badge';
 import { formatApiErrorMessage } from '@/lib/format-api-error';
+import { masterDataBreadcrumbs } from '@/lib/settings-nav';
 
 function itemTypeLabel(type: string) {
   return type === 'MATERIAL' ? 'Материал' : 'Цветок';
@@ -240,13 +241,11 @@ export default function ItemDetailPage() {
         <PageHeader
           title={item?.name ?? 'Товар'}
           description={item ? `Код ${item.code}` : 'Загрузка…'}
-          breadcrumbs={[
-            { label: 'Организации', href: '/organizations' },
-            { label: 'Организация', href: `/organizations/${organizationId}` },
-            { label: 'Справочники', href: base },
+          breadcrumbs={masterDataBreadcrumbs(
+            organizationId,
             { label: 'Товары', href: `${base}/items` },
             { label: item?.name ?? 'Товар' },
-          ]}
+          )}
           actions={
             item && item.status !== 'ARCHIVED' ? (
               <Button variant="ghost" onClick={() => void onArchive()}>

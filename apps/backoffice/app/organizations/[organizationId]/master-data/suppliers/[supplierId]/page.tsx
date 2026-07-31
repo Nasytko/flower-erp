@@ -10,6 +10,7 @@ import { PageHeader } from '@/components/layout/page-header';
 import { Section } from '@/components/layout/section';
 import { ErrorState, LoadingState } from '@/components/layout/states';
 import { StatusBadge } from '@/components/layout/status-badge';
+import { masterDataBreadcrumbs } from '@/lib/settings-nav';
 
 export default function SupplierDetailPage() {
   const params = useParams<{ organizationId: string; supplierId: string }>();
@@ -67,13 +68,11 @@ export default function SupplierDetailPage() {
         <PageHeader
           title={supplier?.name ?? 'Поставщик'}
           description={supplier ? supplier.code : 'Загрузка…'}
-          breadcrumbs={[
-            { label: 'Организации', href: '/organizations' },
-            { label: 'Организация', href: `/organizations/${organizationId}` },
-            { label: 'Справочники', href: base },
+          breadcrumbs={masterDataBreadcrumbs(
+            organizationId,
             { label: 'Поставщики', href: `${base}/suppliers` },
             { label: supplier?.name ?? 'Поставщик' },
-          ]}
+          )}
           actions={
             supplier && supplier.status !== 'ARCHIVED' ? (
               <Button variant="ghost" onClick={() => void onArchive()}>

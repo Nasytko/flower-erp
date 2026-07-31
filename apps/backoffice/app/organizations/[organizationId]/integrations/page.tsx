@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { useEffect, useState, type FormEvent } from 'react';
 import { useParams } from 'next/navigation';
 import { Button, Card, Input } from '@flower/ui';
@@ -14,13 +13,13 @@ import { Section } from '@/components/layout/section';
 import { ErrorState, LoadingState } from '@/components/layout/states';
 import { useToast } from '@/components/ui/toast';
 import { formatApiErrorMessage } from '@/lib/format-api-error';
+import { settingsBreadcrumbs } from '@/lib/settings-nav';
 
 export default function IntegrationsSettingsPage() {
   const params = useParams<{ organizationId: string }>();
   const auth = useAuth();
   const toast = useToast();
   const { organizationId } = params;
-  const base = `/organizations/${organizationId}`;
 
   const [settings, setSettings] = useState<IntegrationSettingsDto | null>(null);
   const [geocodingProvider, setGeocodingProvider] = useState('yandex');
@@ -105,10 +104,7 @@ export default function IntegrationsSettingsPage() {
         <PageHeader
           title="Карты и навигация"
           description="Яндекс.Карты для подсказок адресов, карты доставок и перехода в навигатор."
-          breadcrumbs={[
-            { label: 'Настройки', href: `${base}/users` },
-            { label: 'Карты' },
-          ]}
+          breadcrumbs={settingsBreadcrumbs(organizationId, { label: 'Карты и навигация' })}
         />
 
         {loading ? <LoadingState /> : null}
@@ -202,9 +198,7 @@ export default function IntegrationsSettingsPage() {
             <Card title="Где используется">
               <ul className="list-stack">
                 <li>Подсказки адреса при создании заказа и в доставке</li>
-                <li>
-                  <Link href={`${base}/stores`}>Карта доставок</Link> в магазине
-                </li>
+                <li>Карта доставок — в разделе «Доставка» выбранного магазина</li>
                 <li>Кнопки «На карте» и «Навигатор» у точки доставки</li>
               </ul>
             </Card>

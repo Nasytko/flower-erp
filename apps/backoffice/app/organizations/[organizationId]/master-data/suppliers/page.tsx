@@ -12,6 +12,7 @@ import { EmptyState, ErrorState, LoadingState } from '@/components/layout/states
 import { StatusBadge } from '@/components/layout/status-badge';
 import { Field } from '@/components/layout/field';
 import { formatApiErrorMessage } from '@/lib/format-api-error';
+import { masterDataBreadcrumbs } from '@/lib/settings-nav';
 import {
   type FieldErrors,
   firstFieldError,
@@ -121,12 +122,7 @@ export default function SuppliersPage() {
         <PageHeader
           title="Поставщики"
           description="Справочник поставщиков для закупок и поставок."
-          breadcrumbs={[
-            { label: 'Организации', href: '/organizations' },
-            { label: 'Организация', href: `/organizations/${organizationId}` },
-            { label: 'Справочники', href: base },
-            { label: 'Поставщики' },
-          ]}
+          breadcrumbs={masterDataBreadcrumbs(organizationId, { label: 'Поставщики' })}
         />
         <Section>
           <Card title="Поиск">

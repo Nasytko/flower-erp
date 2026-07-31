@@ -9,6 +9,7 @@ import { EntityAuditHistory } from '@/components/audit/entity-audit-history';
 import { PageContainer } from '@/components/layout/page-container';
 import { PageHeader } from '@/components/layout/page-header';
 import { ErrorState, LoadingState } from '@/components/layout/states';
+import { settingsBreadcrumbs } from '@/lib/settings-nav';
 
 export default function AuditPage() {
   const params = useParams<{ organizationId: string }>();
@@ -34,13 +35,9 @@ export default function AuditPage() {
     <main>
       <PageContainer>
         <PageHeader
-          title="Журнал аудита"
+          title="Журнал действий"
           description="Все действия пользователей по заказам, продажам, приёмкам и безопасности"
-          breadcrumbs={[
-            { label: 'Организации', href: '/organizations' },
-            { label: 'Организация', href: `/organizations/${params.organizationId}` },
-            { label: 'Аудит' },
-          ]}
+          breadcrumbs={settingsBreadcrumbs(params.organizationId, { label: 'Журнал действий' })}
         />
         {loading ? <LoadingState /> : null}
         {error ? <ErrorState message={error} /> : null}

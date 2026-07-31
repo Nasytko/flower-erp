@@ -21,6 +21,7 @@ import {
   requiredText,
 } from '@/lib/form-validation';
 import { formatApiErrorMessage } from '@/lib/format-api-error';
+import { settingsBreadcrumbs, settingsHubHref } from '@/lib/settings-nav';
 
 type Store = {
   id: string;
@@ -46,7 +47,6 @@ export default function StoreSettingsPage() {
   const auth = useAuth();
   const toast = useToast();
   const { organizationId, storeId } = params;
-  const base = `/organizations/${organizationId}/stores/${storeId}`;
 
   const [store, setStore] = useState<Store | null>(null);
   const [warehouse, setWarehouse] = useState<Warehouse | null>(null);
@@ -148,10 +148,7 @@ export default function StoreSettingsPage() {
         <PageHeader
           title="Настройки магазина"
           refCode={store?.code}
-          breadcrumbs={[
-            { label: 'Настройки', href: `/organizations/${organizationId}/settings` },
-            { label: 'Магазин и склад' },
-          ]}
+          breadcrumbs={settingsBreadcrumbs(organizationId, { label: 'Магазин и склад' })}
           actions={store ? <StatusBadge status={store.status} /> : undefined}
         />
 
@@ -219,7 +216,7 @@ export default function StoreSettingsPage() {
                   <Button type="submit" disabled={saving}>
                     {saving ? 'Сохранение…' : 'Сохранить'}
                   </Button>
-                  <Link href={base}>Назад</Link>
+                  <Link href={settingsHubHref(organizationId)}>К настройкам</Link>
                 </div>
               </form>
             </Card>
