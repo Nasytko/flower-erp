@@ -10,6 +10,38 @@ export type CalendarMoveContext = {
   toColumn: OrderBoardColumn;
 };
 
+const RESERVABLE_STATUSES = new Set(['CONFIRMED', 'PARTIALLY_RESERVED']);
+const PREPARATION_START_STATUSES = new Set(['RESERVED', 'PARTIALLY_RESERVED']);
+
+/** Reserve stock (if needed) and move order to IN_PREPARATION before marking ready. */
+export async function ensureOrderInPreparation(
+  client: ApiClient,
+  organizationId: string,
+  storeId: string,
+  orderId: string,
+  status: string,
+): Promise<void> {
+  let currentStatus = status;
+
+  if (currentStatus === 'IN_PREPARATION') return;
+
+  if (RESERVABLE_STATUSES.has(currentStatus)) {
+    const reserved = await client.reserveOrder(organizationId, storeId, orderId);
+    currentStatus = reserved.status;
+  }
+
+  if (PREPARATION_START_STATUSES.has(currentStatus)) {
+    await client.startOrderPreparation(organizationId, storeId, orderId);
+    return;
+  }
+
+  if (currentStatus === 'IN_PREPARATION') return;
+
+  throw new Error(
+    'Не удалось начать сборку: заказ должен быть зарезервирован на складе (статус RESERVED)',
+  );
+}
+
 export function canDropCardOnColumn(
   fromColumn: OrderBoardColumn,
   toColumn: OrderBoardColumn,
@@ -64,22 +96,12 @@ export async function executeCalendarMove(
 
   if (fromColumn === 'NEW' && toColumn === 'IN_WORK') {
     await client.claimOrder(organizationId, storeId, orderId);
-    try {
-      await client.startOrderPreparation(organizationId, storeId, orderId);
-    } catch {
-      // Claim alone moves card to «В сборке» when prep preconditions are not met.
-    }
+    await ensureOrderInPreparation(client, organizationId, storeId, orderId, card.status);
     return;
   }
 
   if (fromColumn === 'IN_WORK' && toColumn === 'READY') {
-    if (card.status !== 'IN_PREPARATION') {
-      try {
-        await client.startOrderPreparation(organizationId, storeId, orderId);
-      } catch {
-        // May already be reserved/assigned on a different path.
-      }
-    }
+    await ensureOrderInPreparation(client, organizationId, storeId, orderId, card.status);
     await client.markOrderReady(organizationId, storeId, orderId);
     return;
   }
