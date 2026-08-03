@@ -8,6 +8,7 @@ import {
 import { randomUUID } from 'node:crypto';
 import { CLOCK_PORT, type ClockPort } from '@flower/shared-kernel';
 import { AUDIT_PORT, type AuditPort } from '../../../infrastructure/audit/audit.port';
+import { allocateSequentialCode } from '../../../infrastructure/ids/allocate-sequential-code';
 import { allocateUniqueCode } from '../../../infrastructure/ids/allocate-unique-code';
 import { UNIT_OF_WORK, type UnitOfWork } from '../../../infrastructure/persistence/unit-of-work.port';
 import { getRequestContext } from '../../../infrastructure/context/request-context';
@@ -176,10 +177,16 @@ export class ItemUseCases {
       const createdByMembershipId = actorMembershipId();
 
       return await this.uow.runInTransaction(async () => {
+        const isSellable = input.isSellable ?? false;
+        const codePrefix = isSellable ? 'BOQ' : 'ITM';
         const code = input.code?.trim()
           ? normalizeMasterCode(input.code, 'ITEM')
-          : await allocateUniqueCode('ITM', (candidate) =>
+          : await allocateSequentialCode(codePrefix, (candidate) =>
               this.items.existsCode(input.organizationId, candidate),
+              {
+                listExistingWithPrefix: (prefix) =>
+                  this.items.listCodesByPrefix(input.organizationId, prefix),
+              },
             );
 
         if (await this.items.existsCode(input.organizationId, code)) {
@@ -232,7 +239,6 @@ export class ItemUseCases {
         assertAvailableForNewDocuments(policy.status, 'POLICY');
         assertItemPolicyTypeMatch(input.itemType, policy.itemType);
 
-        const isSellable = input.isSellable ?? false;
         const isShowcase = input.isShowcase ?? false;
         assertShowcaseFlag({ isSellable }, isShowcase);
         const isPurchasable = isSellable ? false : (input.isPurchasable ?? true);

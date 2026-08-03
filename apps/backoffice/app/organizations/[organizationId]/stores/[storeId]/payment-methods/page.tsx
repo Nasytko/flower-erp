@@ -12,6 +12,7 @@ import { EmptyState, ErrorState, LoadingState } from '@/components/layout/states
 import { StatusBadge } from '@/components/layout/status-badge';
 import { Field } from '@/components/layout/field';
 import { FancySelect } from '@/components/layout/fancy-select';
+import { DeletionRequestButton } from '@/components/admin/deletion-request-button';
 import { formatApiErrorMessage } from '@/lib/format-api-error';
 import { storeSettingsBreadcrumbs } from '@/lib/settings-nav';
 
@@ -89,10 +90,6 @@ export default function PaymentMethodsPage() {
     });
   }
 
-  async function onArchive(methodId: string) {
-    await run(() => getApiClient().archivePaymentMethod(organizationId, storeId, methodId));
-  }
-
   if (!auth.hasPermission('payments:manage-methods')) {
     return <p className="page-state">Доступ запрещён</p>;
   }
@@ -161,14 +158,14 @@ export default function PaymentMethodsPage() {
                     <StatusBadge status={method.type} />
                     <StatusBadge status={method.isActive ? 'ACTIVE' : 'ARCHIVED'} />
                     {method.isActive ? (
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        disabled={busy}
-                        onClick={() => void onArchive(method.id)}
-                      >
-                        Архив
-                      </Button>
+                      <DeletionRequestButton
+                        organizationId={organizationId}
+                        entityType="PAYMENT_METHOD"
+                        entityId={method.id}
+                        entityLabel={`${method.name} (${method.code})`}
+                        storeId={storeId}
+                        onRequested={() => void load()}
+                      />
                     ) : null}
                   </div>
                 </li>

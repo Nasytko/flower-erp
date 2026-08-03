@@ -9,6 +9,7 @@ import { PaymentsModule } from './modules/payments/payments.module';
 import { PlatformModule } from './modules/platform/platform.module';
 import { SalesModule } from './modules/sales/sales.module';
 import { SupplyModule } from './modules/supply/supply.module';
+import { DeletionsModule } from './modules/deletions/deletions.module';
 import { SystemModule } from './modules/system/system.module';
 import { InfrastructureModule } from './infrastructure/infrastructure.module';
 
@@ -25,6 +26,7 @@ import { InfrastructureModule } from './infrastructure/infrastructure.module';
     PaymentsModule,
     DeliveryModule,
     AnalyticsModule,
+    DeletionsModule,
     SystemModule,
   ],
 })

@@ -5,6 +5,7 @@ import { FancySelect } from '@/components/layout/fancy-select';
 import { Field } from '@/components/layout/field';
 import { DocRef } from '@/components/layout/doc-ref';
 import { StatusBadge } from '@/components/layout/status-badge';
+import { DeletionRequestButton } from '@/components/admin/deletion-request-button';
 import { ROLE_LABELS_RU } from '@/lib/status-labels-ru';
 
 export type UserAdminRow = {
@@ -35,6 +36,7 @@ export type UserAdminRow = {
 type StoreOption = { id: string; name: string; code: string };
 
 type UserAdminCardProps = {
+  organizationId: string;
   user: UserAdminRow;
   stores: StoreOption[];
   roleOptions: Array<{ value: string; label: string }>;
@@ -49,7 +51,6 @@ type UserAdminCardProps = {
   onToggleStore: (storeId: string, checked: boolean) => void;
   onBlock: () => void;
   onUnblock: () => void;
-  onArchive: () => void;
   onToggleReset: () => void;
   onResetPasswordChange: (value: string) => void;
   onResetSubmit: () => void;
@@ -75,6 +76,7 @@ function shortUserAgent(ua: string | null | undefined): string {
 }
 
 export function UserAdminCard({
+  organizationId,
   user,
   stores,
   roleOptions,
@@ -89,7 +91,6 @@ export function UserAdminCard({
   onToggleStore,
   onBlock,
   onUnblock,
-  onArchive,
   onToggleReset,
   onResetPasswordChange,
   onResetSubmit,
@@ -249,9 +250,13 @@ export function UserAdminCard({
             </Button>
           ) : null}
           {user.status !== 'ARCHIVED' ? (
-            <Button type="button" variant="secondary" disabled={busy} onClick={onArchive}>
-              В архив
-            </Button>
+            <DeletionRequestButton
+              organizationId={organizationId}
+              entityType="USER"
+              entityId={user.id}
+              entityLabel={`${user.displayName} (${user.login})`}
+              disabled={busy}
+            />
           ) : null}
           <Button type="button" variant="ghost" disabled={busy} onClick={onToggleReset}>
             {resetOpen ? 'Отмена' : 'Сбросить пароль'}

@@ -12,8 +12,9 @@ import { EmptyState, ErrorState, LoadingState } from '@/components/layout/states
 import { StatusBadge } from '@/components/layout/status-badge';
 import { Field } from '@/components/layout/field';
 import { FancySelect } from '@/components/layout/fancy-select';
+import { DeletionRequestButton } from '@/components/admin/deletion-request-button';
 import { formatApiErrorMessage } from '@/lib/format-api-error';
-import { catalogBreadcrumbs, canManageCatalog, canOperateCatalog } from '@/lib/settings-nav';
+import { catalogBreadcrumbs, canOperateCatalog } from '@/lib/settings-nav';
 import {
   type FieldErrors,
   firstFieldError,
@@ -34,7 +35,6 @@ export default function CategoriesPage() {
   const auth = useAuth();
   const organizationId = params.organizationId;
   const canOperate = canOperateCatalog(auth.hasPermission);
-  const canManage = canManageCatalog(auth.hasPermission);
 
   const [items, setItems] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
@@ -89,16 +89,6 @@ export default function CategoriesPage() {
     }
   }
 
-  async function onArchive(categoryId: string) {
-    setError(null);
-    try {
-      await getApiClient().archiveCategory(organizationId, categoryId);
-      await load();
-    } catch (err) {
-      setError(formatApiErrorMessage(err, 'Не удалось архивировать'));
-    }
-  }
-
   const parentName = (id: string | null) =>
     id ? (items.find((c) => c.id === id)?.name ?? 'родитель') : 'корневая';
 
@@ -107,7 +97,7 @@ export default function CategoriesPage() {
       <PageContainer>
         <PageHeader
           title="Категории"
-          description="Дерево категорий товаров. Архивация запрещена, если есть дочерние категории или товары."
+          description="Дерево категорий товаров. Удаление возможно только без дочерних категорий и товаров."
           breadcrumbs={catalogBreadcrumbs(organizationId, { label: 'Категории' })}
         />
         <Section>
@@ -139,10 +129,14 @@ export default function CategoriesPage() {
                         <span style={{ fontSize: 'var(--text-xs)' }}>{parentName(item.parentId)}</span>
                       </div>
                     </div>
-                    {canManage && item.status !== 'ARCHIVED' ? (
-                      <Button variant="ghost" onClick={() => void onArchive(item.id)}>
-                        Архив
-                      </Button>
+                    {item.status === 'ACTIVE' ? (
+                      <DeletionRequestButton
+                        organizationId={organizationId}
+                        entityType="CATEGORY"
+                        entityId={item.id}
+                        entityLabel={`${item.name} (${item.code})`}
+                        onRequested={() => void load()}
+                      />
                     ) : null}
                   </div>
                 </li>

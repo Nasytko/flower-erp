@@ -56,6 +56,10 @@ const toneByStatus: Record<string, StatusTone> = {
   SALE_CREATED: 'info',
   SALE_COMPLETED: 'success',
   SALE_ANNULLED: 'danger',
+
+  PENDING: 'warning',
+  APPROVED: 'success',
+  REJECTED: 'danger',
 };
 
 export function StatusBadge({ status }: { status: string }) {

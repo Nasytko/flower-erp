@@ -2,8 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { Button, Card } from '@flower/ui';
-import { useAuth } from '@/components/auth-provider';
+import { Card } from '@flower/ui';
 import { ApiClientError } from '@flower/api-client';
 import { getApiClient } from '@/lib/api-client';
 import { PageContainer } from '@/components/layout/page-container';
@@ -11,14 +10,13 @@ import { PageHeader } from '@/components/layout/page-header';
 import { Section } from '@/components/layout/section';
 import { ErrorState, LoadingState } from '@/components/layout/states';
 import { StatusBadge } from '@/components/layout/status-badge';
-import { catalogBreadcrumbs, canManageCatalog } from '@/lib/settings-nav';
+import { DeletionRequestButton } from '@/components/admin/deletion-request-button';
+import { catalogBreadcrumbs } from '@/lib/settings-nav';
 
 export default function SupplierDetailPage() {
   const params = useParams<{ organizationId: string; supplierId: string }>();
-  const auth = useAuth();
   const { organizationId, supplierId } = params;
   const base = `/organizations/${organizationId}/master-data`;
-  const canManage = canManageCatalog(auth.hasPermission);
 
   const [supplier, setSupplier] = useState<{
     id: string;
@@ -55,16 +53,6 @@ export default function SupplierDetailPage() {
     };
   }, [organizationId, supplierId]);
 
-  async function onArchive() {
-    setError(null);
-    try {
-      const updated = await getApiClient().archiveSupplier(organizationId, supplierId);
-      setSupplier((current) => (current ? { ...current, status: updated.status } : current));
-    } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Не удалось архивировать');
-    }
-  }
-
   return (
     <main>
       <PageContainer>
@@ -77,10 +65,13 @@ export default function SupplierDetailPage() {
             { label: supplier?.name ?? 'Поставщик' },
           )}
           actions={
-            canManage && supplier && supplier.status !== 'ARCHIVED' ? (
-              <Button variant="ghost" onClick={() => void onArchive()}>
-                Архив
-              </Button>
+            supplier && supplier.status === 'ACTIVE' ? (
+              <DeletionRequestButton
+                organizationId={organizationId}
+                entityType="SUPPLIER"
+                entityId={supplierId}
+                entityLabel={`${supplier.name} (${supplier.code})`}
+              />
             ) : undefined
           }
         />

@@ -11,6 +11,7 @@ import { PageHeader } from '@/components/layout/page-header';
 import { Field } from '@/components/layout/field';
 import { Section } from '@/components/layout/section';
 import { EmptyState, ErrorState, LoadingState } from '@/components/layout/states';
+import { DeletionRequestButton } from '@/components/admin/deletion-request-button';
 import { StatusBadge } from '@/components/layout/status-badge';
 import {
   type FieldErrors,
@@ -41,7 +42,6 @@ export default function CustomersPage() {
   const [email, setEmail] = useState('');
   const [notes, setNotes] = useState('');
   const [creating, setCreating] = useState(false);
-  const [busyId, setBusyId] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
   async function load() {
@@ -95,19 +95,6 @@ export default function CustomersPage() {
     }
   }
 
-  async function onArchive(customerId: string) {
-    setBusyId(customerId);
-    setError(null);
-    try {
-      await getApiClient().archiveCustomer(organizationId, customerId);
-      await load();
-    } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Не удалось архивировать клиента');
-    } finally {
-      setBusyId(null);
-    }
-  }
-
   if (!auth.hasPermission('customers:read')) {
     return <p className="page-state">Доступ запрещён</p>;
   }
@@ -119,7 +106,7 @@ export default function CustomersPage() {
       <PageContainer>
         <PageHeader
           title="Клиенты"
-          description="Клиенты организации: телефон уникален, архив вместо удаления."
+          description="Клиенты организации. Удаление — через очередь в настройках ERP."
           breadcrumbs={[
             { label: 'Организации', href: '/organizations' },
             { label: 'Организация', href: `/organizations/${organizationId}` },
@@ -187,15 +174,14 @@ export default function CustomersPage() {
                     <span>{customer.phone}</span>
                     {customer.email ? <span>{customer.email}</span> : null}
                     <StatusBadge status={customer.status} />
-                    {canManage && customer.status !== 'ARCHIVED' ? (
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        disabled={busyId === customer.id}
-                        onClick={() => void onArchive(customer.id)}
-                      >
-                        Архив
-                      </Button>
+                    {customer.status === 'ACTIVE' ? (
+                      <DeletionRequestButton
+                        organizationId={organizationId}
+                        entityType="CUSTOMER"
+                        entityId={customer.id}
+                        entityLabel={`${customer.name} (${customer.phone})`}
+                        onRequested={() => void load()}
+                      />
                     ) : null}
                   </div>
                   {customer.notes ? <p style={{ margin: '4px 0 0' }}>{customer.notes}</p> : null}

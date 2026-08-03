@@ -22,6 +22,7 @@ export const ROLE_CHALLENGE_KEYWORDS = {
   DIRECTOR: 'director',
   FLORIST: 'florist',
   COURIER: 'courier',
+  DEVELOPER: 'developer',
 } as const;
 
 export type RoleChallengeCode = keyof typeof ROLE_CHALLENGE_KEYWORDS;

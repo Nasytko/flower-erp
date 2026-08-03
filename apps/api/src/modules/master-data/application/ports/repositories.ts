@@ -193,4 +193,5 @@ export interface ItemRepository {
     status: MasterDataStatus,
   ): Promise<ItemProps>;
   existsCode(organizationId: string, code: string): Promise<boolean>;
+  listCodesByPrefix(organizationId: string, codePrefix: string): Promise<string[]>;
 }

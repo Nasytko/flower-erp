@@ -107,6 +107,7 @@ model Organization {
   integrationSettings           OrganizationIntegrationSettings?
   itemRetailPrices              ItemRetailPrice[]
   itemRecipeLines               ItemRecipeLine[]
+  deletionRequests              DeletionRequest[]
 
   @@index([status])
   @@map("organizations")
@@ -1639,4 +1640,46 @@ model CourierProfile {
   @@unique([organizationId, membershipId])
   @@index([organizationId, status])
   @@map("courier_profiles")
+}
+
+enum DeletionRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum DeletionEntityType {
+  ITEM
+  SUPPLIER
+  CATEGORY
+  INVENTORY_POLICY
+  CUSTOMER
+  USER
+  COURIER
+  PAYMENT_METHOD
+}
+
+/// Pending hard-delete approval queue (director / developer).
+model DeletionRequest {
+  id                      String                @id @default(uuid()) @db.Uuid
+  organizationId          String                @map("organization_id") @db.Uuid
+  entityType              DeletionEntityType    @map("entity_type")
+  entityId                String                @map("entity_id") @db.Uuid
+  entityLabel             String                @map("entity_label")
+  storeId                 String?               @map("store_id") @db.Uuid
+  status                  DeletionRequestStatus @default(PENDING)
+  reason                  String?
+  requestedByMembershipId String                @map("requested_by_membership_id") @db.Uuid
+  reviewedByMembershipId  String?               @map("reviewed_by_membership_id") @db.Uuid
+  reviewComment           String?               @map("review_comment")
+  reviewedAt              DateTime?             @map("reviewed_at")
+  createdAt               DateTime              @default(now()) @map("created_at")
+  updatedAt               DateTime              @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+
+  @@index([organizationId, status, createdAt])
+  @@index([organizationId, entityType, entityId])
+  @@map("deletion_requests")
 }

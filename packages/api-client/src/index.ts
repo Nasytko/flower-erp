@@ -52,6 +52,35 @@ export type AuditLogEntry = {
   createdAt: string;
 };
 
+export type DeletionEntityType =
+  | 'ITEM'
+  | 'SUPPLIER'
+  | 'CATEGORY'
+  | 'INVENTORY_POLICY'
+  | 'CUSTOMER'
+  | 'USER'
+  | 'COURIER'
+  | 'PAYMENT_METHOD';
+
+export type DeletionRequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED';
+
+export type DeletionRequestDto = {
+  id: string;
+  organizationId: string;
+  entityType: DeletionEntityType;
+  entityId: string;
+  entityLabel: string;
+  storeId: string | null;
+  status: DeletionRequestStatus;
+  reason: string | null;
+  requestedByMembershipId: string;
+  reviewedByMembershipId: string | null;
+  reviewComment: string | null;
+  reviewedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
 function createRequestId(): RequestId {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
     return crypto.randomUUID();
@@ -305,6 +334,58 @@ export function createApiClient(options: ApiClientOptions) {
       const qs = params.toString();
       return request<AuditLogEntry[]>(`/organizations/${organizationId}/audit${qs ? `?${qs}` : ''}`);
     },
+    createDeletionRequest: (
+      organizationId: string,
+      body: {
+        entityType: DeletionEntityType;
+        entityId: string;
+        entityLabel: string;
+        storeId?: string;
+        reason?: string;
+      },
+    ) =>
+      request<DeletionRequestDto>(`/organizations/${organizationId}/deletion-requests`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      }),
+    listDeletionRequests: (
+      organizationId: string,
+      query?: { status?: DeletionRequestStatus },
+    ) => {
+      const params = new URLSearchParams();
+      if (query?.status) params.set('status', query.status);
+      const qs = params.toString();
+      return request<DeletionRequestDto[]>(
+        `/organizations/${organizationId}/deletion-requests${qs ? `?${qs}` : ''}`,
+      );
+    },
+    approveDeletionRequest: (
+      organizationId: string,
+      requestId: string,
+      body?: { comment?: string },
+    ) =>
+      request<DeletionRequestDto>(
+        `/organizations/${organizationId}/deletion-requests/${requestId}/approve`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body ?? {}),
+        },
+      ),
+    rejectDeletionRequest: (
+      organizationId: string,
+      requestId: string,
+      body?: { comment?: string },
+    ) =>
+      request<DeletionRequestDto>(
+        `/organizations/${organizationId}/deletion-requests/${requestId}/reject`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body ?? {}),
+        },
+      ),
     listStores: (organizationId: string, page = 1, pageSize = 20) =>
       request<{
         items: Array<{

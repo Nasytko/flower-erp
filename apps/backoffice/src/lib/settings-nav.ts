@@ -134,6 +134,12 @@ export const ORG_SETTINGS_NAV_CATEGORIES: SettingsNavCategory[] = [
     label: 'Система',
     items: [
       {
+        href: '/organizations/{orgId}/deletion-requests',
+        label: 'Очередь удаления',
+        description: 'Подтверждение безвозвратного удаления записей',
+        permission: 'deletions:read',
+      },
+      {
         href: '/organizations/{orgId}/audit',
         label: 'Журнал действий',
         description: 'Аудит изменений',
@@ -173,6 +179,7 @@ const ORG_SETTINGS_PATH_PATTERNS = [
   /^\/organizations\/[^/]+\/settings(\/|$)/,
   /^\/organizations\/[^/]+\/users(\/|$)/,
   /^\/organizations\/[^/]+\/audit(\/|$)/,
+  /^\/organizations\/[^/]+\/deletion-requests(\/|$)/,
   /^\/organizations\/[^/]+\/integrations(\/|$)/,
 ];
 

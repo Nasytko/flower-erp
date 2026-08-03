@@ -3,7 +3,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Button, Card, Input } from '@flower/ui';
-import { useAuth } from '@/components/auth-provider';
 import { getApiClient } from '@/lib/api-client';
 import { Field } from '@/components/layout/field';
 import { PageContainer } from '@/components/layout/page-container';
@@ -11,8 +10,9 @@ import { PageHeader } from '@/components/layout/page-header';
 import { Section } from '@/components/layout/section';
 import { ErrorState, LoadingState } from '@/components/layout/states';
 import { StatusBadge } from '@/components/layout/status-badge';
+import { DeletionRequestButton } from '@/components/admin/deletion-request-button';
 import { formatApiErrorMessage } from '@/lib/format-api-error';
-import { catalogBreadcrumbs, bouquetCatalogHref, canManageCatalog } from '@/lib/settings-nav';
+import { catalogBreadcrumbs, bouquetCatalogHref } from '@/lib/settings-nav';
 
 function itemTypeLabel(type: string) {
   return type === 'MATERIAL' ? 'Материал' : 'Цветок';
@@ -30,10 +30,8 @@ function formatWhen(value?: string) {
 export default function ItemDetailPage() {
   const params = useParams<{ organizationId: string; itemId: string }>();
   const router = useRouter();
-  const auth = useAuth();
   const { organizationId, itemId } = params;
   const base = `/organizations/${organizationId}/master-data`;
-  const canManage = canManageCatalog(auth.hasPermission);
 
   const [item, setItem] = useState<{
     id: string;
@@ -116,16 +114,6 @@ export default function ItemDetailPage() {
     }
   }
 
-  async function onArchive() {
-    setError(null);
-    try {
-      const updated = await getApiClient().archiveItem(organizationId, itemId);
-      setItem((current) => (current ? { ...current, status: updated.status } : current));
-    } catch (err) {
-      setError(formatApiErrorMessage(err, 'Не удалось архивировать'));
-    }
-  }
-
   return (
     <main>
       <PageContainer>
@@ -138,10 +126,13 @@ export default function ItemDetailPage() {
             { label: item?.name ?? 'Товар' },
           )}
           actions={
-            canManage && item && item.status !== 'ARCHIVED' ? (
-              <Button variant="ghost" onClick={() => void onArchive()}>
-                Архив
-              </Button>
+            item && item.status === 'ACTIVE' ? (
+              <DeletionRequestButton
+                organizationId={organizationId}
+                entityType="ITEM"
+                entityId={itemId}
+                entityLabel={`${item.name} (${item.code})`}
+              />
             ) : undefined
           }
         />

@@ -228,4 +228,15 @@ export class PrismaItemRepository implements ItemRepository {
     });
     return Boolean(row);
   }
+
+  async listCodesByPrefix(organizationId: string, codePrefix: string): Promise<string[]> {
+    const rows = await this.client().item.findMany({
+      where: {
+        organizationId,
+        code: { startsWith: codePrefix },
+      },
+      select: { code: true },
+    });
+    return rows.map((row) => row.code);
+  }
 }

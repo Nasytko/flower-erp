@@ -96,6 +96,7 @@ export interface IdentityRepository {
     directorRoleId: string;
     floristRoleId: string;
     courierRoleId: string;
+    developerRoleId: string;
   }>;
   organizationHasOwner(organizationId: string): Promise<boolean>;
   countActiveDirectors(organizationId: string): Promise<number>;

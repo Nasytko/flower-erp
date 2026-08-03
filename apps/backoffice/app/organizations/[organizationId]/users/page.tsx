@@ -24,7 +24,7 @@ import { ROLE_LABELS_RU } from '@/lib/status-labels-ru';
 
 type StoreOption = { id: string; name: string; code: string };
 
-const SYSTEM_ROLES = ['DIRECTOR', 'FLORIST', 'COURIER'] as const;
+const SYSTEM_ROLES = ['DIRECTOR', 'DEVELOPER', 'FLORIST', 'COURIER'] as const;
 
 function primaryRole(user: UserAdminRow): string {
   for (const code of SYSTEM_ROLES) {
@@ -251,6 +251,7 @@ export default function UsersPage() {
                 {users.map((user) => (
                   <UserAdminCard
                     key={user.id}
+                    organizationId={params.organizationId}
                     user={user}
                     stores={stores}
                     roleOptions={roleOptions}
@@ -281,16 +282,6 @@ export default function UsersPage() {
                       void withPending(user.id, async () => {
                         await client.unblockUser(params.organizationId, user.id);
                         toast.success('Пользователь разблокирован');
-                        await load();
-                      })
-                    }
-                    onArchive={() =>
-                      void withPending(user.id, async () => {
-                        if (!window.confirm(`Архивировать пользователя ${user.displayName}?`)) {
-                          return;
-                        }
-                        await client.archiveUser(params.organizationId, user.id);
-                        toast.success('Пользователь архивирован');
                         await load();
                       })
                     }

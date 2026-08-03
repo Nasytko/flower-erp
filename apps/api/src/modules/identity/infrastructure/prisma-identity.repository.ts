@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import {
   COURIER_PERMISSIONS,
+  DEVELOPER_PERMISSIONS,
   DIRECTOR_PERMISSIONS,
   FLORIST_PERMISSIONS,
   SYSTEM_ROLE_PRESETS,
@@ -312,10 +313,16 @@ export class PrismaIdentityRepository implements IdentityRepository {
     const director = await this.ensureRole(organizationId, SYSTEM_ROLE_PRESETS.DIRECTOR, DIRECTOR_PERMISSIONS);
     const florist = await this.ensureRole(organizationId, SYSTEM_ROLE_PRESETS.FLORIST, FLORIST_PERMISSIONS);
     const courier = await this.ensureRole(organizationId, SYSTEM_ROLE_PRESETS.COURIER, COURIER_PERMISSIONS);
+    const developer = await this.ensureRole(
+      organizationId,
+      SYSTEM_ROLE_PRESETS.DEVELOPER,
+      DEVELOPER_PERMISSIONS,
+    );
     return {
       directorRoleId: director.id,
       floristRoleId: florist.id,
       courierRoleId: courier.id,
+      developerRoleId: developer.id,
     };
   }
 

@@ -17,6 +17,9 @@ export const STATUS_LABELS_RU: Record<string, string> = {
   ready: 'Готово',
   COMPLETED: 'Завершено',
   ANNULLED: 'Аннулировано',
+  PENDING: 'Ожидает',
+  APPROVED: 'Удалено',
+  REJECTED: 'Отклонено',
   CONFIRMED: 'Подтверждено',
   SUBMITTED_TO_SUPPLIER: 'К оприходованию',
   PARTIALLY_RECEIVED: 'Оприходовано',
@@ -89,6 +92,7 @@ export const STATUS_LABELS_RU: Record<string, string> = {
 
 export const ROLE_LABELS_RU: Record<string, string> = {
   DIRECTOR: 'Директор',
+  DEVELOPER: 'Разработчик',
   FLORIST: 'Флорист',
   COURIER: 'Курьер',
 };

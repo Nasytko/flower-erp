@@ -3,6 +3,7 @@
 import type { ReactNode } from 'react';
 import type { RecipeCatalogItem } from '@/components/catalog/item-recipe-editor';
 import { ItemRecipeEditor } from '@/components/catalog/item-recipe-editor';
+import { DeletionRequestButton } from '@/components/admin/deletion-request-button';
 
 export type BouquetCatalogEntry = {
   id: string;
@@ -85,6 +86,15 @@ export function BouquetCatalogCard({
         </button>
         {bouquet.recipeLineCount === 0 ? (
           <span className="bouquet-catalog-card__badge">Без состава</span>
+        ) : null}
+        {canEdit ? (
+          <DeletionRequestButton
+            organizationId={organizationId}
+            entityType="ITEM"
+            entityId={bouquet.id}
+            entityLabel={`${bouquet.name} (${bouquet.code})`}
+            onRequested={onRecipeSaved}
+          />
         ) : null}
       </div>
 

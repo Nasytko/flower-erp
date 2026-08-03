@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation';
 import { Button, Card, Input } from '@flower/ui';
 import { useAuth } from '@/components/auth-provider';
 import { CatalogExpandRow } from '@/components/catalog/catalog-expand-row';
+import { DeletionRequestButton } from '@/components/admin/deletion-request-button';
 import { getApiClient } from '@/lib/api-client';
 import { PageContainer } from '@/components/layout/page-container';
 import { PageHeader } from '@/components/layout/page-header';
@@ -14,7 +15,7 @@ import { StatusBadge } from '@/components/layout/status-badge';
 import { Field } from '@/components/layout/field';
 import { FancySelect } from '@/components/layout/fancy-select';
 import { formatApiErrorMessage } from '@/lib/format-api-error';
-import { catalogBreadcrumbs, canManageCatalog, canOperateCatalog } from '@/lib/settings-nav';
+import { catalogBreadcrumbs, canOperateCatalog } from '@/lib/settings-nav';
 import {
   type FieldErrors,
   firstFieldError,
@@ -51,7 +52,6 @@ export default function ItemsPage() {
   const auth = useAuth();
   const organizationId = params.organizationId;
   const canOperate = canOperateCatalog(auth.hasPermission);
-  const canManage = canManageCatalog(auth.hasPermission);
 
   const [items, setItems] = useState<Item[]>([]);
   const [page, setPage] = useState(1);
@@ -138,17 +138,6 @@ export default function ItemsPage() {
       setError(formatApiErrorMessage(err, 'Не удалось создать товар'));
     } finally {
       setCreating(false);
-    }
-  }
-
-  async function onArchive(itemId: string) {
-    setError(null);
-    try {
-      await getApiClient().archiveItem(organizationId, itemId);
-      if (expandedId === itemId) setExpandedId(null);
-      await load();
-    } catch (err) {
-      setError(formatApiErrorMessage(err, 'Не удалось архивировать'));
     }
   }
 
@@ -277,10 +266,17 @@ export default function ItemsPage() {
                       </div>
                     }
                     actions={
-                      canManage && item.status !== 'ARCHIVED' ? (
-                        <Button variant="ghost" onClick={() => void onArchive(item.id)}>
-                          Архив
-                        </Button>
+                      item.status === 'ACTIVE' ? (
+                        <DeletionRequestButton
+                          organizationId={organizationId}
+                          entityType="ITEM"
+                          entityId={item.id}
+                          entityLabel={`${item.name} (${item.code})`}
+                          onRequested={() => {
+                            if (expandedId === item.id) setExpandedId(null);
+                            void load();
+                          }}
+                        />
                       ) : undefined
                     }
                   >

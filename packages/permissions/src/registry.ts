@@ -60,6 +60,9 @@ export type PermissionCode =
   | 'delivery:manage-couriers'
   | 'delivery:view-payment-summary'
   | 'audit:read'
+  | 'deletions:read'
+  | 'deletions:request'
+  | 'deletions:approve'
   | 'users:read'
   | 'users:manage'
   | 'roles:manage'
@@ -127,6 +130,9 @@ export const PERMISSION_REGISTRY: readonly PermissionDefinition[] = [
   { code: 'delivery:manage-couriers', description: 'Create and archive courier profiles' },
   { code: 'delivery:view-payment-summary', description: 'View payment balance on delivery summary' },
   { code: 'audit:read', description: 'View audit log entries' },
+  { code: 'deletions:read', description: 'View pending deletion requests' },
+  { code: 'deletions:request', description: 'Request permanent deletion of reference data' },
+  { code: 'deletions:approve', description: 'Approve deletion requests and permanently delete records' },
   { code: 'users:read', description: 'View organization users' },
   { code: 'users:manage', description: 'Create, block, archive users and reset passwords' },
   { code: 'roles:manage', description: 'Assign roles and store access' },
@@ -175,6 +181,7 @@ export const FLORIST_PERMISSIONS: readonly PermissionCode[] = [
   'delivery:dispatch',
   'delivery:report-problem',
   'workspace:read',
+  'deletions:request',
 ];
 
 /** Courier field role — delivery execution only; no inventory/finance/admin. */
@@ -187,6 +194,17 @@ export const COURIER_PERMISSIONS: readonly PermissionCode[] = [
   'delivery:dispatch',
   'delivery:complete',
   'delivery:report-problem',
+  'deletions:request',
+];
+
+export const DEVELOPER_PERMISSIONS: readonly PermissionCode[] = [
+  'organization:read',
+  'users:read',
+  'audit:read',
+  'master-data:read',
+  'customers:read',
+  'deletions:read',
+  'deletions:approve',
 ];
 
 export const SYSTEM_ROLE_PRESETS = {
@@ -204,6 +222,11 @@ export const SYSTEM_ROLE_PRESETS = {
     code: 'COURIER',
     name: 'Courier',
     permissions: COURIER_PERMISSIONS,
+  },
+  DEVELOPER: {
+    code: 'DEVELOPER',
+    name: 'Developer',
+    permissions: DEVELOPER_PERMISSIONS,
   },
 } as const;
 

@@ -4,8 +4,8 @@ import {
 } from './allocate-document-number';
 
 /**
- * Allocates a unique catalog/store code: `ITM-20260724-0001`.
- * Format matches master-data / store code rules: 2–32 chars `[A-Z0-9_-]`.
+ * Allocates a unique catalog/store code: `CAT-20260724-0001`.
+ * Used for categories, suppliers, stores — not for items (see allocateSequentialCode).
  */
 export async function allocateUniqueCode(
   prefix: string,

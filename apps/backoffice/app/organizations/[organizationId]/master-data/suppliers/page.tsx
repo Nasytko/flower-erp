@@ -12,8 +12,9 @@ import { Section } from '@/components/layout/section';
 import { EmptyState, ErrorState, LoadingState } from '@/components/layout/states';
 import { StatusBadge } from '@/components/layout/status-badge';
 import { Field } from '@/components/layout/field';
+import { DeletionRequestButton } from '@/components/admin/deletion-request-button';
 import { formatApiErrorMessage } from '@/lib/format-api-error';
-import { catalogBreadcrumbs, canManageCatalog, canOperateCatalog } from '@/lib/settings-nav';
+import { catalogBreadcrumbs, canOperateCatalog } from '@/lib/settings-nav';
 import {
   type FieldErrors,
   firstFieldError,
@@ -38,7 +39,6 @@ export default function SuppliersPage() {
   const organizationId = params.organizationId;
   const base = `/organizations/${organizationId}/master-data`;
   const canOperate = canOperateCatalog(auth.hasPermission);
-  const canManage = canManageCatalog(auth.hasPermission);
 
   const [items, setItems] = useState<Supplier[]>([]);
   const [nameFilter, setNameFilter] = useState('');
@@ -110,16 +110,6 @@ export default function SuppliersPage() {
     }
   }
 
-  async function onArchive(supplierId: string) {
-    setError(null);
-    try {
-      await getApiClient().archiveSupplier(organizationId, supplierId);
-      await load();
-    } catch (err) {
-      setError(formatApiErrorMessage(err, 'Не удалось архивировать'));
-    }
-  }
-
   return (
     <main>
       <PageContainer>
@@ -184,10 +174,14 @@ export default function SuppliersPage() {
                         {item.contactPerson ? <span>{item.contactPerson}</span> : null}
                       </div>
                     </div>
-                    {canManage && item.status !== 'ARCHIVED' ? (
-                      <Button variant="ghost" onClick={() => void onArchive(item.id)}>
-                        Архив
-                      </Button>
+                    {item.status === 'ACTIVE' ? (
+                      <DeletionRequestButton
+                        organizationId={organizationId}
+                        entityType="SUPPLIER"
+                        entityId={item.id}
+                        entityLabel={`${item.name} (${item.code})`}
+                        onRequested={() => void load()}
+                      />
                     ) : null}
                   </div>
                 </li>
