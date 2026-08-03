@@ -160,21 +160,21 @@ export function OrderCalendarView({ initialDate }: OrderCalendarViewProps) {
       <PageContainer>
         <PageHeader
           title="Календарь заказов"
-          description="Смена на день — перетаскивайте карточки за ручку слева между колонками."
+          description="Смена на день — перетаскивайте карточки между колонками."
           breadcrumbs={[
             { label: 'Магазин', href: base },
             { label: 'Заказы' },
           ]}
           actions={
             canCreate ? (
-              <Link href={newOrderHref}>
+              <Link href={newOrderHref} className="order-calendar-page__new-link">
                 <Button type="button">Новый заказ</Button>
               </Link>
             ) : null
           }
         />
 
-        <Section>
+        <div className="order-calendar-controls">
           <div className="order-calendar-toolbar">
             <label className="order-calendar-toolbar__search">
               <span className="visually-hidden">Поиск заказов</span>
@@ -241,28 +241,23 @@ export function OrderCalendarView({ initialDate }: OrderCalendarViewProps) {
                   </span>
                 ) : null}
               </button>
-              <Button type="button" variant="secondary" onClick={() => void load()}>
+              <Button type="button" variant="secondary" className="order-calendar-toolbar__refresh" onClick={() => void load()}>
                 Обновить
               </Button>
             </div>
           </div>
-        </Section>
 
-        {board ? (
-          <Section>
-            <OrderCalendarDayStats sections={filteredSections ?? board.sections} />
-          </Section>
-        ) : null}
-
-        {board ? (
-          <Section>
-            <OrderCalendarDateStrip
-              selectedDate={date}
-              dateCounts={board.dateCounts}
-              onSelect={selectDate}
-            />
-          </Section>
-        ) : null}
+          {board ? (
+            <>
+              <OrderCalendarDateStrip
+                selectedDate={date}
+                dateCounts={board.dateCounts}
+                onSelect={selectDate}
+              />
+              <OrderCalendarDayStats sections={filteredSections ?? board.sections} />
+            </>
+          ) : null}
+        </div>
 
         {loading ? <LoadingState message="Загрузка календаря…" /> : null}
         {error ? <ErrorState message={error} /> : null}

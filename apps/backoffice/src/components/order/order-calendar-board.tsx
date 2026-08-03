@@ -2,7 +2,6 @@
 
 import { useMemo, useState, type DragEvent } from 'react';
 import type { OrderBoardCardDto, OrderBoardColumn } from '@flower/api-client';
-import { EmptyState } from '@/components/layout/states';
 import { InlineAlert } from '@/components/workspace/workspace-ui';
 import { OrderCalendarCard } from '@/components/order/order-calendar-card';
 import { OrderCalendarColumnHeader } from '@/components/order/order-calendar-date-strip';
@@ -134,7 +133,9 @@ export function OrderCalendarBoard({
                 className={`order-calendar-column__cards${droppable ? ' order-calendar-column__cards--droppable' : ''}${cards.length === 0 ? ' order-calendar-column__cards--empty' : ''}`}
               >
                 {cards.length === 0 ? (
-                  <EmptyState message={droppable ? 'Отпустите здесь' : 'Пока ничего нет'} />
+                  <div className="order-calendar-column__empty" aria-hidden={!droppable}>
+                    {droppable ? 'Отпустите здесь' : null}
+                  </div>
                 ) : (
                   cards.map((card) => (
                     <OrderCalendarCard

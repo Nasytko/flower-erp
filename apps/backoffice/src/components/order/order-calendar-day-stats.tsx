@@ -20,8 +20,9 @@ export function OrderCalendarDayStats({ sections }: OrderCalendarDayStatsProps) 
 
   if (total === 0) {
     return (
-      <p className="order-calendar-day-stats order-calendar-day-stats--empty">
-        На выбранный день заказов нет.
+      <p className="order-calendar-day-stats order-calendar-day-stats--empty" role="status">
+        <span className="order-calendar-day-stats__empty-dot" aria-hidden />
+        На выбранный день заказов нет
       </p>
     );
   }
