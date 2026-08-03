@@ -9,16 +9,4 @@ test.describe('inventory operations smoke', () => {
     await page.waitForURL(/\/login/, { timeout: 15_000 });
     await expect(page).toHaveURL(/\/login/);
   });
-
-  test('transfers route redirects to login when unauthenticated', async ({ page }) => {
-    await page.goto(`${STORE_BASE}/transfers`);
-    await page.waitForURL(/\/login/, { timeout: 15_000 });
-    await expect(page).toHaveURL(/\/login/);
-  });
-
-  test('inventory counts route redirects to login when unauthenticated', async ({ page }) => {
-    await page.goto(`${STORE_BASE}/inventory-counts`);
-    await page.waitForURL(/\/login/, { timeout: 15_000 });
-    await expect(page).toHaveURL(/\/login/);
-  });
 });

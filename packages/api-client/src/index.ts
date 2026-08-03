@@ -156,7 +156,7 @@ export function createApiClient(options: ApiClientOptions) {
     login: (body: {
       login: string;
       password: string;
-      roleChallenge: string;
+      totpCode?: string;
       organizationId?: string;
     }) =>
       request<{
@@ -164,6 +164,7 @@ export function createApiClient(options: ApiClientOptions) {
         user: { id: string; login: string; displayName: string; mustChangePassword: boolean };
         organization: { id: string; name: string };
         permissions: string[];
+        totpEnabled: boolean;
       }>('/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -203,7 +204,29 @@ export function createApiClient(options: ApiClientOptions) {
         user: { id: string; displayName: string; login: string; mustChangePassword: boolean };
         organization: { id: string; name: string };
         permissions: string[];
+        totpEnabled: boolean;
+        storeScope: { mode: string; storeIds: string[] };
+        sessionId: string;
       }>('/auth/me'),
+    setupTotp: () =>
+      request<{ otpauthUrl: string; secret: string }>('/auth/totp/setup', {
+        method: 'POST',
+        credentials: 'include',
+      }),
+    confirmTotp: (totpCode: string) =>
+      request<void>('/auth/totp/confirm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ totpCode }),
+        credentials: 'include',
+      }),
+    disableTotp: (body: { password: string; totpCode: string }) =>
+      request<void>('/auth/totp/disable', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+        credentials: 'include',
+      }),
     getLiveHealth: () => request<HealthLiveResponse>('/health/live'),
     getReadyHealth: () => request<HealthReadyResponse>('/health/ready'),
     listOrganizations: (page = 1, pageSize = 20) =>
@@ -919,6 +942,7 @@ export function createApiClient(options: ApiClientOptions) {
         warehouseId: string;
         receivedDate?: string | null;
         paymentDueDate?: string | null;
+        paidAt?: string | null;
         supplierDocumentNumber?: string | null;
         supplier?: { name: string; code: string };
       }>>(`/organizations/${organizationId}/stores/${storeId}/supplies${status ? `?status=${status}` : ''}`),
@@ -948,6 +972,7 @@ export function createApiClient(options: ApiClientOptions) {
         supplierId: string;
         receivedDate?: string | null;
         paymentDueDate?: string | null;
+        paidAt?: string | null;
         supplierDocumentNumber?: string | null;
         comment: string | null;
         supplier?: { name: string; code: string };
@@ -976,6 +1001,7 @@ export function createApiClient(options: ApiClientOptions) {
         status: string;
         receivedDate?: string | null;
         paymentDueDate?: string | null;
+        paidAt?: string | null;
         supplierDocumentNumber?: string | null;
         comment: string | null;
       }>(`/organizations/${organizationId}/stores/${storeId}/supplies/${supplyId}`, {
@@ -1070,10 +1096,19 @@ export function createApiClient(options: ApiClientOptions) {
         },
       ),
     annulSupply: (organizationId: string, storeId: string, supplyId: string) =>
-      request<{ id: string; status: string }>(
+      request<{ id: string; status: string; paidAt?: string | null }>(
         `/organizations/${organizationId}/stores/${storeId}/supplies/${supplyId}/annul`,
         { method: 'POST' },
       ),
+    markSupplyPaid: (organizationId: string, storeId: string, supplyId: string) =>
+      request<{
+        id: string;
+        number: string;
+        status: string;
+        paidAt: string | null;
+      }>(`/organizations/${organizationId}/stores/${storeId}/supplies/${supplyId}/mark-paid`, {
+        method: 'POST',
+      }),
     createGoodsReceipt: (
       organizationId: string,
       storeId: string,

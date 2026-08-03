@@ -27,6 +27,7 @@ import { listAllCatalogItems } from '@/lib/catalog-items';
 type PendingConfirm =
   | { kind: 'receive' }
   | { kind: 'annul' }
+  | { kind: 'markPaid' }
   | { kind: 'remove'; line: SupplyLine }
   | { kind: 'saveEdit'; line: SupplyLine }
   | null;
@@ -96,6 +97,7 @@ export default function SupplyDetailPage() {
     warehouseId: string;
     receivedDate?: string | null;
     paymentDueDate?: string | null;
+    paidAt?: string | null;
     supplierDocumentNumber?: string | null;
     comment?: string | null;
     supplier?: { name: string; code: string };
@@ -374,12 +376,33 @@ export default function SupplyDetailPage() {
     }
   }
 
+  function onMarkPaid() {
+    setConfirm({ kind: 'markPaid' });
+  }
+
+  async function performMarkPaid() {
+    setBusy(true);
+    setError(null);
+    try {
+      await getApiClient().markSupplyPaid(organizationId, storeId, supplyId);
+      toast.success('Приёмка отмечена как оплаченная');
+      await load();
+    } catch (err) {
+      const message = formatApiErrorMessage(err, 'Не удалось отметить оплату');
+      setError(message);
+      toast.error(message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function onConfirmDialog() {
     if (!confirm) return;
     const pending = confirm;
     setConfirm(null);
     if (pending.kind === 'receive') await performReceive();
     if (pending.kind === 'annul') await performAnnul();
+    if (pending.kind === 'markPaid') await performMarkPaid();
     if (pending.kind === 'remove') await performRemoveLine(pending.line);
     if (pending.kind === 'saveEdit') await onSaveEdit(pending.line, true);
   }
@@ -405,6 +428,13 @@ export default function SupplyDetailPage() {
         message: 'Аннулировать приёмку? Это действие нельзя отменить.',
         destructive: true,
         confirmLabel: 'Аннулировать',
+      };
+    }
+    if (confirm.kind === 'markPaid') {
+      return {
+        title: 'Отметить оплату',
+        message: 'Отметить приёмку как оплаченную поставщику?',
+        confirmLabel: 'Оплачен',
       };
     }
     if (confirm.kind === 'remove') {
@@ -446,6 +476,14 @@ export default function SupplyDetailPage() {
             Number(line.plannedUnitPrice) >= 0 &&
             Number(line.orderedQuantity) > 0,
         ),
+    );
+  const canMarkPaid =
+    Boolean(
+      supply &&
+        !supply.paidAt &&
+        (supply.status === 'SUBMITTED_TO_SUPPLIER' ||
+          supply.status === 'PARTIALLY_RECEIVED' ||
+          supply.status === 'RECEIVED'),
     );
   const workflowStep: 2 | 3 = canReceive ? 3 : 2;
 
@@ -548,6 +586,21 @@ export default function SupplyDetailPage() {
                     <div>
                       <dt style={{ color: 'var(--color-muted)' }}>Оплатить до</dt>
                       <dd style={{ margin: 0 }}>{formatDateLabel(supply.paymentDueDate)}</dd>
+                    </div>
+                    <div>
+                      <dt style={{ color: 'var(--color-muted)' }}>Оплата</dt>
+                      <dd style={{ margin: 0 }}>
+                        {supply.paidAt ? (
+                          <>
+                            <StatusBadge status="PAID" />{' '}
+                            <span style={{ color: 'var(--color-muted)' }}>
+                              {formatDateLabel(supply.paidAt)}
+                            </span>
+                          </>
+                        ) : (
+                          'Не оплачено'
+                        )}
+                      </dd>
                     </div>
                     <div>
                       <dt style={{ color: 'var(--color-muted)' }}>Номер накладной</dt>
@@ -844,6 +897,16 @@ export default function SupplyDetailPage() {
                     onClick={() => void onAnnul()}
                   >
                     Аннулировать
+                  </Button>
+                ) : null}
+                {canMarkPaid ? (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    disabled={busy}
+                    onClick={() => void onMarkPaid()}
+                  >
+                    Оплачен
                   </Button>
                 ) : null}
                 <Link href={`${base}/warehouses/${supply.warehouseId}/inventory`}>

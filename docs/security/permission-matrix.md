@@ -14,12 +14,6 @@
 | write-offs:read | ✓ | ✓ |
 | write-offs:create | ✓ | ✓ |
 | write-offs:post / reverse | ✓ | — |
-| transfers:read | ✓ | ✓ |
-| transfers:create / dispatch / receive / cancel | ✓ | — |
-| inventory-counts:read | ✓ | ✓ |
-| inventory-counts:create | ✓ | — |
-| inventory-counts:count | ✓ | ✓ |
-| inventory-counts:post / cancel | ✓ | — |
 | inventory-adjustments:view-cost | ✓ | — |
 | customers:* | ✓ | read |
 | orders:* | ✓ | operational (no admin) |
@@ -37,8 +31,6 @@
 | payments:annul | ✓ | — |
 | payments:refund | ✓ | — |
 | payments:manage-methods | ✓ | — |
-| payments:view-cash | ✓ | — |
-| payments:manual-adjustment | ✓ | — |
 | delivery:read | ✓ | ✓ |
 | delivery:create | ✓ | ✓ |
 | delivery:update | ✓ | ✓ |
@@ -52,8 +44,9 @@
 | delivery:view-payment-summary | ✓ | — |
 | audit:read | ✓ | — |
 | users:* / roles:manage | ✓ | — |
+| deletions:read / approve | ✓ | — |
+| deletions:request | ✓ | ✓ |
 | workspace:read | ✓ | ✓ |
-| operations:read | ✓ | — |
 
 | Code | COURIER |
 |------|:------:|
@@ -65,4 +58,4 @@
 
 Checks use permission codes only — never `role === DIRECTOR` or `role === COURIER`.
 
-Workspace Today / Work Order / operational stock accept `workspace:read` (preferred) or `orders:read` (secondary). Operations board requires `operations:read`. Delivery board/map/calendar require `delivery:read`. Inventory operation cost fields additionally require `inventory-adjustments:view-cost` or `inventory:view-cost` depending on screen context.
+Workspace Today / Work Order / operational stock accept `workspace:read` (preferred) or `orders:read` (secondary). Delivery board/map/calendar require `delivery:read`. Inventory operation cost fields additionally require `inventory-adjustments:view-cost` or `inventory:view-cost` depending on screen context.

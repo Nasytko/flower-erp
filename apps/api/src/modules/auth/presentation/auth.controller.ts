@@ -20,7 +20,7 @@ import { Public, AllowMustChangePassword } from '../presentation/auth.decorators
 import { CurrentAuthContext } from '../presentation/current-auth-context.decorator';
 import type { AuthContext } from '../../../infrastructure/context/request-context';
 import { REFRESH_COOKIE_NAME, assertOriginAllowed } from '../domain/auth-rules';
-import { LoginDto, ChangePasswordDto, RevokeSessionParamsDto } from './auth.dto';
+import { LoginDto, ChangePasswordDto, RevokeSessionParamsDto, TotpConfirmDto, TotpDisableDto } from './auth.dto';
 
 function setRefreshCookie(res: Response, env: ApiEnv, token: string): void {
   const secure = env.AUTH_COOKIE_SECURE ?? env.NODE_ENV === 'production';
@@ -62,7 +62,7 @@ export class AuthController {
     const result = await this.auth.login({
       login: body.login,
       password: body.password,
-      roleChallenge: body.roleChallenge,
+      totpCode: body.totpCode,
       organizationId: body.organizationId,
       ipAddress: req.ip,
       userAgent: req.header('user-agent') ?? null,
@@ -76,6 +76,7 @@ export class AuthController {
       user: result.user,
       organization: result.organization,
       permissions: result.permissions,
+      totpEnabled: result.totpEnabled,
     };
   }
 
@@ -147,5 +148,25 @@ export class AuthController {
     @Body() body: ChangePasswordDto,
   ) {
     return this.auth.changePassword(auth, body);
+  }
+
+  @AllowMustChangePassword()
+  @Post('totp/setup')
+  setupTotp(@CurrentAuthContext() auth: AuthContext) {
+    return this.auth.setupTotp(auth);
+  }
+
+  @AllowMustChangePassword()
+  @Post('totp/confirm')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  confirmTotp(@CurrentAuthContext() auth: AuthContext, @Body() body: TotpConfirmDto) {
+    return this.auth.confirmTotp(auth, body.totpCode);
+  }
+
+  @AllowMustChangePassword()
+  @Post('totp/disable')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  disableTotp(@CurrentAuthContext() auth: AuthContext, @Body() body: TotpDisableDto) {
+    return this.auth.disableTotp(auth, body);
   }
 }

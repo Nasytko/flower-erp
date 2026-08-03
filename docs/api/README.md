@@ -91,13 +91,11 @@ Prefix: `.../stores/{storeId}/warehouses/{warehouseId}`
 | GET | `/inventory/balances` | `inventory:read` |
 | GET | `/inventory/batches` | `inventory:read` |
 
-### Write-offs, transfers, counts
+### Write-offs
 
 | Resource | Prefix |
 |----------|--------|
 | Write-offs | `.../write-offs` |
-| Transfers | `.../transfers` |
-| Inventory counts | `.../inventory-counts` |
 
 ### Workspace / analytics
 
@@ -115,7 +113,7 @@ Prefix: `.../stores/{storeId}/warehouses/{warehouseId}`
 
 ### Payments
 
-Prefix: `.../stores/{storeId}` — payments, payment-methods, cash-accounts.
+Prefix: `.../stores/{storeId}` — payments, payment-methods.
 
 ## Master data
 

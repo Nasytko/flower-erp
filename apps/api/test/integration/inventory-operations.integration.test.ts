@@ -5,7 +5,6 @@ import { ConflictException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { PrismaService } from '../../src/infrastructure/prisma/prisma.service.js';
 import { InfrastructureModule } from '../../src/infrastructure/infrastructure.module.js';
-import { InventoryCountUseCases } from '../../src/modules/inventory/application/inventory-count.use-cases.js';
 import { InventoryQueryUseCases } from '../../src/modules/inventory/application/inventory-query.use-cases.js';
 import { WriteOffUseCases } from '../../src/modules/inventory/application/write-off.use-cases.js';
 import { InventoryModule } from '../../src/modules/inventory/inventory.module.js';
@@ -194,123 +193,6 @@ test('write-off uses FIFO by receipt date, rejects reserved stock, and reverses'
     idempotencyKey: `wo-rev-${suffix}`,
   });
   assert.equal(reversed.status, 'REVERSED');
-
-  await moduleRef.get(PrismaService).$disconnect();
-  await moduleRef.close();
-});
-
-test('inventory count reconcile posts adjustments and detects version conflict', { skip: !runIntegration }, async () => {
-  const auth = await bootstrapDirector();
-  const moduleRef = await boot();
-  const categories = moduleRef.get(CategoryUseCases);
-  const policies = moduleRef.get(PolicyUseCases);
-  const items = moduleRef.get(ItemUseCases);
-  const suppliers = moduleRef.get(SupplierUseCases);
-  const supplies = moduleRef.get(SupplyUseCases);
-  const receipts = moduleRef.get(GoodsReceiptUseCases);
-  const counts = moduleRef.get(InventoryCountUseCases);
-  const inventory = moduleRef.get(InventoryQueryUseCases);
-  const suffix = Date.now().toString().slice(-6);
-
-  const category = await categories.createCategory({ organizationId: auth.organizationId, name: 'Count', code: `CNT-${suffix}` });
-  const policy = await policies.createInventoryPolicy({
-    organizationId: auth.organizationId,
-    name: 'Flower',
-    itemType: ItemType.FLOWER,
-    trackingMethod: TrackingMethod.LOT,
-    expirationTracking: true,
-    defaultShelfLifeDays: 2,
-  });
-  const item = await items.createItem({
-    organizationId: auth.organizationId,
-    categoryId: category.id,
-    inventoryPolicyId: policy.id,
-    name: 'Peony',
-    code: `PC-${suffix}`,
-    itemType: ItemType.FLOWER,
-    isPurchasable: true,
-  });
-  const supplier = await suppliers.createSupplier({ organizationId: auth.organizationId, name: 'Grower', code: `CG-${suffix}` });
-
-  const supply = await supplies.createSupply({
-    organizationId: auth.organizationId,
-    storeId: auth.storeId,
-    warehouseId: auth.warehouseId,
-    supplierId: supplier.id,
-  });
-  const supplyItem = await supplies.addSupplyItem({
-    organizationId: auth.organizationId,
-    storeId: auth.storeId,
-    supplyId: supply.id,
-    itemId: item.id,
-    orderedQuantity: '5',
-  });
-  await supplies.submitSupply({ organizationId: auth.organizationId, storeId: auth.storeId, supplyId: supply.id });
-  const receipt = await receipts.createGoodsReceipt({
-    organizationId: auth.organizationId,
-    storeId: auth.storeId,
-    warehouseId: auth.warehouseId,
-    supplyId: supply.id,
-    receivedAt: new Date().toISOString(),
-  });
-  await receipts.addGoodsReceiptItem({
-    organizationId: auth.organizationId,
-    storeId: auth.storeId,
-    goodsReceiptId: receipt.id,
-    supplyItemId: supplyItem.id,
-    receivedQuantity: '5',
-    acceptedQuantity: '5',
-    defectiveQuantity: '0',
-    actualUnitPrice: '12',
-  });
-  await receipts.postGoodsReceipt({
-    organizationId: auth.organizationId,
-    storeId: auth.storeId,
-    goodsReceiptId: receipt.id,
-    idempotencyKey: `cnt-rcpt-${suffix}`,
-  });
-
-  const count = await counts.create({
-    organizationId: auth.organizationId,
-    storeId: auth.storeId,
-    warehouseId: auth.warehouseId,
-  });
-  const itemRow = count.items.find((row) => row.itemId === item.id);
-  assert.ok(itemRow);
-
-  const counted = await counts.count({
-    organizationId: auth.organizationId,
-    storeId: auth.storeId,
-    inventoryCountId: count.id,
-    expectedVersion: count.version,
-    items: [{ inventoryCountItemId: itemRow!.id, countedQuantity: '7' }],
-  });
-  assert.equal(counted.status, 'COUNTED');
-
-  await assert.rejects(
-    () =>
-      counts.post({
-        organizationId: auth.organizationId,
-        storeId: auth.storeId,
-        inventoryCountId: count.id,
-        expectedVersion: count.version,
-        idempotencyKey: `cnt-stale-${suffix}`,
-      }),
-    (error: unknown) => error instanceof ConflictException,
-  );
-
-  const posted = await counts.post({
-    organizationId: auth.organizationId,
-    storeId: auth.storeId,
-    inventoryCountId: count.id,
-    expectedVersion: counted.version,
-    idempotencyKey: `cnt-post-${suffix}`,
-  });
-  assert.equal(posted.status, 'POSTED');
-
-  const balances = await inventory.listBalances(auth.organizationId, auth.storeId, auth.warehouseId);
-  const balance = balances.find((row) => row.itemId === item.id);
-  assert.equal(balance?.onHandQuantity, '7');
 
   await moduleRef.get(PrismaService).$disconnect();
   await moduleRef.close();

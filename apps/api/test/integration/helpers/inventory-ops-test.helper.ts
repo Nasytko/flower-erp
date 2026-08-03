@@ -6,7 +6,6 @@ import { MasterDataModule } from '../../../src/modules/master-data/master-data.m
 import { OrdersModule } from '../../../src/modules/orders/orders.module.js';
 import { OrganizationModule } from '../../../src/modules/organization/organization.module.js';
 import { SupplyModule } from '../../../src/modules/supply/supply.module.js';
-import { TransfersModule } from '../../../src/modules/transfers/transfers.module.js';
 import type { TestAuthContext } from '../../helpers/auth-test.helper.js';
 
 export const runIntegration =
@@ -21,7 +20,6 @@ export async function bootInventoryOps() {
       InventoryModule,
       SupplyModule,
       OrdersModule,
-      TransfersModule,
     ],
   }).compile();
   await moduleRef.get(PrismaService).$connect();

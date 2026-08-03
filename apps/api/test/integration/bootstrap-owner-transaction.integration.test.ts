@@ -129,7 +129,7 @@ test(
     try {
       const loginRes = await request(app.getHttpServer())
         .post('/api/v1/auth/login')
-        .send({ login, password, roleChallenge: 'director' })
+        .send({ login, password })
         .expect(200);
       assert.ok(loginRes.body.accessToken);
       assert.ok(loginRes.body.permissions?.includes('users:manage'));

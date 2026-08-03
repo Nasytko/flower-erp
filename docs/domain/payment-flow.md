@@ -2,7 +2,7 @@
 
 **Status:** Accepted  
 **Module:** `payments`  
-**ADRs:** [019](../architecture/adr/019-decimal-money-representation.md)–[023](../architecture/adr/023-cash-operation-ledger.md)
+**ADRs:** [019](../architecture/adr/019-decimal-money-representation.md)–[022](../architecture/adr/022-payment-allocation-invariants.md)
 
 ## Responsibility
 

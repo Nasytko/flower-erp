@@ -25,9 +25,11 @@ import {
   computeLockUntil,
   normalizeLogin,
 } from '../../identity/domain/identity-rules';
-import { GENERIC_AUTH_FAILURE, SECURITY_AUDIT_ACTIONS, matchesRoleChallenge } from '../domain/auth-rules';
+import { GENERIC_AUTH_FAILURE, SECURITY_AUDIT_ACTIONS, TOTP_INVALID, TOTP_REQUIRED } from '../domain/auth-rules';
 import { Argon2PasswordService, hashRefreshToken } from '../../../infrastructure/security/password.service';
+import { TotpCryptoService } from '../../../infrastructure/security/totp-crypto.service';
 import { JwtTokenService } from '../infrastructure/jwt-token.service';
+import { TotpService } from '../infrastructure/totp.service';
 import { InMemoryRateLimiter } from '../infrastructure/rate-limiter.service';
 
 export type LoginResult =
@@ -38,6 +40,7 @@ export type LoginResult =
       user: { id: string; login: string; displayName: string; mustChangePassword: boolean };
       organization: { id: string; name: string };
       permissions: string[];
+      totpEnabled: boolean;
     }
   | {
       status: 'organization_required';
@@ -55,12 +58,14 @@ export class AuthUseCases {
     private readonly passwords: Argon2PasswordService,
     private readonly tokens: JwtTokenService,
     private readonly rateLimiter: InMemoryRateLimiter,
+    private readonly totp: TotpService,
+    private readonly totpCrypto: TotpCryptoService,
   ) {}
 
   async login(input: {
     login: string;
     password: string;
-    roleChallenge: string;
+    totpCode?: string | null;
     organizationId?: string | null;
     ipAddress?: string | null;
     userAgent?: string | null;
@@ -74,7 +79,10 @@ export class AuthUseCases {
     const user = await this.identity.findUserByLogin(normalizedLogin);
     const now = this.clock.now();
 
-    const fail = async (organizationId?: string) => {
+    const fail = async (
+      organizationId?: string,
+      error: { code: string; message: string } = GENERIC_AUTH_FAILURE,
+    ) => {
       if (user) {
         const attempts = user.failedLoginAttempts + 1;
         const lockedUntil = computeLockUntil(
@@ -94,7 +102,7 @@ export class AuthUseCases {
       if (organizationId) {
         await this.securityAudit(organizationId, SECURITY_AUDIT_ACTIONS.LOGIN_FAILED, user?.id ?? randomUUID());
       }
-      throw new UnauthorizedException(GENERIC_AUTH_FAILURE);
+      throw new UnauthorizedException(error);
     };
 
     const passwordValid = user
@@ -137,9 +145,16 @@ export class AuthUseCases {
     }
 
     assertMembershipActive(membership!.status);
-    const roleCodes = await this.identity.listMembershipRoleCodes(membership!.id);
-    if (!matchesRoleChallenge(roleCodes, input.roleChallenge)) {
-      await fail(membership!.organizationId);
+
+    if (user!.totpEnabledAt && user!.totpSecretEnc) {
+      const code = input.totpCode?.trim();
+      if (!code) {
+        throw new UnauthorizedException(TOTP_REQUIRED);
+      }
+      const secret = this.totpCrypto.decrypt(user!.totpSecretEnc);
+      if (!this.totp.verify(secret, code)) {
+        await fail(membership!.organizationId, TOTP_INVALID);
+      }
     }
 
     const profile = await this.identity.loadAuthProfile(membership!.id);
@@ -184,7 +199,79 @@ export class AuthUseCases {
       },
       organization: { id: membership!.organizationId, name: membership!.organizationName },
       permissions: profile!.permissions,
+      totpEnabled: Boolean(user!.totpEnabledAt),
     };
+  }
+
+  async setupTotp(auth: AuthContext): Promise<{ otpauthUrl: string; secret: string }> {
+    const user = await this.identity.findUserById(auth.userId);
+    if (!user) {
+      throw new UnauthorizedException({ code: 'UNAUTHENTICATED', message: 'Session is invalid' });
+    }
+    if (user.totpEnabledAt) {
+      throw new BadRequestException({
+        code: 'TOTP_ALREADY_ENABLED',
+        message: 'Two-factor authentication is already enabled',
+      });
+    }
+    const secret = this.totp.generateSecret();
+    await this.identity.setTotpPendingSecret(user.id, this.totpCrypto.encrypt(secret));
+    return {
+      otpauthUrl: this.totp.keyUri(user.login, secret),
+      secret,
+    };
+  }
+
+  async confirmTotp(auth: AuthContext, totpCode: string): Promise<void> {
+    const user = await this.identity.findUserById(auth.userId);
+    if (!user) {
+      throw new UnauthorizedException({ code: 'UNAUTHENTICATED', message: 'Session is invalid' });
+    }
+    if (user.totpEnabledAt) {
+      throw new BadRequestException({
+        code: 'TOTP_ALREADY_ENABLED',
+        message: 'Two-factor authentication is already enabled',
+      });
+    }
+    if (!user.totpPendingSecretEnc) {
+      throw new BadRequestException({
+        code: 'TOTP_SETUP_REQUIRED',
+        message: 'Start TOTP setup before confirming',
+      });
+    }
+    const secret = this.totpCrypto.decrypt(user.totpPendingSecretEnc);
+    if (!this.totp.verify(secret, totpCode)) {
+      throw new BadRequestException(TOTP_INVALID);
+    }
+    const now = this.clock.now();
+    await this.identity.enableTotp(user.id, this.totpCrypto.encrypt(secret), now);
+    await this.securityAudit(auth.organizationId, SECURITY_AUDIT_ACTIONS.TOTP_ENROLLED, user.id, auth.sessionId);
+  }
+
+  async disableTotp(
+    auth: AuthContext,
+    input: { password: string; totpCode: string },
+  ): Promise<void> {
+    const user = await this.identity.findUserById(auth.userId);
+    if (!user) {
+      throw new UnauthorizedException({ code: 'UNAUTHENTICATED', message: 'Session is invalid' });
+    }
+    if (!user.totpEnabledAt || !user.totpSecretEnc) {
+      throw new BadRequestException({
+        code: 'TOTP_NOT_ENABLED',
+        message: 'Two-factor authentication is not enabled',
+      });
+    }
+    const passwordValid = await this.passwords.verify(user.passwordHash, input.password);
+    if (!passwordValid) {
+      throw new BadRequestException({ code: 'INVALID_PASSWORD', message: 'Current password is incorrect' });
+    }
+    const secret = this.totpCrypto.decrypt(user.totpSecretEnc);
+    if (!this.totp.verify(secret, input.totpCode)) {
+      throw new BadRequestException(TOTP_INVALID);
+    }
+    await this.identity.disableTotp(user.id);
+    await this.securityAudit(auth.organizationId, SECURITY_AUDIT_ACTIONS.TOTP_DISABLED, user.id, auth.sessionId);
   }
 
   async refresh(input: {
@@ -304,6 +391,7 @@ export class AuthUseCases {
       permissions: profile.permissions,
       storeScope: auth.storeScope,
       sessionId: auth.sessionId,
+      totpEnabled: Boolean(profile.user.totpEnabledAt),
     };
   }
 

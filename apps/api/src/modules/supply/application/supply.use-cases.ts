@@ -35,6 +35,7 @@ import {
   canCreateReceipt,
   canEditSupplyHeader,
   canEditSupplyItems,
+  canMarkSupplyPaid,
   canReceiveSupply,
   canSubmit,
   compareQty,
@@ -96,6 +97,7 @@ function supplyHeaderSnapshot(supply: SupplyView): Record<string, unknown> {
   return {
     receivedDate: dateOnlyIso(supply.receivedDate),
     paymentDueDate: dateOnlyIso(supply.paymentDueDate),
+    paidAt: supply.paidAt?.toISOString() ?? null,
     supplierDocumentNumber: supply.supplierDocumentNumber,
     comment: supply.comment,
   };
@@ -172,6 +174,7 @@ export class SupplyUseCases {
             ? parseDateOnly(input.receivedDate)
             : dateOnlyFromClock(this.clock),
           paymentDueDate: input.paymentDueDate ? parseDateOnly(input.paymentDueDate) : null,
+          paidAt: null,
           supplierDocumentNumber: normalizeOptionalDocText(input.supplierDocumentNumber, 100),
           comment: input.comment?.trim() || null,
         });
@@ -570,6 +573,43 @@ export class SupplyUseCases {
           { status: 'ANNULLED', number: supply.number },
         );
         return this.requireSupply(input.organizationId, input.storeId, supply.id);
+      });
+    } catch (error) {
+      domain(error);
+    }
+  }
+
+  async markSupplyPaid(input: {
+    organizationId: string;
+    storeId: string;
+    supplyId: string;
+  }): Promise<SupplyView> {
+    try {
+      return await this.uow.runInTransaction(async () => {
+        const supply = await this.requireSupply(input.organizationId, input.storeId, input.supplyId);
+        canMarkSupplyPaid(supply.status as SupplyStatus);
+        if (supply.paidAt) {
+          throw new ConflictException({
+            code: 'SUPPLY_ALREADY_PAID',
+            message: 'Supply is already marked as paid',
+          });
+        }
+        const paidAt = this.clock.now();
+        const updated = await this.supplies.setSupplyPaidAt(
+          input.organizationId,
+          input.storeId,
+          supply.id,
+          paidAt,
+        );
+        await this.auditSupply(
+          input.organizationId,
+          input.storeId,
+          'supply.paid',
+          supply.id,
+          { paidAt: null, number: supply.number },
+          { paidAt: paidAt.toISOString(), number: supply.number },
+        );
+        return updated;
       });
     } catch (error) {
       domain(error);

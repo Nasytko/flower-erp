@@ -26,7 +26,6 @@ test('login success and wrong password identical structure', { skip: !runIntegra
       login: auth.login,
       password: auth.password,
       organizationId: auth.organizationId,
-      roleChallenge: 'director',
     })
     .expect(200);
   assert.ok(ok.body.accessToken);
@@ -38,7 +37,6 @@ test('login success and wrong password identical structure', { skip: !runIntegra
       login: auth.login,
       password: 'wrong-password-xx',
       organizationId: auth.organizationId,
-      roleChallenge: 'director',
     })
     .expect(401);
 
@@ -48,7 +46,6 @@ test('login success and wrong password identical structure', { skip: !runIntegra
       login: 'nouser999',
       password: 'wrong-password-xx',
       organizationId: auth.organizationId,
-      roleChallenge: 'director',
     })
     .expect(401);
 
@@ -68,7 +65,6 @@ test('refresh rotation and token reuse revokes family', { skip: !runIntegration 
       login: auth.login,
       password: auth.password,
       organizationId: auth.organizationId,
-      roleChallenge: 'director',
     })
     .expect(200);
 

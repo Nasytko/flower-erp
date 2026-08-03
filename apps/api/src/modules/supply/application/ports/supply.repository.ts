@@ -33,6 +33,7 @@ export type SupplyView = {
   expectedReceiptDate: Date | null;
   receivedDate: Date | null;
   paymentDueDate: Date | null;
+  paidAt: Date | null;
   supplierDocumentNumber: string | null;
   comment: string | null;
   createdAt: Date;
@@ -100,9 +101,10 @@ export interface SupplyRepository {
     supplierId: string;
     number: string;
     expectedReceiptDate: Date | null;
-    receivedDate: Date | null;
-    paymentDueDate: Date | null;
-    supplierDocumentNumber: string | null;
+  receivedDate: Date | null;
+  paymentDueDate: Date | null;
+  paidAt: Date | null;
+  supplierDocumentNumber: string | null;
     comment: string | null;
   }): Promise<SupplyView>;
   updateSupplyHeader(
@@ -116,6 +118,12 @@ export interface SupplyRepository {
       supplierDocumentNumber?: string | null;
       comment?: string | null;
     },
+  ): Promise<SupplyView>;
+  setSupplyPaidAt(
+    organizationId: string,
+    storeId: string,
+    id: string,
+    paidAt: Date | null,
   ): Promise<SupplyView>;
   getSupply(organizationId: string, storeId: string, id: string): Promise<SupplyView | null>;
   listSupplies(organizationId: string, storeId: string, status?: string): Promise<SupplyView[]>;

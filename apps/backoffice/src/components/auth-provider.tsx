@@ -19,13 +19,14 @@ type AuthState = {
   user: AuthUser | null;
   organization: { id: string; name: string } | null;
   permissions: string[];
+  totpEnabled: boolean;
 };
 
 type AuthContextValue = AuthState & {
   login: (
     login: string,
     password: string,
-    roleChallenge: string,
+    totpCode?: string,
     organizationId?: string,
   ) => Promise<void>;
   logout: () => Promise<void>;
@@ -65,6 +66,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     user: null,
     organization: null,
     permissions: [],
+    totpEnabled: false,
   });
 
   const bootstrap = useCallback(async () => {
@@ -84,6 +86,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         },
         organization: me.organization,
         permissions: me.permissions,
+        totpEnabled: me.totpEnabled,
       });
       if (me.user.mustChangePassword && pathname !== '/change-password') {
         router.replace('/change-password');
@@ -91,7 +94,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch {
       clearAccessToken();
       resetApiClient();
-      setState({ loading: false, user: null, organization: null, permissions: [] });
+      setState({ loading: false, user: null, organization: null, permissions: [], totpEnabled: false });
       if (!PUBLIC_PATHS.has(pathname)) {
         router.replace('/login');
       }
@@ -111,9 +114,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [bootstrap, pathname]);
 
   const login = useCallback(
-    async (loginValue: string, password: string, roleChallenge: string, organizationId?: string) => {
+    async (loginValue: string, password: string, totpCode?: string, organizationId?: string) => {
       const api = getApiClient();
-      const result = await api.login({ login: loginValue, password, roleChallenge, organizationId });
+      const result = await api.login({
+        login: loginValue,
+        password,
+        ...(totpCode ? { totpCode } : {}),
+        organizationId,
+      });
       setAccessToken(result.accessToken);
       const user = {
         displayName: result.user.displayName,
@@ -125,6 +133,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         user,
         organization: result.organization,
         permissions: result.permissions,
+        totpEnabled: result.totpEnabled,
       });
       if (result.user.mustChangePassword) {
         router.replace('/change-password');
@@ -154,7 +163,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       clearAccessToken();
       resetApiClient();
       clearLastWorkspace();
-      setState({ loading: false, user: null, organization: null, permissions: [] });
+      setState({ loading: false, user: null, organization: null, permissions: [], totpEnabled: false });
       router.replace('/login');
     }
   }, [router]);

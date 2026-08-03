@@ -7,6 +7,7 @@ import {
   canCreateReceipt,
   canEditSupplyHeader,
   canEditSupplyItems,
+  canMarkSupplyPaid,
   canReceiveSupply,
   canSubmit,
   isOpenSupply,
@@ -34,6 +35,20 @@ test('supply transitions enforce items and receipt eligibility', () => {
   assert.throws(() => canAnnul(SupplyStatus.RECEIVED), (error: unknown) => error instanceof DomainError);
   assert.doesNotThrow(() => canCreateReceipt(SupplyStatus.PARTIALLY_RECEIVED));
   assert.throws(() => canCreateReceipt(SupplyStatus.RECEIVED), (error: unknown) => error instanceof DomainError);
+});
+
+test('supply payment can be recorded for submitted or received supplies', () => {
+  assert.doesNotThrow(() => canMarkSupplyPaid(SupplyStatus.SUBMITTED_TO_SUPPLIER));
+  assert.doesNotThrow(() => canMarkSupplyPaid(SupplyStatus.PARTIALLY_RECEIVED));
+  assert.doesNotThrow(() => canMarkSupplyPaid(SupplyStatus.RECEIVED));
+  assert.throws(
+    () => canMarkSupplyPaid(SupplyStatus.DRAFT),
+    (error: unknown) => error instanceof DomainError && error.code === 'SUPPLY_PAYMENT_NOT_APPLICABLE',
+  );
+  assert.throws(
+    () => canMarkSupplyPaid(SupplyStatus.ANNULLED),
+    (error: unknown) => error instanceof DomainError,
+  );
 });
 
 test('receipt line equation and status recalculation', () => {

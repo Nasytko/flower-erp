@@ -16,18 +16,20 @@
     "@flower/config": "workspace:*",
     "@flower/ui": "workspace:*",
     "next": "^15.1.3",
+    "qrcode": "^1.5.4",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
   "devDependencies": {
     "@flower/eslint-config": "workspace:*",
     "@flower/tsconfig": "workspace:*",
+    "@playwright/test": "^1.51.0",
     "@types/node": "^22.10.2",
+    "@types/qrcode": "^1.5.6",
     "@types/react": "^19.0.2",
     "@types/react-dom": "^19.0.2",
     "eslint": "^9.17.0",
     "eslint-config-next": "^15.1.3",
-    "@playwright/test": "^1.51.0",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2"
   }

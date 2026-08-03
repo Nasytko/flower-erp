@@ -84,6 +84,7 @@ function mapSupply(row: Prisma.SupplyGetPayload<{ include: typeof supplyInclude 
     expectedReceiptDate: row.expectedReceiptDate,
     receivedDate: row.receivedDate,
     paymentDueDate: row.paymentDueDate,
+    paidAt: row.paidAt,
     supplierDocumentNumber: row.supplierDocumentNumber,
     comment: row.comment,
     createdAt: row.createdAt,
@@ -183,6 +184,26 @@ export class PrismaSupplyRepository implements SupplyRepository {
     });
     if (!row) {
       throw new Error('Supply missing after header update');
+    }
+    return mapSupply(row);
+  }
+
+  async setSupplyPaidAt(
+    organizationId: string,
+    storeId: string,
+    id: string,
+    paidAt: Date | null,
+  ): Promise<SupplyView> {
+    await this.client.supply.updateMany({
+      where: { id, organizationId, storeId },
+      data: { paidAt },
+    });
+    const row = await this.client.supply.findFirst({
+      where: { id, organizationId, storeId },
+      include: supplyInclude,
+    });
+    if (!row) {
+      throw new Error('Supply missing after payment update');
     }
     return mapSupply(row);
   }

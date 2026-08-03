@@ -1,4 +1,4 @@
-import { IsOptional, IsString, IsUUID, MinLength } from 'class-validator';
+import { IsOptional, IsString, IsUUID, Matches, MinLength } from 'class-validator';
 
 export class LoginDto {
   @IsString()
@@ -9,9 +9,11 @@ export class LoginDto {
   @MinLength(1)
   password!: string;
 
+  /** Six-digit TOTP code from authenticator app (required when 2FA is enabled). */
+  @IsOptional()
   @IsString()
-  @MinLength(3)
-  roleChallenge!: string;
+  @Matches(/^\d{6}$/, { message: 'totpCode must be a 6-digit code' })
+  totpCode?: string;
 
   @IsOptional()
   @IsUUID()
@@ -31,4 +33,20 @@ export class ChangePasswordDto {
   @IsString()
   @MinLength(10)
   newPassword!: string;
+}
+
+export class TotpConfirmDto {
+  @IsString()
+  @Matches(/^\d{6}$/, { message: 'totpCode must be a 6-digit code' })
+  totpCode!: string;
+}
+
+export class TotpDisableDto {
+  @IsString()
+  @MinLength(1)
+  password!: string;
+
+  @IsString()
+  @Matches(/^\d{6}$/, { message: 'totpCode must be a 6-digit code' })
+  totpCode!: string;
 }

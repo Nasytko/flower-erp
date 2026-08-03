@@ -5,18 +5,20 @@ import { useAuth } from '@/components/auth-provider';
 import { Field } from '@/components/layout/field';
 import { DevEnvironmentBadge } from '@/components/dev-environment-banner';
 import { getAppEnvironment } from '@/lib/app-environment';
+import { formatApiErrorMessage } from '@/lib/format-api-error';
 import { t } from '@/i18n/ru';
 import { Button, Input } from '@flower/ui';
+import { ApiClientError } from '@flower/api-client';
 
 export default function LoginPage() {
   const auth = useAuth();
   const loginId = useId();
   const passwordId = useId();
-  const roleId = useId();
+  const totpId = useId();
   const orgId = useId();
   const [login, setLogin] = useState('');
   const [password, setPassword] = useState('');
-  const [roleChallenge, setRoleChallenge] = useState('');
+  const [totpCode, setTotpCode] = useState('');
   const [organizationId, setOrganizationId] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -26,9 +28,20 @@ export default function LoginPage() {
     setPending(true);
     setError(null);
     try {
-      await auth.login(login, password, roleChallenge, organizationId || undefined);
-    } catch {
-      setError(t('invalidCredentials'));
+      await auth.login(
+        login,
+        password,
+        totpCode.trim() || undefined,
+        organizationId || undefined,
+      );
+    } catch (err) {
+      if (err instanceof ApiClientError && err.code === 'TOTP_REQUIRED') {
+        setError(t('totpRequired'));
+      } else if (err instanceof ApiClientError && err.code === 'TOTP_INVALID') {
+        setError(t('totpInvalid'));
+      } else {
+        setError(formatApiErrorMessage(err, t('invalidCredentials')));
+      }
     } finally {
       setPending(false);
     }
@@ -63,14 +76,16 @@ export default function LoginPage() {
             placeholder="••••••••"
           />
         </Field>
-        <Field label={t('roleChallengeField')} hint={t('roleChallengeHint')} htmlFor={roleId} required>
+        <Field label={t('totpField')} hint={t('totpHint')} htmlFor={totpId}>
           <Input
-            id={roleId}
-            value={roleChallenge}
-            onChange={(e) => setRoleChallenge(e.target.value)}
-            autoComplete="off"
-            required
-            placeholder="florist"
+            id={totpId}
+            value={totpCode}
+            onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+            autoComplete="one-time-code"
+            inputMode="numeric"
+            pattern="\d{6}"
+            maxLength={6}
+            placeholder="123456"
             spellCheck={false}
           />
         </Field>

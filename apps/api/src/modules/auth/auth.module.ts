@@ -3,10 +3,12 @@ import { JwtModule } from '@nestjs/jwt';
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { API_ENV } from '../../infrastructure/infrastructure.module';
 import type { ApiEnv } from '@flower/config';
+import { TotpCryptoService } from '../../infrastructure/security/totp-crypto.service';
 import { RequestContextInterceptor } from '../../infrastructure/http/request-context.interceptor';
 import { AuthUseCases } from './application/auth.use-cases';
 import { AuthController } from './presentation/auth.controller';
 import { JwtTokenService } from './infrastructure/jwt-token.service';
+import { TotpService } from './infrastructure/totp.service';
 import { InMemoryRateLimiter } from './infrastructure/rate-limiter.service';
 import {
   JwtAuthGuard,
@@ -31,6 +33,8 @@ import { IdentityModule } from '../identity/identity.module';
   providers: [
     AuthUseCases,
     JwtTokenService,
+    TotpService,
+    TotpCryptoService,
     InMemoryRateLimiter,
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: MustChangePasswordGuard },

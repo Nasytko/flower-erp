@@ -33,6 +33,7 @@ type SupplyRow = {
   warehouseId: string;
   receivedDate?: string | null;
   paymentDueDate?: string | null;
+  paidAt?: string | null;
   supplierDocumentNumber?: string | null;
   supplier?: { name: string; code: string };
 };
@@ -259,6 +260,7 @@ export default function SuppliesPage() {
                   render: (item) => (
                     <div className="data-table__cell-badges">
                       <StatusBadge status={item.status} />
+                      {item.paidAt ? <StatusBadge status="PAID" /> : null}
                     </div>
                   ),
                 },

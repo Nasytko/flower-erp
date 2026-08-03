@@ -1,20 +1,25 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
-  matchesRoleChallenge,
-  normalizeRoleChallenge,
-  ROLE_CHALLENGE_KEYWORDS,
+  isValidTotpCodeFormat,
+  normalizeTotpCode,
+  TOTP_INVALID,
+  TOTP_REQUIRED,
 } from '../../src/modules/auth/domain/auth-rules.js';
 
-test('role challenge normalization', () => {
-  assert.equal(normalizeRoleChallenge('  Florist '), 'florist');
-  assert.equal(normalizeRoleChallenge('COURIER'), 'courier');
+test('normalizeTotpCode strips whitespace', () => {
+  assert.equal(normalizeTotpCode('123 456'), '123456');
+  assert.equal(normalizeTotpCode(' 123456 '), '123456');
 });
 
-test('role challenge matches assigned system roles', () => {
-  assert.equal(matchesRoleChallenge(['FLORIST'], 'florist'), true);
-  assert.equal(matchesRoleChallenge(['FLORIST'], 'director'), false);
-  assert.equal(matchesRoleChallenge(['DIRECTOR', 'FLORIST'], 'florist'), true);
-  assert.equal(matchesRoleChallenge(['COURIER'], ROLE_CHALLENGE_KEYWORDS.COURIER), true);
-  assert.equal(matchesRoleChallenge([], 'florist'), false);
+test('isValidTotpCodeFormat accepts six digits only', () => {
+  assert.equal(isValidTotpCodeFormat('123456'), true);
+  assert.equal(isValidTotpCodeFormat('12345'), false);
+  assert.equal(isValidTotpCodeFormat('1234567'), false);
+  assert.equal(isValidTotpCodeFormat('12a456'), false);
+});
+
+test('TOTP error constants', () => {
+  assert.equal(TOTP_REQUIRED.code, 'TOTP_REQUIRED');
+  assert.equal(TOTP_INVALID.code, 'TOTP_INVALID');
 });

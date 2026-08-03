@@ -68,12 +68,12 @@ export async function loginAndGetToken(
   login: string,
   password: string,
   organizationId: string,
-  roleChallenge = 'director',
+  totpCode?: string,
 ): Promise<string> {
   const server = app.getHttpServer();
   const res = await request(server)
     .post('/api/v1/auth/login')
-    .send({ login, password, organizationId, roleChallenge })
+    .send({ login, password, organizationId, ...(totpCode ? { totpCode } : {}) })
     .expect(200);
   return res.body.accessToken as string;
 }

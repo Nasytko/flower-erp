@@ -10,6 +10,8 @@ export const SECURITY_AUDIT_ACTIONS = {
   LOGOUT: 'LOGOUT',
   LOGOUT_ALL: 'LOGOUT_ALL',
   PASSWORD_CHANGED: 'PASSWORD_CHANGED',
+  TOTP_ENROLLED: 'TOTP_ENROLLED',
+  TOTP_DISABLED: 'TOTP_DISABLED',
 } as const;
 
 export const GENERIC_AUTH_FAILURE = {
@@ -17,27 +19,22 @@ export const GENERIC_AUTH_FAILURE = {
   message: 'Invalid login or password',
 } as const;
 
-/** English keywords users type at login to confirm their role (lowercase). */
-export const ROLE_CHALLENGE_KEYWORDS = {
-  DIRECTOR: 'director',
-  FLORIST: 'florist',
-  COURIER: 'courier',
-  DEVELOPER: 'developer',
+export const TOTP_REQUIRED = {
+  code: 'TOTP_REQUIRED',
+  message: 'Two-factor authentication code is required',
 } as const;
 
-export type RoleChallengeCode = keyof typeof ROLE_CHALLENGE_KEYWORDS;
+export const TOTP_INVALID = {
+  code: 'TOTP_INVALID',
+  message: 'Invalid authentication code',
+} as const;
 
-export function normalizeRoleChallenge(value: string): string {
-  return value.trim().toLowerCase();
+export function normalizeTotpCode(value: string): string {
+  return value.replace(/\s/g, '');
 }
 
-export function matchesRoleChallenge(roleCodes: readonly string[], challenge: string): boolean {
-  const normalized = normalizeRoleChallenge(challenge);
-  if (!normalized) return false;
-  return roleCodes.some((code) => {
-    const keyword = ROLE_CHALLENGE_KEYWORDS[code as RoleChallengeCode];
-    return keyword === normalized;
-  });
+export function isValidTotpCodeFormat(value: string): boolean {
+  return /^\d{6}$/.test(normalizeTotpCode(value));
 }
 
 export function assertOriginAllowed(origin: string | undefined, allowedOrigins: readonly string[]): void {

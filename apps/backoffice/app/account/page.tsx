@@ -1,15 +1,28 @@
 'use client';
 
 import Link from 'next/link';
+import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '@/components/auth-provider';
+import { TotpSetupPanel } from '@/components/auth/totp-setup-panel';
 import { PageContainer } from '@/components/layout/page-container';
 import { PageHeader } from '@/components/layout/page-header';
 import { Section } from '@/components/layout/section';
 import { Card } from '@flower/ui';
+import { getApiClient } from '@/lib/api-client';
 
 export default function AccountSettingsPage() {
   const auth = useAuth();
   const user = auth.user;
+  const [totpEnabled, setTotpEnabled] = useState<boolean | null>(null);
+
+  const reloadTotpStatus = useCallback(async () => {
+    const me = await getApiClient().me();
+    setTotpEnabled(me.totpEnabled);
+  }, []);
+
+  useEffect(() => {
+    void reloadTotpStatus();
+  }, [reloadTotpStatus]);
 
   return (
     <main>
@@ -32,6 +45,16 @@ export default function AccountSettingsPage() {
                 <dd>{user?.login ?? '—'}</dd>
               </div>
             </dl>
+          </Card>
+        </Section>
+
+        <Section>
+          <Card title="Двухфакторная аутентификация">
+            {totpEnabled === null ? (
+              <p className="field__hint">Загрузка…</p>
+            ) : (
+              <TotpSetupPanel totpEnabled={totpEnabled} onChanged={reloadTotpStatus} />
+            )}
           </Card>
         </Section>
 

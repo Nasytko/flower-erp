@@ -13,6 +13,9 @@ export type UserRecord = {
   failedLoginAttempts: number;
   lockedUntil: Date | null;
   lastLoginAt: Date | null;
+  totpSecretEnc: string | null;
+  totpPendingSecretEnc: string | null;
+  totpEnabledAt: Date | null;
 };
 
 export type MembershipRecord = {
@@ -64,6 +67,9 @@ export interface IdentityRepository {
   ): Promise<void>;
   updateUserPassword(userId: string, passwordHash: string, mustChangePassword: boolean): Promise<void>;
   updateUserStatus(userId: string, status: UserRecord['status']): Promise<void>;
+  setTotpPendingSecret(userId: string, totpPendingSecretEnc: string): Promise<void>;
+  enableTotp(userId: string, totpSecretEnc: string, enabledAt: Date): Promise<void>;
+  disableTotp(userId: string): Promise<void>;
   findMembership(userId: string, organizationId: string): Promise<MembershipRecord | null>;
   listActiveMemberships(userId: string): Promise<MembershipRecord[]>;
   loadAuthProfile(membershipId: string): Promise<AuthProfile | null>;

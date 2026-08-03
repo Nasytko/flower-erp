@@ -32,6 +32,9 @@ function mapUser(row: {
   failedLoginAttempts: number;
   lockedUntil: Date | null;
   lastLoginAt: Date | null;
+  totpSecretEnc: string | null;
+  totpPendingSecretEnc: string | null;
+  totpEnabledAt: Date | null;
 }): UserRecord {
   return { ...row };
 }
@@ -105,6 +108,35 @@ export class PrismaIdentityRepository implements IdentityRepository {
 
   async updateUserStatus(userId: string, status: UserRecord['status']): Promise<void> {
     await this.client().user.update({ where: { id: userId }, data: { status } });
+  }
+
+  async setTotpPendingSecret(userId: string, totpPendingSecretEnc: string): Promise<void> {
+    await this.client().user.update({
+      where: { id: userId },
+      data: { totpPendingSecretEnc },
+    });
+  }
+
+  async enableTotp(userId: string, totpSecretEnc: string, enabledAt: Date): Promise<void> {
+    await this.client().user.update({
+      where: { id: userId },
+      data: {
+        totpSecretEnc,
+        totpEnabledAt: enabledAt,
+        totpPendingSecretEnc: null,
+      },
+    });
+  }
+
+  async disableTotp(userId: string): Promise<void> {
+    await this.client().user.update({
+      where: { id: userId },
+      data: {
+        totpSecretEnc: null,
+        totpPendingSecretEnc: null,
+        totpEnabledAt: null,
+      },
+    });
   }
 
   async findMembership(userId: string, organizationId: string): Promise<MembershipRecord | null> {

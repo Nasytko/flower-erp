@@ -123,6 +123,12 @@ export class SupplyController {
     return this.supplies.annulDraftSupply(params);
   }
 
+  @Post('supplies/:supplyId/mark-paid')
+  @RequirePermissions('supply:create')
+  markPaid(@Param() params: SupplyParamsDto) {
+    return this.supplies.markSupplyPaid(params);
+  }
+
   @Post('supplies/:supplyId/receipts')
   @RequirePermissions('supply:receive')
   createReceipt(@Param() params: SupplyParamsDto, @Body() body: CreateReceiptDto) {

@@ -19,6 +19,11 @@ const CODE_MESSAGES_RU: Record<string, string> = {
   NOT_FOUND: 'Объект не найден',
   INTERNAL_ERROR: 'Внутренняя ошибка сервера. Попробуйте ещё раз',
   HTTP_ERROR: 'Ошибка связи с сервером',
+  TOTP_REQUIRED: 'Введите код из приложения аутентификации',
+  TOTP_INVALID: 'Неверный код аутентификации',
+  TOTP_ALREADY_ENABLED: 'Двухфакторная аутентификация уже включена',
+  TOTP_NOT_ENABLED: 'Двухфакторная аутентификация не включена',
+  TOTP_SETUP_REQUIRED: 'Сначала начните настройку 2FA',
 };
 
 /** Translate class-validator / Nest detail strings into RU. */

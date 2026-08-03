@@ -41,10 +41,10 @@ Delivery (EPIC 11):
 
 Inventory Operations (EPIC 12):
 
-- Unit: `apps/api/src/modules/inventory/domain/inventory-operations-rules.test.ts`
-- Integration: `apps/api/test/integration/inventory-operations.integration.test.ts` and `apps/api/test/integration/transfers.integration.test.ts` (skip without `DATABASE_URL`)
+- Unit: `apps/api/src/modules/inventory/domain/inventory-operations-rules.test.ts`, `apps/api/test/unit/inventory-movement-delta.test.ts`
+- Integration: `apps/api/test/integration/inventory-operations.integration.test.ts`, `inventory-operations-hardening.integration.test.ts` (skip without `DATABASE_URL`)
 - E2E: `apps/api/test/e2e/inventory-operations.e2e.test.ts` (API smoke; skip without `DATABASE_URL`)
-- Backoffice Playwright smoke: inventory operations routes under `apps/backoffice/e2e`
+- Backoffice Playwright smoke: write-offs route under `apps/backoffice/e2e/inventory-operations.smoke.spec.ts`
 
 ## CI
 

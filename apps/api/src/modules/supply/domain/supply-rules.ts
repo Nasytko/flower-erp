@@ -1,116 +1,131 @@
-import { DomainError } from '../../master-data/domain/master-data-rules';
-
-export enum SupplyStatus {
-  DRAFT = 'DRAFT',
-  SUBMITTED_TO_SUPPLIER = 'SUBMITTED_TO_SUPPLIER',
-  PARTIALLY_RECEIVED = 'PARTIALLY_RECEIVED',
-  RECEIVED = 'RECEIVED',
-  ANNULLED = 'ANNULLED',
-}
-
-export enum GoodsReceiptStatus {
-  DRAFT = 'DRAFT',
-  POSTED = 'POSTED',
-  REVERSED = 'REVERSED',
-}
-
-const OPEN_SUPPLY_STATUSES: readonly SupplyStatus[] = [
-  SupplyStatus.DRAFT,
-  SupplyStatus.SUBMITTED_TO_SUPPLIER,
-] as const;
-
-export function isOpenSupply(status: SupplyStatus | string): boolean {
-  return (OPEN_SUPPLY_STATUSES as readonly string[]).includes(status);
-}
-
-export function canEditSupplyItems(status: SupplyStatus): void {
-  if (!isOpenSupply(status)) {
-    throw new DomainError(
-      'SUPPLY_NOT_EDITABLE',
-      'Supply items can be edited only before posting to warehouse',
-    );
-  }
-}
-
-export function canEditSupplyHeader(status: SupplyStatus): void {
-  if (!isOpenSupply(status)) {
-    throw new DomainError(
-      'SUPPLY_HEADER_NOT_EDITABLE',
-      'Supply header can be edited only before posting to warehouse',
-    );
-  }
-}
-
-/** Posted reception can still correct qty/cost; inventory is adjusted by delta. */
-export function canCorrectPostedSupplyItems(status: SupplyStatus): void {
-  if (
-    status !== SupplyStatus.RECEIVED &&
-    status !== SupplyStatus.PARTIALLY_RECEIVED
-  ) {
-    throw new DomainError(
-      'SUPPLY_NOT_CORRECTABLE',
-      'Posted supply lines can be corrected only after goods are received',
-    );
-  }
-}
-
-export function canSubmit(status: SupplyStatus, itemCount: number): void {
-  if (!isOpenSupply(status)) {
-    throw new DomainError('SUPPLY_NOT_DRAFT', 'Only open supplies can be submitted');
-  }
-  if (itemCount < 1) {
-    throw new DomainError('SUPPLY_HAS_NO_ITEMS', 'Supply must have at least one item');
-  }
-}
-
-/** One-step receive: open supply with lines → post to inventory. */
-export function canReceiveSupply(status: SupplyStatus, itemCount: number): void {
-  canSubmit(status, itemCount);
-}
-
-export function canAnnul(status: SupplyStatus): void {
-  if (!isOpenSupply(status)) {
-    throw new DomainError('SUPPLY_NOT_ANNULABLE', 'Only open supplies can be annulled');
-  }
-}
-
-export function canCreateReceipt(status: SupplyStatus): void {
-  if (![SupplyStatus.SUBMITTED_TO_SUPPLIER, SupplyStatus.PARTIALLY_RECEIVED].includes(status)) {
-    throw new DomainError('SUPPLY_NOT_RECEIVABLE', 'Goods receipts require a submitted supply');
-  }
-}
-
-export function assertReceiptLine(received: string, accepted: string, defective: string): void {
-  const values = [received, accepted, defective].map((value) => Number(value));
-  if (values.some((value) => !Number.isFinite(value) || value < 0)) {
-    throw new DomainError('INVALID_RECEIPT_QUANTITY', 'Receipt quantities must be non-negative decimals');
-  }
-  const [receivedValue, acceptedValue, defectiveValue] = values as [number, number, number];
-  if (acceptedValue + defectiveValue > receivedValue) {
-    throw new DomainError('RECEIPT_QUANTITY_MISMATCH', 'Accepted plus defective quantity cannot exceed received quantity');
-  }
-}
-
-export function recalculateSupplyStatus(ordered: string, cumulativeReceived: string): SupplyStatus {
-  if (compareQty(cumulativeReceived, '0') <= 0) return SupplyStatus.SUBMITTED_TO_SUPPLIER;
-  if (compareQty(cumulativeReceived, ordered) >= 0) return SupplyStatus.RECEIVED;
-  return SupplyStatus.PARTIALLY_RECEIVED;
-}
-
-/** Compare decimal strings (up to 3 fractional digits). Returns -1 / 0 / 1. */
-export function compareQty(a: string, b: string): number {
-  const left = Math.round(Number(a) * 1000);
-  const right = Math.round(Number(b) * 1000);
-  if (!Number.isFinite(left) || !Number.isFinite(right)) {
-    throw new DomainError('INVALID_QUANTITY', 'Quantity comparison requires finite decimals');
-  }
-  if (left < right) return -1;
-  if (left > right) return 1;
-  return 0;
-}
-
-export function addQty(a: string, b: string): string {
-  const sum = Math.round((Number(a) + Number(b)) * 1000) / 1000;
-  return String(sum);
-}
+import { DomainError } from '../../master-data/domain/master-data-rules';
+
+export enum SupplyStatus {
+  DRAFT = 'DRAFT',
+  SUBMITTED_TO_SUPPLIER = 'SUBMITTED_TO_SUPPLIER',
+  PARTIALLY_RECEIVED = 'PARTIALLY_RECEIVED',
+  RECEIVED = 'RECEIVED',
+  ANNULLED = 'ANNULLED',
+}
+
+export enum GoodsReceiptStatus {
+  DRAFT = 'DRAFT',
+  POSTED = 'POSTED',
+  REVERSED = 'REVERSED',
+}
+
+const OPEN_SUPPLY_STATUSES: readonly SupplyStatus[] = [
+  SupplyStatus.DRAFT,
+  SupplyStatus.SUBMITTED_TO_SUPPLIER,
+] as const;
+
+export function isOpenSupply(status: SupplyStatus | string): boolean {
+  return (OPEN_SUPPLY_STATUSES as readonly string[]).includes(status);
+}
+
+export function canEditSupplyItems(status: SupplyStatus): void {
+  if (!isOpenSupply(status)) {
+    throw new DomainError(
+      'SUPPLY_NOT_EDITABLE',
+      'Supply items can be edited only before posting to warehouse',
+    );
+  }
+}
+
+export function canEditSupplyHeader(status: SupplyStatus): void {
+  if (!isOpenSupply(status)) {
+    throw new DomainError(
+      'SUPPLY_HEADER_NOT_EDITABLE',
+      'Supply header can be edited only before posting to warehouse',
+    );
+  }
+}
+
+/** Posted reception can still correct qty/cost; inventory is adjusted by delta. */
+export function canCorrectPostedSupplyItems(status: SupplyStatus): void {
+  if (
+    status !== SupplyStatus.RECEIVED &&
+    status !== SupplyStatus.PARTIALLY_RECEIVED
+  ) {
+    throw new DomainError(
+      'SUPPLY_NOT_CORRECTABLE',
+      'Posted supply lines can be corrected only after goods are received',
+    );
+  }
+}
+
+export function canSubmit(status: SupplyStatus, itemCount: number): void {
+  if (!isOpenSupply(status)) {
+    throw new DomainError('SUPPLY_NOT_DRAFT', 'Only open supplies can be submitted');
+  }
+  if (itemCount < 1) {
+    throw new DomainError('SUPPLY_HAS_NO_ITEMS', 'Supply must have at least one item');
+  }
+}
+
+/** One-step receive: open supply with lines → post to inventory. */
+export function canReceiveSupply(status: SupplyStatus, itemCount: number): void {
+  canSubmit(status, itemCount);
+}
+
+export function canAnnul(status: SupplyStatus): void {
+  if (!isOpenSupply(status)) {
+    throw new DomainError('SUPPLY_NOT_ANNULABLE', 'Only open supplies can be annulled');
+  }
+}
+
+const PAYABLE_SUPPLY_STATUSES: readonly SupplyStatus[] = [
+  SupplyStatus.SUBMITTED_TO_SUPPLIER,
+  SupplyStatus.PARTIALLY_RECEIVED,
+  SupplyStatus.RECEIVED,
+] as const;
+
+export function canMarkSupplyPaid(status: SupplyStatus | string): void {
+  if (!(PAYABLE_SUPPLY_STATUSES as readonly string[]).includes(status)) {
+    throw new DomainError(
+      'SUPPLY_PAYMENT_NOT_APPLICABLE',
+      'Payment can be recorded only for submitted or received supplies',
+    );
+  }
+}
+
+export function canCreateReceipt(status: SupplyStatus): void {
+  if (![SupplyStatus.SUBMITTED_TO_SUPPLIER, SupplyStatus.PARTIALLY_RECEIVED].includes(status)) {
+    throw new DomainError('SUPPLY_NOT_RECEIVABLE', 'Goods receipts require a submitted supply');
+  }
+}
+
+export function assertReceiptLine(received: string, accepted: string, defective: string): void {
+  const values = [received, accepted, defective].map((value) => Number(value));
+  if (values.some((value) => !Number.isFinite(value) || value < 0)) {
+    throw new DomainError('INVALID_RECEIPT_QUANTITY', 'Receipt quantities must be non-negative decimals');
+  }
+  const [receivedValue, acceptedValue, defectiveValue] = values as [number, number, number];
+  if (acceptedValue + defectiveValue > receivedValue) {
+    throw new DomainError('RECEIPT_QUANTITY_MISMATCH', 'Accepted plus defective quantity cannot exceed received quantity');
+  }
+}
+
+export function recalculateSupplyStatus(ordered: string, cumulativeReceived: string): SupplyStatus {
+  if (compareQty(cumulativeReceived, '0') <= 0) return SupplyStatus.SUBMITTED_TO_SUPPLIER;
+  if (compareQty(cumulativeReceived, ordered) >= 0) return SupplyStatus.RECEIVED;
+  return SupplyStatus.PARTIALLY_RECEIVED;
+}
+
+/** Compare decimal strings (up to 3 fractional digits). Returns -1 / 0 / 1. */
+export function compareQty(a: string, b: string): number {
+  const left = Math.round(Number(a) * 1000);
+  const right = Math.round(Number(b) * 1000);
+  if (!Number.isFinite(left) || !Number.isFinite(right)) {
+    throw new DomainError('INVALID_QUANTITY', 'Quantity comparison requires finite decimals');
+  }
+  if (left < right) return -1;
+  if (left > right) return 1;
+  return 0;
+}
+
+export function addQty(a: string, b: string): string {
+  const sum = Math.round((Number(a) + Number(b)) * 1000) / 1000;
+  return String(sum);
+}
 
