@@ -3,13 +3,14 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import type { CourierProfileDto } from '@flower/api-client';
-import { Button, Card } from '@flower/ui';
+import { Button } from '@flower/ui';
 import { DeletionRequestButton } from '@/components/admin/deletion-request-button';
 import { useAuth } from '@/components/auth-provider';
 import { PageContainer } from '@/components/layout/page-container';
 import { PageHeader } from '@/components/layout/page-header';
 import { Section } from '@/components/layout/section';
-import { EmptyState, ErrorState, LoadingState } from '@/components/layout/states';
+import { DataTable, DataTableCellPrimary } from '@/components/layout/data-table';
+import { EntityListPanel } from '@/components/layout/entity-list-panel';
 import { StatusBadge } from '@/components/layout/status-badge';
 import { getApiClient } from '@/lib/api-client';
 import { formatApiErrorMessage } from '@/lib/format-api-error';
@@ -58,38 +59,52 @@ export default function CouriersPage() {
         />
 
         <Section>
-          <Card title="Список курьеров">
-            {loading ? <LoadingState /> : null}
-            {error ? <ErrorState message={error} /> : null}
-
-            {!loading && couriers.length === 0 ? (
-              <EmptyState message="Курьеров пока нет. Назначьте роль «Курьер» сотруднику в разделе «Пользователи»." />
-            ) : null}
-
-            <ul className="list-stack">
-              {couriers.map((c) => (
-                <li key={c.id}>
-                  <div className="meta-row">
-                    <strong>{c.displayNameSnapshot}</strong>
-                    {c.phoneSnapshot ? (
-                      <span style={{ color: 'var(--color-muted)' }}>{c.phoneSnapshot}</span>
-                    ) : null}
-                    <StatusBadge status={c.status} />
-                    {canManage && c.status !== 'ARCHIVED' ? (
-                      <DeletionRequestButton
-                        organizationId={organizationId}
-                        entityType="COURIER"
-                        entityId={c.id}
-                        entityLabel={c.displayNameSnapshot}
-                        storeId={storeId}
-                        onRequested={() => void load()}
-                      />
-                    ) : null}
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </Card>
+          <EntityListPanel
+            title="Курьеры"
+            count={couriers.length}
+            loading={loading}
+            error={error}
+            isEmpty={!loading && !error && couriers.length === 0}
+            emptyMessage="Курьеров пока нет. Назначьте роль «Курьер» сотруднику в разделе «Пользователи»."
+          >
+            <DataTable
+              rows={couriers}
+              getRowKey={(c) => c.id}
+              columns={[
+                {
+                  id: 'name',
+                  header: 'Курьер',
+                  render: (c) => <DataTableCellPrimary title={c.displayNameSnapshot} />,
+                },
+                {
+                  id: 'phone',
+                  header: 'Телефон',
+                  render: (c) => c.phoneSnapshot ?? '—',
+                },
+                {
+                  id: 'status',
+                  header: 'Статус',
+                  render: (c) => (
+                    <div className="data-table__cell-badges">
+                      <StatusBadge status={c.status} />
+                    </div>
+                  ),
+                },
+              ]}
+              renderActions={(c) =>
+                canManage && c.status !== 'ARCHIVED' ? (
+                  <DeletionRequestButton
+                    organizationId={organizationId}
+                    entityType="COURIER"
+                    entityId={c.id}
+                    entityLabel={c.displayNameSnapshot}
+                    storeId={storeId}
+                    onRequested={() => void load()}
+                  />
+                ) : null
+              }
+            />
+          </EntityListPanel>
         </Section>
       </PageContainer>
     </main>

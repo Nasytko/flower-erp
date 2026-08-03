@@ -1,6 +1,5 @@
 ﻿'use client';
 
-import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Button, Card } from '@flower/ui';
@@ -11,7 +10,8 @@ import { DocRef } from '@/components/layout/doc-ref';
 import { PageContainer } from '@/components/layout/page-container';
 import { PageHeader } from '@/components/layout/page-header';
 import { Section } from '@/components/layout/section';
-import { EmptyState, ErrorState, LoadingState } from '@/components/layout/states';
+import { DataTable, DataTableCellPrimary } from '@/components/layout/data-table';
+import { EntityListPanel } from '@/components/layout/entity-list-panel';
 import { StatusBadge } from '@/components/layout/status-badge';
 
 type SaleRow = {
@@ -92,11 +92,6 @@ export default function SalesPage() {
           </div>
         </Section>
 
-        <Section>
-          {loading ? <LoadingState /> : null}
-          {error ? <ErrorState message={error} /> : null}
-        </Section>
-
         {canCreate ? (
           <Section>
             <Card title="Быстрая продажа">
@@ -111,29 +106,54 @@ export default function SalesPage() {
         ) : null}
 
         <Section>
-          <Card title="История продаж">
-            {!loading && sales.length === 0 ? (
-              <EmptyState message="Продаж пока нет. Оформите новую продажу." />
-            ) : null}
-            <ul className="list-stack">
-              {sales.map((sale) => (
-                <li key={sale.id}>
-                  <Link href={`${base}/sales/${sale.id}`}>
-                    <div className="meta-row">
-                      <div className="list-row__primary">
-                        <strong>
-                          {sale.netAmount} {sale.currencyCode}
-                        </strong>
-                        <DocRef>{sale.number}</DocRef>
-                      </div>
+          <EntityListPanel
+            title="История продаж"
+            count={sales.length}
+            loading={loading}
+            error={error}
+            isEmpty={!loading && !error && sales.length === 0}
+            emptyMessage="Продаж пока нет. Оформите новую продажу."
+          >
+            <DataTable
+              rows={sales}
+              getRowKey={(sale) => sale.id}
+              getRowHref={(sale) => `${base}/sales/${sale.id}`}
+              columns={[
+                {
+                  id: 'amount',
+                  header: 'Сумма',
+                  render: (sale) => (
+                    <DataTableCellPrimary
+                      title={`${sale.netAmount} ${sale.currencyCode}`}
+                    />
+                  ),
+                },
+                {
+                  id: 'number',
+                  header: 'Номер',
+                  render: (sale) => <DocRef>{sale.number}</DocRef>,
+                },
+                {
+                  id: 'status',
+                  header: 'Статус',
+                  render: (sale) => (
+                    <div className="data-table__cell-badges">
                       <StatusBadge status={sale.status} />
+                    </div>
+                  ),
+                },
+                {
+                  id: 'type',
+                  header: 'Тип',
+                  render: (sale) => (
+                    <div className="data-table__cell-badges">
                       <StatusBadge status={sale.type} />
                     </div>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </Card>
+                  ),
+                },
+              ]}
+            />
+          </EntityListPanel>
         </Section>
       </PageContainer>
     </main>

@@ -8,7 +8,8 @@ import { getApiClient } from '@/lib/api-client';
 import { PageContainer } from '@/components/layout/page-container';
 import { PageHeader } from '@/components/layout/page-header';
 import { Section } from '@/components/layout/section';
-import { EmptyState, ErrorState, LoadingState } from '@/components/layout/states';
+import { EntityListPanel } from '@/components/layout/entity-list-panel';
+import { DataTable, DataTableCellPrimary } from '@/components/layout/data-table';
 import { StatusBadge } from '@/components/layout/status-badge';
 import { Field } from '@/components/layout/field';
 import { FancySelect } from '@/components/layout/fancy-select';
@@ -101,48 +102,49 @@ export default function CategoriesPage() {
           breadcrumbs={catalogBreadcrumbs(organizationId, { label: 'Категории' })}
         />
         <Section>
-          <Card title="Список">
-            {loading ? <LoadingState /> : null}
-            {error ? <ErrorState message={error} /> : null}
-            {!loading && items.length === 0 ? <EmptyState message="Категорий пока нет." /> : null}
-            <ul className="list-stack">
-              {items.map((item) => (
-                <li key={item.id}>
-                  <div
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      gap: 12,
-                      flexWrap: 'wrap',
-                      padding: 12,
-                      border: '1px solid var(--color-border)',
-                      borderRadius: 10,
-                      background: 'var(--color-surface)',
-                    }}
-                  >
-                    <div>
-                      <strong>
-                        {item.name} ({item.code})
-                      </strong>
-                      <div className="meta-row" style={{ marginTop: 4 }}>
-                        <StatusBadge status={item.status} />
-                        <span style={{ fontSize: 'var(--text-xs)' }}>{parentName(item.parentId)}</span>
-                      </div>
-                    </div>
-                    {item.status === 'ACTIVE' ? (
-                      <DeletionRequestButton
-                        organizationId={organizationId}
-                        entityType="CATEGORY"
-                        entityId={item.id}
-                        entityLabel={`${item.name} (${item.code})`}
-                        onRequested={() => void load()}
-                      />
-                    ) : null}
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </Card>
+          <EntityListPanel
+            title="Категории"
+            count={items.length}
+            loading={loading}
+            error={error}
+            isEmpty={!loading && !error && items.length === 0}
+            emptyMessage="Категорий пока нет."
+          >
+            <DataTable
+              rows={items}
+              getRowKey={(item) => item.id}
+              columns={[
+                {
+                  id: 'name',
+                  header: 'Категория',
+                  render: (item) => (
+                    <DataTableCellPrimary title={item.name} subtitle={item.code} />
+                  ),
+                },
+                {
+                  id: 'parent',
+                  header: 'Родитель',
+                  render: (item) => parentName(item.parentId),
+                },
+                {
+                  id: 'status',
+                  header: 'Статус',
+                  render: (item) => <StatusBadge status={item.status} />,
+                },
+              ]}
+              renderActions={(item) =>
+                item.status === 'ACTIVE' ? (
+                  <DeletionRequestButton
+                    organizationId={organizationId}
+                    entityType="CATEGORY"
+                    entityId={item.id}
+                    entityLabel={`${item.name} (${item.code})`}
+                    onRequested={() => void load()}
+                  />
+                ) : null
+              }
+            />
+          </EntityListPanel>
         </Section>
         {canOperate ? (
         <Section>

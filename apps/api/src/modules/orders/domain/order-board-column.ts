@@ -4,7 +4,13 @@ import {
   type OrderDisplayPhase,
 } from './order-display-phase';
 
-export type OrderBoardColumn = 'NEW' | 'IN_WORK' | 'READY' | 'WITH_COURIER' | 'HANDED_OFF';
+export type OrderBoardColumn =
+  | 'NEW'
+  | 'IN_WORK'
+  | 'READY'
+  | 'WITH_COURIER'
+  | 'HANDED_OFF'
+  | 'CANCELLED';
 
 export const ORDER_BOARD_COLUMN_LABELS: Record<OrderBoardColumn, string> = {
   NEW: 'Новые',
@@ -12,6 +18,7 @@ export const ORDER_BOARD_COLUMN_LABELS: Record<OrderBoardColumn, string> = {
   READY: 'Собранные',
   WITH_COURIER: 'У курьера',
   HANDED_OFF: 'Завершённые',
+  CANCELLED: 'Отменённые',
 };
 
 const COURIER_DELIVERY_STATUSES = new Set(['ASSIGNED', 'IN_TRANSIT']);
@@ -22,6 +29,8 @@ export function resolveOrderBoardColumn(input: {
   hasActiveAssignment: boolean;
   deliveryStatus: string | null;
 }): OrderBoardColumn {
+  if (input.status === 'CANCELLED') return 'CANCELLED';
+
   const delivery = input.deliveryStatus ? { status: input.deliveryStatus } : null;
   const phase = resolveOrderDisplayPhase(
     {

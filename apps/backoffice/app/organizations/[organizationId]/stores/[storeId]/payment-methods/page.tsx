@@ -8,7 +8,8 @@ import { useAuth } from '@/components/auth-provider';
 import { PageContainer } from '@/components/layout/page-container';
 import { PageHeader } from '@/components/layout/page-header';
 import { Section } from '@/components/layout/section';
-import { EmptyState, ErrorState, LoadingState } from '@/components/layout/states';
+import { DataTable, DataTableCellPrimary } from '@/components/layout/data-table';
+import { EntityListPanel } from '@/components/layout/entity-list-panel';
 import { StatusBadge } from '@/components/layout/status-badge';
 import { Field } from '@/components/layout/field';
 import { FancySelect } from '@/components/layout/fancy-select';
@@ -109,8 +110,58 @@ export default function PaymentMethodsPage() {
         />
 
         <Section>
-          {loading ? <LoadingState /> : null}
-          {error ? <ErrorState message={error} /> : null}
+          <EntityListPanel
+            title="Способы оплаты"
+            count={methods.length}
+            loading={loading}
+            error={error}
+            isEmpty={!loading && !error && methods.length === 0}
+            emptyMessage="Методов пока нет. Нажмите «Создать стандартные»."
+          >
+            <DataTable
+              rows={methods}
+              getRowKey={(method) => method.id}
+              columns={[
+                {
+                  id: 'name',
+                  header: 'Метод',
+                  render: (method) => (
+                    <DataTableCellPrimary title={method.name} subtitle={method.code} />
+                  ),
+                },
+                {
+                  id: 'type',
+                  header: 'Тип',
+                  render: (method) => (
+                    <div className="data-table__cell-badges">
+                      <StatusBadge status={method.type} />
+                    </div>
+                  ),
+                },
+                {
+                  id: 'status',
+                  header: 'Статус',
+                  render: (method) => (
+                    <div className="data-table__cell-badges">
+                      <StatusBadge status={method.isActive ? 'ACTIVE' : 'ARCHIVED'} />
+                    </div>
+                  ),
+                },
+              ]}
+              renderActions={(method) =>
+                method.isActive ? (
+                  <DeletionRequestButton
+                    organizationId={organizationId}
+                    entityType="PAYMENT_METHOD"
+                    entityId={method.id}
+                    entityLabel={`${method.name} (${method.code})`}
+                    storeId={storeId}
+                    onRequested={() => void load()}
+                  />
+                ) : null
+              }
+            />
+          </EntityListPanel>
         </Section>
 
         <Section>
@@ -140,37 +191,6 @@ export default function PaymentMethodsPage() {
                 Создать
               </Button>
             </form>
-          </Card>
-        </Section>
-
-        <Section>
-          <Card title="Список">
-            {!loading && methods.length === 0 ? (
-              <EmptyState message="Методов пока нет. Нажмите «Создать стандартные»." />
-            ) : null}
-            <ul className="list-stack">
-              {methods.map((method) => (
-                <li key={method.id}>
-                  <div className="meta-row">
-                    <strong>
-                      {method.name} ({method.code})
-                    </strong>
-                    <StatusBadge status={method.type} />
-                    <StatusBadge status={method.isActive ? 'ACTIVE' : 'ARCHIVED'} />
-                    {method.isActive ? (
-                      <DeletionRequestButton
-                        organizationId={organizationId}
-                        entityType="PAYMENT_METHOD"
-                        entityId={method.id}
-                        entityLabel={`${method.name} (${method.code})`}
-                        storeId={storeId}
-                        onRequested={() => void load()}
-                      />
-                    ) : null}
-                  </div>
-                </li>
-              ))}
-            </ul>
           </Card>
         </Section>
       </PageContainer>

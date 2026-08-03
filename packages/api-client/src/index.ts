@@ -2597,7 +2597,13 @@ export type DeliveryJobDto = {
 
 export type OrderBoardPaymentStatus = 'PAID' | 'PARTIALLY_PAID' | 'UNPAID';
 
-export type OrderBoardColumn = 'NEW' | 'IN_WORK' | 'READY' | 'WITH_COURIER' | 'HANDED_OFF';
+export type OrderBoardColumn =
+  | 'NEW'
+  | 'IN_WORK'
+  | 'READY'
+  | 'WITH_COURIER'
+  | 'HANDED_OFF'
+  | 'CANCELLED';
 
 export type OrderBoardCardDto = {
   id: string;

@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { useEffect, useState, type FormEvent } from 'react';
 import { useParams } from 'next/navigation';
 import { Button, Card, Input } from '@flower/ui';
@@ -9,9 +8,10 @@ import { getApiClient } from '@/lib/api-client';
 import { PageContainer } from '@/components/layout/page-container';
 import { PageHeader } from '@/components/layout/page-header';
 import { Section } from '@/components/layout/section';
-import { EmptyState, ErrorState, LoadingState } from '@/components/layout/states';
-import { StatusBadge } from '@/components/layout/status-badge';
 import { Field } from '@/components/layout/field';
+import { DataTable, DataTableCellPrimary } from '@/components/layout/data-table';
+import { EntityListFilters, EntityListPanel } from '@/components/layout/entity-list-panel';
+import { StatusBadge } from '@/components/layout/status-badge';
 import { DeletionRequestButton } from '@/components/admin/deletion-request-button';
 import { formatApiErrorMessage } from '@/lib/format-api-error';
 import { catalogBreadcrumbs, canOperateCatalog } from '@/lib/settings-nav';
@@ -119,75 +119,79 @@ export default function SuppliersPage() {
           breadcrumbs={catalogBreadcrumbs(organizationId, { label: 'Поставщики' })}
         />
         <Section>
-          <Card title="Поиск">
-            <form
-              className="form-grid"
-              onSubmit={(e) => {
-                e.preventDefault();
-                void load();
-              }}
-            >
-              <Field label="Название">
-                <Input
-                  value={nameFilter}
-                  onChange={(e) => setNameFilter(e.target.value)}
-                  aria-label="Фильтр поставщиков по названию"
-                />
-              </Field>
-              <div style={{ display: 'flex', alignItems: 'flex-end' }}>
+          <EntityListPanel
+            title="Поставщики"
+            count={items.length}
+            loading={loading}
+            error={error}
+            isEmpty={!loading && !error && items.length === 0}
+            emptyMessage="Поставщиков пока нет."
+            toolbar={
+              <EntityListFilters onSubmit={() => void load()}>
+                <Field label="Название">
+                  <Input
+                    value={nameFilter}
+                    onChange={(e) => setNameFilter(e.target.value)}
+                    placeholder="Поиск по названию…"
+                    aria-label="Фильтр поставщиков по названию"
+                  />
+                </Field>
                 <Button type="submit" variant="secondary">
                   Найти
                 </Button>
-              </div>
-            </form>
-          </Card>
-        </Section>
-        <Section>
-          <Card title="Список">
-            {loading ? <LoadingState /> : null}
-            {error ? <ErrorState message={error} /> : null}
-            {!loading && items.length === 0 ? <EmptyState message="Поставщиков пока нет." /> : null}
-            <ul className="list-stack">
-              {items.map((item) => (
-                <li key={item.id}>
-                  <div
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      gap: 12,
-                      flexWrap: 'wrap',
-                      padding: 12,
-                      border: '1px solid var(--color-border)',
-                      borderRadius: 10,
-                      background: 'var(--color-surface)',
-                    }}
-                  >
-                    <div>
-                      <Link href={`${base}/suppliers/${item.id}`}>
-                        <strong>
-                          {item.name} ({item.code})
-                        </strong>
-                      </Link>
-                      <div className="meta-row" style={{ marginTop: 4 }}>
-                        <StatusBadge status={item.status} />
-                        {item.country ? <span>{item.country}</span> : null}
-                        {item.contactPerson ? <span>{item.contactPerson}</span> : null}
-                      </div>
+              </EntityListFilters>
+            }
+          >
+            <DataTable
+              rows={items}
+              getRowKey={(item) => item.id}
+              getRowHref={(item) => `${base}/suppliers/${item.id}`}
+              columns={[
+                {
+                  id: 'name',
+                  header: 'Поставщик',
+                  render: (item) => (
+                    <DataTableCellPrimary title={item.name} subtitle={item.code} />
+                  ),
+                },
+                {
+                  id: 'contact',
+                  header: 'Контакт',
+                  render: (item) => (
+                    <DataTableCellPrimary
+                      title={item.contactPerson ?? '—'}
+                      subtitle={[item.phone, item.email].filter(Boolean).join(' · ') || undefined}
+                    />
+                  ),
+                },
+                {
+                  id: 'country',
+                  header: 'Страна',
+                  render: (item) => item.country ?? '—',
+                },
+                {
+                  id: 'status',
+                  header: 'Статус',
+                  render: (item) => (
+                    <div className="data-table__cell-badges">
+                      <StatusBadge status={item.status} />
                     </div>
-                    {item.status === 'ACTIVE' ? (
-                      <DeletionRequestButton
-                        organizationId={organizationId}
-                        entityType="SUPPLIER"
-                        entityId={item.id}
-                        entityLabel={`${item.name} (${item.code})`}
-                        onRequested={() => void load()}
-                      />
-                    ) : null}
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </Card>
+                  ),
+                },
+              ]}
+              renderActions={(item) =>
+                item.status === 'ACTIVE' ? (
+                  <DeletionRequestButton
+                    organizationId={organizationId}
+                    entityType="SUPPLIER"
+                    entityId={item.id}
+                    entityLabel={`${item.name} (${item.code})`}
+                    onRequested={() => void load()}
+                  />
+                ) : null
+              }
+            />
+          </EntityListPanel>
         </Section>
         {canOperate ? (
         <Section>

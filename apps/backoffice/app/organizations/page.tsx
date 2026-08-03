@@ -1,6 +1,5 @@
 ﻿'use client';
 
-import Link from 'next/link';
 import { useEffect, useState, type FormEvent } from 'react';
 import { Button, Card, Input } from '@flower/ui';
 import { ApiClientError } from '@flower/api-client';
@@ -8,7 +7,8 @@ import { getApiClient } from '@/lib/api-client';
 import { PageContainer } from '@/components/layout/page-container';
 import { PageHeader } from '@/components/layout/page-header';
 import { Section } from '@/components/layout/section';
-import { EmptyState, ErrorState, LoadingState } from '@/components/layout/states';
+import { DataTable, DataTableCellPrimary } from '@/components/layout/data-table';
+import { EntityListPanel } from '@/components/layout/entity-list-panel';
 import { StatusBadge } from '@/components/layout/status-badge';
 
 type Org = { id: string; name: string; status: string; createdAt: string };
@@ -62,30 +62,38 @@ export default function OrganizationsPage() {
         />
 
         <Section>
-          <Card title="Все организации">
-            {loading ? <LoadingState message="Загрузка организаций…" /> : null}
-            {error ? <ErrorState message={error} /> : null}
-            {!loading && !error && items.length === 0 ? (
-              <EmptyState message="Создайте первую организацию, чтобы продолжить вертикальный срез." />
-            ) : null}
-            {!loading && items.length > 0 ? (
-              <ul className="list-stack">
-                {items.map((org) => (
-                  <li key={org.id}>
-                    <Link href={`/organizations/${org.id}`}>
-                      <div className="meta-row" style={{ marginBottom: 4 }}>
-                        <strong style={{ color: 'var(--color-foreground)' }}>{org.name}</strong>
-                        <StatusBadge status={org.status} />
-                      </div>
-                      <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-muted)' }}>
-                        {org.id}
-                      </span>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            ) : null}
-          </Card>
+          <EntityListPanel
+            title="Организации"
+            count={items.length}
+            loading={loading}
+            error={error}
+            isEmpty={!loading && !error && items.length === 0}
+            emptyMessage="Создайте первую организацию, чтобы продолжить вертикальный срез."
+          >
+            <DataTable
+              rows={items}
+              getRowKey={(org) => org.id}
+              getRowHref={(org) => `/organizations/${org.id}`}
+              columns={[
+                {
+                  id: 'name',
+                  header: 'Организация',
+                  render: (org) => (
+                    <DataTableCellPrimary title={org.name} subtitle={org.id} />
+                  ),
+                },
+                {
+                  id: 'status',
+                  header: 'Статус',
+                  render: (org) => (
+                    <div className="data-table__cell-badges">
+                      <StatusBadge status={org.status} />
+                    </div>
+                  ),
+                },
+              ]}
+            />
+          </EntityListPanel>
         </Section>
 
         <Section>

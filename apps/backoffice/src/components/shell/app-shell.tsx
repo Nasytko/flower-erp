@@ -12,14 +12,9 @@ import { MobileDrawer } from './mobile-drawer';
 import { SidebarProvider, useSidebar } from './sidebar-context';
 import { WorkspaceSwitcher } from './workspace-switcher';
 import { WorkspaceContextSync } from './workspace-context-sync';
-import { CommandPalette } from '@/components/workspace/command-palette';
 import { ToastProvider } from '@/components/ui/toast';
 import { DevEnvironmentBadge } from '@/components/dev-environment-banner';
 import type { AppEnvironment } from '@/lib/app-environment';
-
-function openCommandPalette() {
-  window.dispatchEvent(new CustomEvent('flower:command-palette'));
-}
 
 function AppShellInner({
   children,
@@ -82,15 +77,6 @@ function AppShellInner({
           <WorkspaceSwitcher />
         </div>
         <div className="shell__header-right">
-          <button
-            type="button"
-            className="shell__search"
-            onClick={openCommandPalette}
-            aria-label={t('commandPalette')}
-          >
-            <span className="shell__search-placeholder">{t('commandPlaceholder')}</span>
-            <kbd className="shell__search-kbd">Ctrl K</kbd>
-          </button>
           {auth.user ? (
             <div className="shell__user-menu">
               <Link href="/account" className="shell__user-menu-link">
@@ -108,7 +94,6 @@ function AppShellInner({
       </header>
 
       <div className="shell__main">{children}</div>
-      <CommandPalette />
     </div>
   );
 }

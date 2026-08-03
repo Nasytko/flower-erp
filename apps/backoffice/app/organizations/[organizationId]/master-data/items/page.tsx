@@ -4,16 +4,16 @@ import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { useParams } from 'next/navigation';
 import { Button, Card, Input } from '@flower/ui';
 import { useAuth } from '@/components/auth-provider';
-import { CatalogExpandRow } from '@/components/catalog/catalog-expand-row';
 import { DeletionRequestButton } from '@/components/admin/deletion-request-button';
 import { getApiClient } from '@/lib/api-client';
 import { PageContainer } from '@/components/layout/page-container';
 import { PageHeader } from '@/components/layout/page-header';
 import { Section } from '@/components/layout/section';
-import { EmptyState, ErrorState, LoadingState } from '@/components/layout/states';
-import { StatusBadge } from '@/components/layout/status-badge';
 import { Field } from '@/components/layout/field';
 import { FancySelect } from '@/components/layout/fancy-select';
+import { DataTable, DataTableCellPrimary } from '@/components/layout/data-table';
+import { EntityListFilters, EntityListPanel } from '@/components/layout/entity-list-panel';
+import { StatusBadge } from '@/components/layout/status-badge';
 import { formatApiErrorMessage } from '@/lib/format-api-error';
 import { catalogBreadcrumbs, canOperateCatalog } from '@/lib/settings-nav';
 import {
@@ -51,6 +51,7 @@ export default function ItemsPage() {
   const params = useParams<{ organizationId: string }>();
   const auth = useAuth();
   const organizationId = params.organizationId;
+  const base = `/organizations/${organizationId}/master-data`;
   const canOperate = canOperateCatalog(auth.hasPermission);
 
   const [items, setItems] = useState<Item[]>([]);
@@ -61,9 +62,6 @@ export default function ItemsPage() {
   const [statusFilter, setStatusFilter] = useState('ACTIVE');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [thresholdDrafts, setThresholdDrafts] = useState<Record<string, string>>({});
-  const [savingThresholdId, setSavingThresholdId] = useState<string | null>(null);
 
   const [name, setName] = useState('');
   const [itemType, setItemType] = useState<'FLOWER' | 'MATERIAL'>('FLOWER');
@@ -88,15 +86,6 @@ export default function ItemsPage() {
       });
       setItems(list.items);
       setTotalPages(list.totalPages);
-      setThresholdDrafts((prev) => {
-        const next = { ...prev };
-        for (const item of list.items) {
-          if (next[item.id] === undefined) {
-            next[item.id] = item.minimumStockQuantity ?? '';
-          }
-        }
-        return next;
-      });
     } catch (err) {
       setError(formatApiErrorMessage(err, 'Не удалось загрузить товары'));
     } finally {
@@ -141,20 +130,9 @@ export default function ItemsPage() {
     }
   }
 
-  async function onSaveThreshold(item: Item) {
-    setSavingThresholdId(item.id);
-    setError(null);
-    try {
-      const draft = thresholdDrafts[item.id] ?? '';
-      await getApiClient().updateItem(organizationId, item.id, {
-        minimumStockQuantity: draft.trim() ? draft.trim() : null,
-      });
-      await load();
-    } catch (err) {
-      setError(formatApiErrorMessage(err, 'Не удалось сохранить порог'));
-    } finally {
-      setSavingThresholdId(null);
-    }
+  async function applyFilters() {
+    setPage(1);
+    await load();
   }
 
   return (
@@ -167,177 +145,136 @@ export default function ItemsPage() {
         />
 
         <Section>
-          <Card title="Фильтры">
-            <form
-              className="form-grid"
-              style={{ maxWidth: '100%', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))' }}
-              onSubmit={(e) => {
-                e.preventDefault();
-                setPage(1);
-                void load();
-              }}
-            >
-              <Field label="Название">
-                <Input
-                  value={nameFilter}
-                  onChange={(e) => setNameFilter(e.target.value)}
-                  aria-label="Фильтр по названию"
-                />
-              </Field>
-              <Field label="Тип">
-                <select
-                  value={typeFilter}
-                  onChange={(e) => setTypeFilter(e.target.value)}
-                  aria-label="Фильтр по типу"
-                  style={{
-                    minHeight: 40,
-                    borderRadius: 6,
-                    border: '1px solid var(--color-border)',
-                    padding: 8,
-                    width: '100%',
-                  }}
-                >
-                  <option value="">Все типы</option>
-                  <option value="FLOWER">Цветок</option>
-                  <option value="MATERIAL">Материал</option>
-                </select>
-              </Field>
-              <Field label="Статус">
-                <select
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value)}
-                  aria-label="Фильтр по статусу"
-                  style={{
-                    minHeight: 40,
-                    borderRadius: 6,
-                    border: '1px solid var(--color-border)',
-                    padding: 8,
-                    width: '100%',
-                  }}
-                >
-                  <option value="">Все статусы</option>
-                  <option value="ACTIVE">Активные</option>
-                  <option value="ARCHIVED">В архиве</option>
-                </select>
-              </Field>
-              <div style={{ display: 'flex', alignItems: 'flex-end' }}>
+          <EntityListPanel
+            title="Товары"
+            count={items.length}
+            loading={loading}
+            error={error}
+            isEmpty={!loading && !error && items.length === 0}
+            emptyMessage={
+              canOperate
+                ? 'Товаров пока нет. Создайте первый товар ниже.'
+                : 'Товаров пока нет.'
+            }
+            toolbar={
+              <EntityListFilters
+                onSubmit={() => {
+                  void applyFilters();
+                }}
+              >
+                <Field label="Название">
+                  <Input
+                    value={nameFilter}
+                    onChange={(e) => setNameFilter(e.target.value)}
+                    placeholder="Поиск…"
+                    aria-label="Фильтр по названию"
+                  />
+                </Field>
+                <Field label="Тип">
+                  <select
+                    value={typeFilter}
+                    onChange={(e) => setTypeFilter(e.target.value)}
+                    aria-label="Фильтр по типу"
+                    className="entity-list-panel__select"
+                  >
+                    <option value="">Все типы</option>
+                    <option value="FLOWER">Цветок</option>
+                    <option value="MATERIAL">Материал</option>
+                  </select>
+                </Field>
+                <Field label="Статус">
+                  <select
+                    value={statusFilter}
+                    onChange={(e) => setStatusFilter(e.target.value)}
+                    aria-label="Фильтр по статусу"
+                    className="entity-list-panel__select"
+                  >
+                    <option value="">Все статусы</option>
+                    <option value="ACTIVE">Активные</option>
+                    <option value="ARCHIVED">В архиве</option>
+                  </select>
+                </Field>
                 <Button type="submit" variant="secondary">
                   Применить
                 </Button>
-              </div>
-            </form>
-          </Card>
-        </Section>
-
-        <Section>
-          <Card title="Список">
-            {loading ? <LoadingState /> : null}
-            {error ? <ErrorState message={error} /> : null}
-            {!loading && !error && items.length === 0 ? (
-              <EmptyState
-                message={
-                  canOperate
-                    ? 'Товаров пока нет. Создайте первый товар ниже.'
-                    : 'Товаров пока нет.'
-                }
-              />
-            ) : null}
-            <ul className="list-stack">
-              {items.map((item) => (
-                <li key={item.id}>
-                  <CatalogExpandRow
-                    expanded={expandedId === item.id}
-                    onToggle={() =>
-                      setExpandedId((current) => (current === item.id ? null : item.id))
-                    }
-                    title={
-                      <>
-                        {item.name} ({item.code})
-                      </>
-                    }
-                    meta={
-                      <div className="meta-row">
-                        <StatusBadge status={itemTypeLabel(item.itemType)} />
-                        <StatusBadge status={item.status} />
-                        <span>
-                          Добавил: {item.createdByDisplayName ?? 'неизвестно'}
-                          {formatWhen(item.createdAt) ? ` · ${formatWhen(item.createdAt)}` : null}
-                        </span>
-                      </div>
-                    }
-                    actions={
-                      item.status === 'ACTIVE' ? (
-                        <DeletionRequestButton
-                          organizationId={organizationId}
-                          entityType="ITEM"
-                          entityId={item.id}
-                          entityLabel={`${item.name} (${item.code})`}
-                          onRequested={() => {
-                            if (expandedId === item.id) setExpandedId(null);
-                            void load();
-                          }}
-                        />
-                      ) : undefined
-                    }
+              </EntityListFilters>
+            }
+            footer={
+              totalPages > 1 ? (
+                <div className="meta-row">
+                  <Button
+                    variant="secondary"
+                    disabled={page <= 1}
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
                   >
-                    {item.itemType === 'FLOWER' && item.status !== 'ARCHIVED' && canOperate ? (
-                      <form
-                        className="form-grid"
-                        onSubmit={(event) => {
-                          event.preventDefault();
-                          void onSaveThreshold(item);
-                        }}
-                      >
-                        <Field label="Минимальный остаток" hint="KPI «Ниже порога» на главной магазина">
-                          <Input
-                            type="number"
-                            min={0}
-                            step="any"
-                            value={thresholdDrafts[item.id] ?? ''}
-                            onChange={(event) =>
-                              setThresholdDrafts((prev) => ({
-                                ...prev,
-                                [item.id]: event.target.value,
-                              }))
-                            }
-                            placeholder="Не задан"
-                          />
-                        </Field>
-                        <div style={{ display: 'flex', alignItems: 'flex-end' }}>
-                          <Button type="submit" variant="secondary" disabled={savingThresholdId === item.id}>
-                            {savingThresholdId === item.id ? 'Сохранение…' : 'Сохранить порог'}
-                          </Button>
-                        </div>
-                      </form>
-                    ) : (
-                      <p className="field__hint" style={{ margin: 0 }}>
-                        Код: {item.code}
-                      </p>
-                    )}
-                  </CatalogExpandRow>
-                </li>
-              ))}
-            </ul>
-            <div className="meta-row" style={{ marginTop: 12 }}>
-              <Button
-                variant="secondary"
-                disabled={page <= 1}
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-              >
-                Назад
-              </Button>
-              <span>
-                Стр. {page} / {totalPages}
-              </span>
-              <Button
-                variant="secondary"
-                disabled={page >= totalPages}
-                onClick={() => setPage((p) => p + 1)}
-              >
-                Вперёд
-              </Button>
-            </div>
-          </Card>
+                    Назад
+                  </Button>
+                  <span>
+                    Стр. {page} / {totalPages}
+                  </span>
+                  <Button
+                    variant="secondary"
+                    disabled={page >= totalPages}
+                    onClick={() => setPage((p) => p + 1)}
+                  >
+                    Вперёд
+                  </Button>
+                </div>
+              ) : null
+            }
+          >
+            <DataTable
+              rows={items}
+              getRowKey={(item) => item.id}
+              getRowHref={(item) => `${base}/items/${item.id}`}
+              columns={[
+                {
+                  id: 'name',
+                  header: 'Товар',
+                  render: (item) => (
+                    <DataTableCellPrimary title={item.name} subtitle={item.code} />
+                  ),
+                },
+                {
+                  id: 'type',
+                  header: 'Тип',
+                  render: (item) => <StatusBadge status={itemTypeLabel(item.itemType)} />,
+                },
+                {
+                  id: 'status',
+                  header: 'Статус',
+                  render: (item) => <StatusBadge status={item.status} />,
+                },
+                {
+                  id: 'threshold',
+                  header: 'Мин. остаток',
+                  render: (item) =>
+                    item.itemType === 'FLOWER' ? item.minimumStockQuantity ?? '—' : '—',
+                },
+                {
+                  id: 'author',
+                  header: 'Добавил',
+                  render: (item) => (
+                    <DataTableCellPrimary
+                      title={item.createdByDisplayName ?? '—'}
+                      subtitle={formatWhen(item.createdAt) ?? undefined}
+                    />
+                  ),
+                },
+              ]}
+              renderActions={(item) =>
+                item.status === 'ACTIVE' ? (
+                  <DeletionRequestButton
+                    organizationId={organizationId}
+                    entityType="ITEM"
+                    entityId={item.id}
+                    entityLabel={`${item.name} (${item.code})`}
+                    onRequested={() => void load()}
+                  />
+                ) : null
+              }
+            />
+          </EntityListPanel>
         </Section>
 
         {canOperate ? (

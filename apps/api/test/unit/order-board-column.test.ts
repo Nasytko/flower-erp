@@ -51,6 +51,18 @@ describe('resolveOrderBoardColumn', () => {
     );
   });
 
+  it('maps cancelled order to CANCELLED', () => {
+    assert.equal(
+      resolveOrderBoardColumn({
+        status: 'CANCELLED',
+        type: 'PICKUP',
+        hasActiveAssignment: false,
+        deliveryStatus: null,
+      }),
+      'CANCELLED',
+    );
+  });
+
   it('maps completed order to HANDED_OFF', () => {
     assert.equal(
       resolveOrderBoardColumn({

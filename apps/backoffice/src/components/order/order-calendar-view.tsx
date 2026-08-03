@@ -17,6 +17,7 @@ import { Section } from '@/components/layout/section';
 import { ErrorState, LoadingState } from '@/components/layout/states';
 import { InlineAlert } from '@/components/workspace/workspace-ui';
 import { OrderCalendarBoard } from '@/components/order/order-calendar-board';
+import { OrderCalendarDayStats } from '@/components/order/order-calendar-day-stats';
 import { OrderCalendarDatePicker } from '@/components/order/order-calendar-date-picker';
 import { OrderCalendarDateStrip } from '@/components/order/order-calendar-date-strip';
 import {
@@ -246,6 +247,12 @@ export function OrderCalendarView({ initialDate }: OrderCalendarViewProps) {
             </div>
           </div>
         </Section>
+
+        {board ? (
+          <Section>
+            <OrderCalendarDayStats sections={filteredSections ?? board.sections} />
+          </Section>
+        ) : null}
 
         {board ? (
           <Section>

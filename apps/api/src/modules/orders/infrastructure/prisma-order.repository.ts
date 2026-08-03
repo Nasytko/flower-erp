@@ -857,7 +857,7 @@ export class PrismaOrderRepository implements OrderRepository {
         where: {
           organizationId: input.organizationId,
           storeId: input.storeId,
-          status: { not: 'CANCELLED' },
+          status: { not: 'DRAFT' },
           readyAt: { gte: dayStartAt, lte: dayEndAt },
         },
         include: {
@@ -878,7 +878,7 @@ export class PrismaOrderRepository implements OrderRepository {
         where: {
           organizationId: input.organizationId,
           storeId: input.storeId,
-          status: { not: 'CANCELLED' },
+          status: { not: 'DRAFT' },
           readyAt: { gte: monthStartAt, lte: monthEndAt },
         },
         select: { readyAt: true },
@@ -981,6 +981,7 @@ export class PrismaOrderRepository implements OrderRepository {
       READY: [],
       WITH_COURIER: [],
       HANDED_OFF: [],
+      CANCELLED: [],
     };
 
     for (const order of orders) {

@@ -1,6 +1,5 @@
 ﻿'use client';
 
-import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { Button, Card, Input } from '@flower/ui';
@@ -10,7 +9,8 @@ import { useAuth } from '@/components/auth-provider';
 import { PageContainer } from '@/components/layout/page-container';
 import { PageHeader } from '@/components/layout/page-header';
 import { Section } from '@/components/layout/section';
-import { EmptyState, ErrorState, LoadingState } from '@/components/layout/states';
+import { DataTable, DataTableCellPrimary } from '@/components/layout/data-table';
+import { EntityListPanel } from '@/components/layout/entity-list-panel';
 import { StatusBadge } from '@/components/layout/status-badge';
 import { storeStockHint } from '@/lib/store-context';
 
@@ -78,7 +78,13 @@ export default function WriteOffsPage() {
   }
 
   if (!auth.hasPermission('write-offs:read')) {
-    return <main><PageContainer><ErrorState message="Доступ запрещён: требуется write-offs:read." /></PageContainer></main>;
+    return (
+      <main>
+        <PageContainer>
+          <p className="page-state">Доступ запрещён: требуется write-offs:read.</p>
+        </PageContainer>
+      </main>
+    );
   }
 
   return (
@@ -95,63 +101,82 @@ export default function WriteOffsPage() {
           }
         />
 
-        {loading ? <LoadingState message="Загрузка списаний…" /> : null}
-        {error ? <ErrorState message={error} /> : null}
+        <Section>
+          <EntityListPanel
+            title="Документы"
+            count={docs.length}
+            loading={loading}
+            error={error}
+            isEmpty={!loading && !error && docs.length === 0}
+            emptyMessage="Списаний пока нет."
+          >
+            <DataTable
+              rows={docs}
+              getRowKey={(doc) => doc.id}
+              getRowHref={(doc) => `${base}/write-offs/${doc.id}`}
+              columns={[
+                {
+                  id: 'number',
+                  header: 'Номер',
+                  render: (doc) => <DataTableCellPrimary title={doc.number} />,
+                },
+                {
+                  id: 'reason',
+                  header: 'Причина',
+                  render: (doc) => (
+                    <div className="data-table__cell-badges">
+                      <StatusBadge status={doc.reason} />
+                    </div>
+                  ),
+                },
+                {
+                  id: 'items',
+                  header: 'Позиций',
+                  render: (doc) => doc.items.length,
+                },
+                {
+                  id: 'status',
+                  header: 'Статус',
+                  render: (doc) => (
+                    <div className="data-table__cell-badges">
+                      <StatusBadge status={doc.status} />
+                    </div>
+                  ),
+                },
+              ]}
+            />
+          </EntityListPanel>
+        </Section>
 
-        {!loading && !error ? (
-          <>
-            {auth.hasPermission('write-offs:create') ? (
-              <Section>
-                <Card title="Создать списание">
-                  <p className="field__hint">{storeStockHint(storeName)}</p>
-                  <div className="stock-filters">
-                    <label>
-                      <div>Причина</div>
-                      <select value={reason} onChange={(e) => setReason(e.target.value as WriteOffReason)}>
-                        {REASONS.map((value) => (
-                          <option key={value} value={value}>
-                            {value}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <label style={{ minWidth: 260 }}>
-                      <div>Комментарий</div>
-                      <Input value={comment} onChange={(e) => setComment(e.target.value)} placeholder="Комментарий (необязательно)" />
-                    </label>
-                    <Button type="button" onClick={() => void createDraft()} disabled={creating}>
-                      {creating ? 'Создание…' : 'Создать черновик'}
-                    </Button>
-                  </div>
-                </Card>
-              </Section>
-            ) : null}
-
-            <Section>
-              <Card title={`Документы (${docs.length})`}>
-                {docs.length === 0 ? (
-                  <EmptyState message="Списаний пока нет." />
-                ) : (
-                  <ul className="stock-list">
-                    {docs.map((doc) => (
-                      <li key={doc.id} className="stock-row">
-                        <div>
-                          <strong>
-                            <Link href={`${base}/write-offs/${doc.id}`}>{doc.number}</Link>
-                          </strong>
-                          <div className="meta-row">
-                            <StatusBadge status={doc.status} />
-                            <span>{doc.reason}</span>
-                            <span>Позиций {doc.items.length}</span>
-                          </div>
-                        </div>
-                      </li>
+        {auth.hasPermission('write-offs:create') ? (
+          <Section>
+            <Card title="Создать списание">
+              <p className="field__hint">{storeStockHint(storeName)}</p>
+              <div className="stock-filters">
+                <label>
+                  <div>Причина</div>
+                  <select value={reason} onChange={(e) => setReason(e.target.value as WriteOffReason)}>
+                    {REASONS.map((value) => (
+                      <option key={value} value={value}>
+                        {value}
+                      </option>
                     ))}
-                  </ul>
-                )}
-              </Card>
-            </Section>
-          </>
+                  </select>
+                </label>
+                <label style={{ minWidth: 260 }}>
+                  <div>Комментарий</div>
+                  <Input
+                    value={comment}
+                    onChange={(e) => setComment(e.target.value)}
+                    placeholder="Комментарий (необязательно)"
+                  />
+                </label>
+                <Button type="button" onClick={() => void createDraft()} disabled={creating}>
+                  {creating ? 'Создание…' : 'Создать черновик'}
+                </Button>
+              </div>
+            </Card>
+          </Section>
         ) : null}
       </PageContainer>
     </main>

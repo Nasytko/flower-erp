@@ -6,6 +6,7 @@ export const ORDER_BOARD_COLUMN_LABELS: Record<OrderBoardColumn, string> = {
   READY: 'Собранные',
   WITH_COURIER: 'У курьера',
   HANDED_OFF: 'Завершённые',
+  CANCELLED: 'Отменённые',
 };
 
 export const ORDER_BOARD_COLUMN_TONE: Record<OrderBoardColumn, string> = {
@@ -14,6 +15,7 @@ export const ORDER_BOARD_COLUMN_TONE: Record<OrderBoardColumn, string> = {
   READY: 'success',
   WITH_COURIER: 'warning',
   HANDED_OFF: 'muted',
+  CANCELLED: 'danger',
 };
 
 export const ORDER_BOARD_COLUMNS: OrderBoardColumn[] = [
@@ -22,6 +24,7 @@ export const ORDER_BOARD_COLUMNS: OrderBoardColumn[] = [
   'READY',
   'WITH_COURIER',
   'HANDED_OFF',
+  'CANCELLED',
 ];
 
 export function formatOrderTimeWindow(input: {

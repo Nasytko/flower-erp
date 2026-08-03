@@ -42,7 +42,8 @@ export function OrderCalendarCard({
   const paid = card.paymentStatus === 'PAID';
   const partial = card.paymentStatus === 'PARTIALLY_PAID';
   const isDelivery = card.type === 'DELIVERY';
-  const showSaleAction = canCreateSale && card.column === 'READY' && !card.saleId;
+  const isCancelled = card.status === 'CANCELLED' || card.column === 'CANCELLED';
+  const showSaleAction = canCreateSale && card.column === 'READY' && !card.saleId && !isCancelled;
 
   function handleOpen() {
     if (draggedRef.current) {
@@ -80,7 +81,7 @@ export function OrderCalendarCard({
 
   return (
     <article
-      className={`order-calendar-card${draggable ? ' order-calendar-card--draggable' : ''}`}
+      className={`order-calendar-card${draggable ? ' order-calendar-card--draggable' : ''}${isCancelled ? ' order-calendar-card--cancelled' : ''}`}
     >
       {draggable ? (
         <button

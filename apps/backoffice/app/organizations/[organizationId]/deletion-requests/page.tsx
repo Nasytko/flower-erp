@@ -2,13 +2,14 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { Button, Card } from '@flower/ui';
+import { Button } from '@flower/ui';
 import type { DeletionRequestDto } from '@flower/api-client';
 import { useAuth } from '@/components/auth-provider';
 import { PageContainer } from '@/components/layout/page-container';
 import { PageHeader } from '@/components/layout/page-header';
 import { Section } from '@/components/layout/section';
-import { EmptyState, ErrorState, LoadingState } from '@/components/layout/states';
+import { DataTable, DataTableCellPrimary } from '@/components/layout/data-table';
+import { EntityListPanel } from '@/components/layout/entity-list-panel';
 import { StatusBadge } from '@/components/layout/status-badge';
 import { getApiClient } from '@/lib/api-client';
 import { DELETION_ENTITY_LABELS_RU } from '@/lib/deletion-labels';
@@ -109,74 +110,83 @@ export default function DeletionRequestsPage() {
         />
 
         <Section>
-          <Card title={showAll ? 'Все запросы' : 'Ожидают подтверждения'}>
-            <p className="field__hint" style={{ marginTop: 0 }}>
-              {pending.length > 0
-                ? `${pending.length} запрос(ов) ждут решения.`
-                : 'Нет ожидающих запросов.'}{' '}
-              <button
-                type="button"
-                className="text-link"
-                style={{ border: 'none', background: 'none', padding: 0, cursor: 'pointer', font: 'inherit' }}
-                onClick={() => setShowAll((v) => !v)}
-              >
-                {showAll ? 'Только ожидающие' : 'Показать историю'}
-              </button>
-            </p>
-
-            {loading ? <LoadingState /> : null}
-            {error ? <ErrorState message={error} /> : null}
-
-            {!loading && items.length === 0 ? (
-              <EmptyState message="Запросов на удаление пока нет." />
-            ) : null}
-
-            <ul className="list-stack">
-              {items.map((row) => (
-                <li key={row.id}>
-                  <div className="meta-row" style={{ alignItems: 'flex-start', gap: 12 }}>
-                    <div style={{ flex: 1 }}>
-                      <strong>{row.entityLabel}</strong>
-                      <div style={{ fontSize: 'var(--text-sm)', color: 'var(--color-muted)' }}>
-                        {DELETION_ENTITY_LABELS_RU[row.entityType] ?? row.entityType} ·{' '}
-                        {formatWhen(row.createdAt)}
-                      </div>
-                      {row.reason ? (
-                        <div style={{ fontSize: 'var(--text-sm)', marginTop: 4 }}>
-                          Комментарий: {row.reason}
-                        </div>
-                      ) : null}
-                      {row.reviewComment ? (
-                        <div style={{ fontSize: 'var(--text-sm)', marginTop: 4 }}>
-                          Решение: {row.reviewComment}
-                        </div>
-                      ) : null}
+          <EntityListPanel
+            title={showAll ? 'Все запросы' : 'Ожидают подтверждения'}
+            count={items.length}
+            loading={loading}
+            error={error}
+            isEmpty={!loading && !error && items.length === 0}
+            emptyMessage="Запросов на удаление пока нет."
+            toolbar={
+              <div className="entity-list-panel__filters">
+                <p className="field__hint" style={{ margin: 0, flex: 1 }}>
+                  {pending.length > 0
+                    ? `${pending.length} запрос(ов) ждут решения.`
+                    : 'Нет ожидающих запросов.'}
+                </p>
+                <Button type="button" variant="secondary" onClick={() => setShowAll((v) => !v)}>
+                  {showAll ? 'Только ожидающие' : 'Показать историю'}
+                </Button>
+              </div>
+            }
+          >
+            <DataTable
+              rows={items}
+              getRowKey={(row) => row.id}
+              columns={[
+                {
+                  id: 'entity',
+                  header: 'Запись',
+                  render: (row) => (
+                    <DataTableCellPrimary
+                      title={row.entityLabel}
+                      subtitle={`${DELETION_ENTITY_LABELS_RU[row.entityType] ?? row.entityType} · ${formatWhen(row.createdAt)}`}
+                    />
+                  ),
+                },
+                {
+                  id: 'comment',
+                  header: 'Комментарий',
+                  render: (row) => {
+                    const parts: string[] = [];
+                    if (row.reason) parts.push(row.reason);
+                    if (row.reviewComment) parts.push(`Решение: ${row.reviewComment}`);
+                    return parts.length > 0 ? parts.join(' · ') : '—';
+                  },
+                },
+                {
+                  id: 'status',
+                  header: 'Статус',
+                  render: (row) => (
+                    <div className="data-table__cell-badges">
+                      <StatusBadge status={row.status} />
                     </div>
-                    <StatusBadge status={row.status} />
-                    {canApprove && row.status === 'PENDING' ? (
-                      <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
-                        <Button
-                          type="button"
-                          disabled={busyId === row.id}
-                          onClick={() => void review(row.id, 'approve')}
-                        >
-                          {busyId === row.id ? '…' : 'Удалить'}
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="secondary"
-                          disabled={busyId === row.id}
-                          onClick={() => void review(row.id, 'reject')}
-                        >
-                          Отклонить
-                        </Button>
-                      </div>
-                    ) : null}
+                  ),
+                },
+              ]}
+              renderActions={(row) =>
+                canApprove && row.status === 'PENDING' ? (
+                  <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+                    <Button
+                      type="button"
+                      disabled={busyId === row.id}
+                      onClick={() => void review(row.id, 'approve')}
+                    >
+                      {busyId === row.id ? '…' : 'Удалить'}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      disabled={busyId === row.id}
+                      onClick={() => void review(row.id, 'reject')}
+                    >
+                      Отклонить
+                    </Button>
                   </div>
-                </li>
-              ))}
-            </ul>
-          </Card>
+                ) : null
+              }
+            />
+          </EntityListPanel>
         </Section>
       </PageContainer>
     </main>

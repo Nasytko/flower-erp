@@ -8,7 +8,9 @@ import { getApiClient } from '@/lib/api-client';
 import { PageContainer } from '@/components/layout/page-container';
 import { PageHeader } from '@/components/layout/page-header';
 import { Section } from '@/components/layout/section';
-import { EmptyState, ErrorState, LoadingState } from '@/components/layout/states';
+import { ErrorState } from '@/components/layout/states';
+import { EntityListPanel } from '@/components/layout/entity-list-panel';
+import { DataTable, DataTableCellPrimary } from '@/components/layout/data-table';
 import { StatusBadge } from '@/components/layout/status-badge';
 import { Field } from '@/components/layout/field';
 import { FancySelect } from '@/components/layout/fancy-select';
@@ -122,50 +124,57 @@ export default function PoliciesPage() {
           breadcrumbs={catalogAdminBreadcrumbs(organizationId, { label: 'Учёт по партиям' })}
         />
         <Section>
-          <Card title="Список">
-            {loading ? <LoadingState /> : null}
-            {error ? <ErrorState message={error} /> : null}
-            {!loading && items.length === 0 ? <EmptyState message="Политик пока нет." /> : null}
-            <ul className="list-stack">
-              {items.map((item) => (
-                <li key={item.id}>
-                  <div
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      gap: 12,
-                      flexWrap: 'wrap',
-                      padding: 12,
-                      border: '1px solid var(--color-border)',
-                      borderRadius: 10,
-                      background: 'var(--color-surface)',
-                    }}
-                  >
-                    <div>
-                      <strong>{item.name}</strong>
-                      <div className="meta-row" style={{ marginTop: 4 }}>
-                        <StatusBadge status={typeLabel(item.itemType)} />
-                        <StatusBadge status={trackingLabel(item.trackingMethod)} />
-                        <StatusBadge status={item.status} />
-                        <span style={{ fontSize: 'var(--text-xs)' }}>
-                          {item.expirationTracking ? 'со сроком годности' : 'без срока годности'}
-                        </span>
-                      </div>
+          <EntityListPanel
+            title="Политики учёта"
+            count={items.length}
+            loading={loading}
+            error={error}
+            isEmpty={!loading && !error && items.length === 0}
+            emptyMessage="Политик пока нет."
+          >
+            <DataTable
+              rows={items}
+              getRowKey={(item) => item.id}
+              columns={[
+                {
+                  id: 'name',
+                  header: 'Название',
+                  render: (item) => <DataTableCellPrimary title={item.name} />,
+                },
+                {
+                  id: 'type',
+                  header: 'Тип',
+                  render: (item) => (
+                    <div className="data-table__cell-badges">
+                      <StatusBadge status={typeLabel(item.itemType)} />
+                      <StatusBadge status={trackingLabel(item.trackingMethod)} />
                     </div>
-                    {item.status === 'ACTIVE' ? (
-                      <DeletionRequestButton
-                        organizationId={organizationId}
-                        entityType="INVENTORY_POLICY"
-                        entityId={item.id}
-                        entityLabel={item.name}
-                        onRequested={() => void load()}
-                      />
-                    ) : null}
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </Card>
+                  ),
+                },
+                {
+                  id: 'expiry',
+                  header: 'Срок годности',
+                  render: (item) => (item.expirationTracking ? 'Да' : 'Нет'),
+                },
+                {
+                  id: 'status',
+                  header: 'Статус',
+                  render: (item) => <StatusBadge status={item.status} />,
+                },
+              ]}
+              renderActions={(item) =>
+                item.status === 'ACTIVE' ? (
+                  <DeletionRequestButton
+                    organizationId={organizationId}
+                    entityType="INVENTORY_POLICY"
+                    entityId={item.id}
+                    entityLabel={item.name}
+                    onRequested={() => void load()}
+                  />
+                ) : null
+              }
+            />
+          </EntityListPanel>
         </Section>
         <Section>
           <Card title="Создать политику">

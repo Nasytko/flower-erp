@@ -7,11 +7,11 @@ import { Button, Card, Input } from '@flower/ui';
 import { ApiClientError } from '@flower/api-client';
 import { getApiClient } from '@/lib/api-client';
 import { useAuth } from '@/components/auth-provider';
-import { DocRef } from '@/components/layout/doc-ref';
 import { PageContainer } from '@/components/layout/page-container';
 import { PageHeader } from '@/components/layout/page-header';
 import { Section } from '@/components/layout/section';
-import { EmptyState, ErrorState, LoadingState } from '@/components/layout/states';
+import { DataTable, DataTableCellPrimary } from '@/components/layout/data-table';
+import { EntityListPanel } from '@/components/layout/entity-list-panel';
 import { StatusBadge } from '@/components/layout/status-badge';
 import { orgSettingsBreadcrumbs } from '@/lib/settings-nav';
 
@@ -92,81 +92,91 @@ export default function SettingsStoresPage() {
           actions={org ? <StatusBadge status={org.status} /> : undefined}
         />
 
-        {loading ? <LoadingState message="Загрузка…" /> : null}
-        {error ? <ErrorState message={error} /> : null}
-
-        {!loading && !error ? (
-          <>
-            <Section>
-              <Card title="Список магазинов">
-                {stores.length === 0 ? (
-                  <EmptyState message="Магазинов пока нет." />
-                ) : (
-                  <ul className="list-stack org-store-list">
-                    {stores.map((store) => (
-                      <li key={store.id} className="org-store-list__item">
-                        <div className="org-store-list__main">
-                          <Link
-                            href={`${base}/stores/${store.id}/settings`}
-                            className="org-store-list__link"
-                          >
-                            <div className="list-row__primary">
-                              <strong>{store.name}</strong>
-                              <DocRef>{store.code}</DocRef>
-                            </div>
-                            <span className="org-store-list__meta">{store.timezone}</span>
-                          </Link>
-                        </div>
-                        <div className="org-store-list__aside">
-                          <StatusBadge status={store.status} />
-                          {auth.hasPermission('stores:create') ? (
-                            <Link href={`${base}/stores/${store.id}/settings`}>
-                              <Button type="button" variant="ghost">
-                                Настроить
-                              </Button>
-                            </Link>
-                          ) : null}
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </Card>
-            </Section>
-
-            {auth.hasPermission('stores:create') ? (
-              <Section>
-                <Card title="Новый магазин">
-                  <form onSubmit={onCreateStore} className="stack-form" noValidate>
-                    <div className="sale-custom-meta">
-                      <label className="field">
-                        <span className="field__label">
-                          Название <span className="field__required">*</span>
-                        </span>
-                        <Input
-                          value={name}
-                          onChange={(e) => setName(e.target.value)}
-                          required
-                          minLength={2}
-                        />
-                      </label>
-                      <label className="field">
-                        <span className="field__label">Город</span>
-                        <Input
-                          value={city}
-                          onChange={(e) => setCity(e.target.value)}
-                          placeholder="Минск"
-                        />
-                      </label>
+        <Section>
+          <EntityListPanel
+            title="Магазины"
+            count={stores.length}
+            loading={loading}
+            error={error}
+            isEmpty={!loading && !error && stores.length === 0}
+            emptyMessage="Магазинов пока нет."
+          >
+            <DataTable
+              rows={stores}
+              getRowKey={(store) => store.id}
+              getRowHref={(store) => `${base}/stores/${store.id}/settings`}
+              columns={[
+                {
+                  id: 'name',
+                  header: 'Магазин',
+                  render: (store) => (
+                    <DataTableCellPrimary title={store.name} subtitle={store.code} />
+                  ),
+                },
+                {
+                  id: 'location',
+                  header: 'Локация',
+                  render: (store) => (
+                    <DataTableCellPrimary
+                      title={store.city ?? '—'}
+                      subtitle={store.timezone}
+                    />
+                  ),
+                },
+                {
+                  id: 'status',
+                  header: 'Статус',
+                  render: (store) => (
+                    <div className="data-table__cell-badges">
+                      <StatusBadge status={store.status} />
                     </div>
-                    <Button type="submit" disabled={creating}>
-                      {creating ? 'Создание…' : 'Создать магазин'}
+                  ),
+                },
+              ]}
+              renderActions={(store) =>
+                auth.hasPermission('stores:create') ? (
+                  <Link href={`${base}/stores/${store.id}/settings`}>
+                    <Button type="button" variant="ghost">
+                      Настроить
                     </Button>
-                  </form>
-                </Card>
-              </Section>
-            ) : null}
-          </>
+                  </Link>
+                ) : null
+              }
+            />
+          </EntityListPanel>
+        </Section>
+
+        {auth.hasPermission('stores:create') ? (
+          <Section>
+            <Card title="Новый магазин">
+              <form onSubmit={onCreateStore} className="stack-form" noValidate>
+                <div className="sale-custom-meta">
+                  <label className="field">
+                    <span className="field__label">
+                      Название <span className="field__required">*</span>
+                    </span>
+                    <Input
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      required
+                      minLength={2}
+                    />
+                  </label>
+                  <label className="field">
+                    <span className="field__label">Город</span>
+                    <Input
+                      value={city}
+                      onChange={(e) => setCity(e.target.value)}
+                      placeholder="Минск"
+                    />
+                  </label>
+                </div>
+                <Button type="submit" disabled={creating}>
+                  {creating ? 'Создание…' : 'Создать магазин'}
+                </Button>
+              </form>
+            </Card>
+          </Section>
         ) : null}
       </PageContainer>
     </main>

@@ -10,8 +10,9 @@ import { PageContainer } from '@/components/layout/page-container';
 import { PageHeader } from '@/components/layout/page-header';
 import { Field } from '@/components/layout/field';
 import { Section } from '@/components/layout/section';
-import { EmptyState, ErrorState, LoadingState } from '@/components/layout/states';
 import { DeletionRequestButton } from '@/components/admin/deletion-request-button';
+import { EntityListPanel } from '@/components/layout/entity-list-panel';
+import { DataTable, DataTableCellPrimary } from '@/components/layout/data-table';
 import { StatusBadge } from '@/components/layout/status-badge';
 import {
   type FieldErrors,
@@ -114,8 +115,54 @@ export default function CustomersPage() {
           ]}
         />
 
-        {loading ? <LoadingState /> : null}
-        {error ? <ErrorState message={error} /> : null}
+        <Section>
+          <EntityListPanel
+            title="Клиенты"
+            count={customers.length}
+            loading={loading}
+            error={error}
+            isEmpty={!loading && !error && customers.length === 0}
+            emptyMessage="Клиентов пока нет."
+          >
+            <DataTable
+              rows={customers}
+              getRowKey={(customer) => customer.id}
+              columns={[
+                {
+                  id: 'name',
+                  header: 'Клиент',
+                  render: (customer) => <DataTableCellPrimary title={customer.name} />,
+                },
+                {
+                  id: 'phone',
+                  header: 'Телефон',
+                  render: (customer) => customer.phone,
+                },
+                {
+                  id: 'email',
+                  header: 'Email',
+                  render: (customer) => customer.email ?? '—',
+                },
+                {
+                  id: 'status',
+                  header: 'Статус',
+                  render: (customer) => <StatusBadge status={customer.status} />,
+                },
+              ]}
+              renderActions={(customer) =>
+                canManage && customer.status === 'ACTIVE' ? (
+                  <DeletionRequestButton
+                    organizationId={organizationId}
+                    entityType="CUSTOMER"
+                    entityId={customer.id}
+                    entityLabel={`${customer.name} (${customer.phone})`}
+                    onRequested={() => void load()}
+                  />
+                ) : null
+              }
+            />
+          </EntityListPanel>
+        </Section>
 
         {canManage ? (
           <Section>
@@ -160,36 +207,6 @@ export default function CustomersPage() {
             </Card>
           </Section>
         ) : null}
-
-        <Section>
-          <Card title="Список клиентов">
-            {!loading && customers.length === 0 ? (
-              <EmptyState message="Клиентов пока нет." />
-            ) : null}
-            <ul className="list-stack">
-              {customers.map((customer) => (
-                <li key={customer.id}>
-                  <div className="meta-row">
-                    <strong>{customer.name}</strong>
-                    <span>{customer.phone}</span>
-                    {customer.email ? <span>{customer.email}</span> : null}
-                    <StatusBadge status={customer.status} />
-                    {customer.status === 'ACTIVE' ? (
-                      <DeletionRequestButton
-                        organizationId={organizationId}
-                        entityType="CUSTOMER"
-                        entityId={customer.id}
-                        entityLabel={`${customer.name} (${customer.phone})`}
-                        onRequested={() => void load()}
-                      />
-                    ) : null}
-                  </div>
-                  {customer.notes ? <p style={{ margin: '4px 0 0' }}>{customer.notes}</p> : null}
-                </li>
-              ))}
-            </ul>
-          </Card>
-        </Section>
       </PageContainer>
     </main>
   );

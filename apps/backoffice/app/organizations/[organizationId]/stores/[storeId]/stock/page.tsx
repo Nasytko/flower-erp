@@ -2,14 +2,16 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
-import { Button, Card, Input } from '@flower/ui';
+import { Button, Input } from '@flower/ui';
 import { ApiClientError, type OperationalStockDto } from '@flower/api-client';
 import { getApiClient } from '@/lib/api-client';
 import { useAuth } from '@/components/auth-provider';
 import { PageContainer } from '@/components/layout/page-container';
 import { PageHeader } from '@/components/layout/page-header';
 import { Section } from '@/components/layout/section';
-import { EmptyState, ErrorState, LoadingState } from '@/components/layout/states';
+import { ErrorState, LoadingState } from '@/components/layout/states';
+import { DataTable, DataTableCellPrimary } from '@/components/layout/data-table';
+import { EntityListPanel } from '@/components/layout/entity-list-panel';
 import { InlineAlert, SegmentedControl } from '@/components/workspace/workspace-ui';
 
 type StockFilter = 'all' | 'available' | 'reserved' | 'low';
@@ -121,61 +123,89 @@ export default function OperationalStockPage() {
             ) : null}
 
             <Section>
-              <Card title="Фильтры">
-                <div className="stock-filters">
-                  <Input
-                    value={query}
-                    onChange={(e) => setQuery(e.target.value)}
-                    placeholder="Поиск по названию или коду"
-                    aria-label="Поиск по остаткам"
-                  />
-                  <SegmentedControl
-                    ariaLabel="Фильтр остатков"
-                    value={filter}
-                    onChange={(value) => setFilter(value as StockFilter)}
-                    options={[
-                      { value: 'all', label: 'Все' },
-                      { value: 'available', label: 'Доступно' },
-                      { value: 'reserved', label: 'Зарезервировано' },
-                      { value: 'low', label: 'Ниже порога' },
-                    ]}
-                  />
-                </div>
-              </Card>
-            </Section>
-
-            <Section>
-              <Card title={`Позиции (${filtered.length})`}>
-                {filtered.length === 0 ? (
-                  <EmptyState message="Нет строк остатков по фильтру." />
-                ) : (
-                  <ul className="stock-list">
-                    {filtered.map((row) => (
-                      <li key={row.itemId} className="stock-row">
-                        <div>
-                          <strong>
-                            {row.itemName} ({row.itemCode})
-                          </strong>
-                          <div className="meta-row">
-                            <span>На складе {row.onHandQuantity}</span>
-                            <span>Зарезервировано {row.reservedQuantity}</span>
-                            <span>Доступно {row.availableQuantity}</span>
-                            {row.minimumStockQuantity ? (
-                              <span>Порог {row.minimumStockQuantity}</span>
-                            ) : null}
-                            {row.isBelowMinimum ? (
-                              <span className="status-badge status-badge--warning">Ниже порога</span>
-                            ) : null}
-                            {!data.costRedacted && row.unitCost != null ? (
-                              <span>Себестоимость {row.unitCost}</span>
-                            ) : null}
-                          </div>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </Card>
+              <EntityListPanel
+                title="Позиции"
+                count={filtered.length}
+                isEmpty={filtered.length === 0}
+                emptyMessage="Нет строк остатков по фильтру."
+                toolbar={
+                  <div className="entity-list-panel__filters">
+                    <Input
+                      value={query}
+                      onChange={(e) => setQuery(e.target.value)}
+                      placeholder="Поиск по названию или коду"
+                      aria-label="Поиск по остаткам"
+                    />
+                    <SegmentedControl
+                      ariaLabel="Фильтр остатков"
+                      value={filter}
+                      onChange={(value) => setFilter(value as StockFilter)}
+                      options={[
+                        { value: 'all', label: 'Все' },
+                        { value: 'available', label: 'Доступно' },
+                        { value: 'reserved', label: 'Зарезервировано' },
+                        { value: 'low', label: 'Ниже порога' },
+                      ]}
+                    />
+                  </div>
+                }
+              >
+                <DataTable
+                  rows={filtered}
+                  getRowKey={(row) => row.itemId}
+                  columns={[
+                    {
+                      id: 'item',
+                      header: 'Товар',
+                      render: (row) => (
+                        <DataTableCellPrimary title={row.itemName} subtitle={row.itemCode} />
+                      ),
+                    },
+                    {
+                      id: 'onHand',
+                      header: 'На складе',
+                      render: (row) => row.onHandQuantity,
+                      align: 'right',
+                    },
+                    {
+                      id: 'reserved',
+                      header: 'Резерв',
+                      render: (row) => row.reservedQuantity,
+                      align: 'right',
+                    },
+                    {
+                      id: 'available',
+                      header: 'Доступно',
+                      render: (row) => row.availableQuantity,
+                      align: 'right',
+                    },
+                    {
+                      id: 'threshold',
+                      header: 'Порог',
+                      render: (row) => row.minimumStockQuantity ?? '—',
+                      align: 'right',
+                    },
+                    ...(!data.costRedacted
+                      ? [
+                          {
+                            id: 'cost',
+                            header: 'Себест.',
+                            render: (row: (typeof filtered)[number]) => row.unitCost ?? '—',
+                            align: 'right' as const,
+                          },
+                        ]
+                      : []),
+                    {
+                      id: 'flag',
+                      header: '',
+                      render: (row) =>
+                        row.isBelowMinimum ? (
+                          <span className="status-badge status-badge--warning">Ниже порога</span>
+                        ) : null,
+                    },
+                  ]}
+                />
+              </EntityListPanel>
             </Section>
           </>
         ) : null}

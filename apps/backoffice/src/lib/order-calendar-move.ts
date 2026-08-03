@@ -47,6 +47,7 @@ export function canDropCardOnColumn(
   toColumn: OrderBoardColumn,
   card: OrderBoardCardDto,
 ): boolean {
+  if (fromColumn === 'CANCELLED' || toColumn === 'CANCELLED') return false;
   if (fromColumn === toColumn) return false;
 
   const fromIdx = ORDER_BOARD_COLUMNS.indexOf(fromColumn);
@@ -160,6 +161,8 @@ export function canDragCard(
       return permissions.canPrepare || permissions.canDelivery;
     case 'WITH_COURIER':
       return permissions.canDelivery;
+    case 'CANCELLED':
+      return false;
     default:
       return false;
   }

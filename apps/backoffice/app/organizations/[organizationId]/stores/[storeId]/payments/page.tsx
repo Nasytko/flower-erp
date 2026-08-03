@@ -1,15 +1,15 @@
 ﻿'use client';
 
-import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { Card } from '@flower/ui';
 import { getApiClient } from '@/lib/api-client';
 import { useAuth } from '@/components/auth-provider';
 import { PageContainer } from '@/components/layout/page-container';
 import { PageHeader } from '@/components/layout/page-header';
 import { Section } from '@/components/layout/section';
-import { EmptyState, ErrorState, LoadingState } from '@/components/layout/states';
+import { Field } from '@/components/layout/field';
+import { DataTable, DataTableCellPrimary } from '@/components/layout/data-table';
+import { EntityListPanel } from '@/components/layout/entity-list-panel';
 import { StatusBadge } from '@/components/layout/status-badge';
 import { formatApiErrorMessage } from '@/lib/format-api-error';
 
@@ -70,49 +70,67 @@ export default function PaymentsPage() {
         />
 
         <Section>
-          <Card title="Фильтр">
-            <div className="stack-form">
-              <label>
-                Статус{' '}
-                <select value={status} onChange={(e) => setStatus(e.target.value)}>
-                  {STATUS_FILTERS.map((value) => (
-                    <option key={value || 'all'} value={value}>
-                      {value || 'Все'}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
-          </Card>
-        </Section>
-
-        <Section>
-          {loading ? <LoadingState /> : null}
-          {error ? <ErrorState message={error} /> : null}
-          <Card title="Список платежей">
-            {!loading && payments.length === 0 ? <EmptyState message="Платежей пока нет." /> : null}
-            <ul className="list-stack">
-              {payments.map((payment) => (
-                <li key={payment.id}>
-                  <Link href={`${base}/payments/${payment.id}`}>
-                    <div className="meta-row">
-                      <div className="list-row__primary">
-                        <strong>
-                          {payment.amount} {payment.currencyCode}
-                        </strong>
-                      </div>
+          <EntityListPanel
+            title="Платежи"
+            count={payments.length}
+            loading={loading}
+            error={error}
+            isEmpty={!loading && !error && payments.length === 0}
+            emptyMessage="Платежей пока нет."
+            toolbar={
+              <div className="entity-list-panel__filters">
+                <Field label="Статус">
+                  <select
+                    value={status}
+                    onChange={(e) => setStatus(e.target.value)}
+                    aria-label="Фильтр платежей по статусу"
+                  >
+                    {STATUS_FILTERS.map((value) => (
+                      <option key={value || 'all'} value={value}>
+                        {value || 'Все'}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+              </div>
+            }
+          >
+            <DataTable
+              rows={payments}
+              getRowKey={(payment) => payment.id}
+              getRowHref={(payment) => `${base}/payments/${payment.id}`}
+              columns={[
+                {
+                  id: 'amount',
+                  header: 'Сумма',
+                  render: (payment) => (
+                    <DataTableCellPrimary
+                      title={`${payment.amount} ${payment.currencyCode}`}
+                      subtitle={new Date(payment.receivedAt).toLocaleString('ru-RU')}
+                    />
+                  ),
+                },
+                {
+                  id: 'status',
+                  header: 'Статус',
+                  render: (payment) => (
+                    <div className="data-table__cell-badges">
                       <StatusBadge status={payment.status} />
-                      <StatusBadge status={payment.type} />
-                      <span>
-                        {payment.amount} {payment.currencyCode}
-                      </span>
-                      <span>{new Date(payment.receivedAt).toLocaleString()}</span>
                     </div>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </Card>
+                  ),
+                },
+                {
+                  id: 'type',
+                  header: 'Тип',
+                  render: (payment) => (
+                    <div className="data-table__cell-badges">
+                      <StatusBadge status={payment.type} />
+                    </div>
+                  ),
+                },
+              ]}
+            />
+          </EntityListPanel>
         </Section>
       </PageContainer>
     </main>

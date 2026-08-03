@@ -1,6 +1,5 @@
 ﻿'use client';
 
-import Link from 'next/link';
 import { useEffect, useState, type FormEvent } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Button, Card, Input } from '@flower/ui';
@@ -9,7 +8,8 @@ import { getApiClient } from '@/lib/api-client';
 import { PageContainer } from '@/components/layout/page-container';
 import { PageHeader } from '@/components/layout/page-header';
 import { Section } from '@/components/layout/section';
-import { EmptyState, ErrorState, LoadingState } from '@/components/layout/states';
+import { DataTable, DataTableCellPrimary } from '@/components/layout/data-table';
+import { EntityListPanel } from '@/components/layout/entity-list-panel';
 import { StatusBadge } from '@/components/layout/status-badge';
 import { Field } from '@/components/layout/field';
 import { FancySelect } from '@/components/layout/fancy-select';
@@ -50,6 +50,16 @@ function formatDateLabel(iso: string | null | undefined): string | null {
   } catch {
     return iso.slice(0, 10);
   }
+}
+
+function supplyDatesSubtitle(item: SupplyRow): string | undefined {
+  const parts: string[] = [];
+  const received = formatDateLabel(item.receivedDate);
+  const due = formatDateLabel(item.paymentDueDate);
+  if (received) parts.push(`Приход ${received}`);
+  if (due) parts.push(`Оплата до ${due}`);
+  if (item.supplierDocumentNumber) parts.push(`Накладная ${item.supplierDocumentNumber}`);
+  return parts.length > 0 ? parts.join(' · ') : undefined;
 }
 
 export default function SuppliesPage() {
@@ -210,38 +220,51 @@ export default function SuppliesPage() {
         ) : null}
 
         <Section>
-          <Card title="Список">
-            {loading ? <LoadingState /> : null}
-            {error ? <ErrorState message={error} /> : null}
-            {!loading && items.length === 0 ? (
-              <EmptyState message="Приёмок пока нет. Создайте первую — добавьте товары и проведите на склад." />
-            ) : null}
-            <ul className="list-stack">
-              {items.map((item) => (
-                <li key={item.id}>
-                  <Link href={`${base}/supplies/${item.id}`}>
-                    <div className="meta-row">
-                      <div>
-                        <strong>{item.number}</strong>
-                        {item.supplier?.name ? (
-                          <div style={{ fontSize: 'var(--text-sm)', color: 'var(--color-muted)' }}>
-                            {item.supplier.name}
-                            {item.supplierDocumentNumber
-                              ? ` · накладная ${item.supplierDocumentNumber}`
-                              : null}
-                            {formatDateLabel(item.receivedDate)
-                              ? ` · приход ${formatDateLabel(item.receivedDate)}`
-                              : null}
-                          </div>
-                        ) : null}
-                      </div>
+          <EntityListPanel
+            title="Приёмки"
+            count={items.length}
+            loading={loading}
+            error={error}
+            isEmpty={!loading && !error && items.length === 0}
+            emptyMessage="Приёмок пока нет. Создайте первую — добавьте товары и проведите на склад."
+          >
+            <DataTable
+              rows={items}
+              getRowKey={(item) => item.id}
+              getRowHref={(item) => `${base}/supplies/${item.id}`}
+              columns={[
+                {
+                  id: 'number',
+                  header: 'Номер',
+                  render: (item) => <DataTableCellPrimary title={item.number} />,
+                },
+                {
+                  id: 'supplier',
+                  header: 'Поставщик',
+                  render: (item) =>
+                    item.supplier ? (
+                      <DataTableCellPrimary title={item.supplier.name} subtitle={item.supplier.code} />
+                    ) : (
+                      '—'
+                    ),
+                },
+                {
+                  id: 'dates',
+                  header: 'Даты',
+                  render: (item) => supplyDatesSubtitle(item) ?? '—',
+                },
+                {
+                  id: 'status',
+                  header: 'Статус',
+                  render: (item) => (
+                    <div className="data-table__cell-badges">
                       <StatusBadge status={item.status} />
                     </div>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </Card>
+                  ),
+                },
+              ]}
+            />
+          </EntityListPanel>
         </Section>
       </PageContainer>
     </main>

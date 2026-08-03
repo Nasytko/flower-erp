@@ -187,6 +187,7 @@ export type OrderCalendarBoardView = {
     READY: OrderBoardCardView[];
     WITH_COURIER: OrderBoardCardView[];
     HANDED_OFF: OrderBoardCardView[];
+    CANCELLED: OrderBoardCardView[];
   };
   dateCounts: Array<{ date: string; count: number }>;
 };
