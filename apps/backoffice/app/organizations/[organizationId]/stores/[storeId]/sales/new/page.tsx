@@ -53,8 +53,6 @@ type SalePosition =
   | {
       key: string;
       kind: 'CUSTOM';
-      name: string;
-      price: string;
       composition: CompositionLine[];
     }
   | {
@@ -65,7 +63,23 @@ type SalePosition =
       unitPrice: string;
     };
 
+type RetailQuoteLine = {
+  itemId: string;
+  quantity: string;
+  unitAmount: string | null;
+  lineTotal: string | null;
+  missingPrice: boolean;
+};
+
 type BuilderMode = 'READY' | 'CUSTOM';
+
+function parseSignedByn(value: string): string | null {
+  const trimmed = value.trim().replace(',', '.');
+  if (!trimmed) return null;
+  const n = Number(trimmed);
+  if (!Number.isFinite(n)) return null;
+  return n.toFixed(2);
+}
 
 const DISCOUNT_REASONS = [
   { value: 'PROMOTION', label: 'Акция' },
@@ -84,8 +98,6 @@ function emptyCustomPosition(): Extract<SalePosition, { kind: 'CUSTOM' }> {
   return {
     key: newKey(),
     kind: 'CUSTOM',
-    name: '',
-    price: '',
     composition: [],
   };
 }
@@ -121,6 +133,8 @@ function NewSalePageInner() {
   const [discountType, setDiscountType] = useState<'NONE' | 'PERCENT' | 'FIXED'>('NONE');
   const [discountValue, setDiscountValue] = useState('');
   const [discountReason, setDiscountReason] = useState<string>('OTHER');
+  const [priceAdjustment, setPriceAdjustment] = useState('');
+  const [priceAdjustmentComment, setPriceAdjustmentComment] = useState('');
   const [comment, setComment] = useState('');
   const [orderTitle, setOrderTitle] = useState('');
   const [orderPrice, setOrderPrice] = useState('');
@@ -134,6 +148,7 @@ function NewSalePageInner() {
     total: string;
     flowersTotal: string;
     materialsTotal: string;
+    lines: RetailQuoteLine[];
   } | null>(null);
   const [retailLineHints, setRetailLineHints] = useState<Map<string, string>>(new Map());
   const [stockByItemId, setStockByItemId] = useState<Map<string, string>>(new Map());
@@ -269,19 +284,23 @@ function NewSalePageInner() {
             }
             return `${line.quantity}× ${item?.name ?? '…'}`;
           });
+        const customAmount =
+          retailQuote && retailQuote.total !== '0.00' ? retailQuote.total : null;
         return {
           key: pos.key,
-          title: pos.name.trim() || 'Собранный букет',
+          title: 'Собранный букет',
           detail: parts.length > 0 ? parts.join(', ') : 'Состав не задан',
-          amount: parseBynToApi(pos.price),
+          amount: customAmount,
         };
       });
-  }, [fromOrderId, orderTitle, orderPrice, positions, items]);
+  }, [fromOrderId, orderTitle, orderPrice, positions, items, retailQuote]);
 
   const grossAmount = useMemo(() => {
     const sum = summaryLines.reduce((acc, line) => acc + Number(line.amount ?? 0), 0);
     return sum > 0 || summaryLines.some((l) => l.amount) ? sum.toFixed(2) : null;
   }, [summaryLines]);
+
+  const parsedPriceAdjustment = useMemo(() => parseSignedByn(priceAdjustment), [priceAdjustment]);
 
   const discountAmount = useMemo(() => {
     if (!grossAmount || discountType === 'NONE') return null;
@@ -296,8 +315,9 @@ function NewSalePageInner() {
   const netAmount = useMemo(() => {
     if (!grossAmount) return null;
     const disc = Number(discountAmount ?? 0);
-    return Math.max(Number(grossAmount) - disc, 0).toFixed(2);
-  }, [grossAmount, discountAmount]);
+    const adj = Number(parsedPriceAdjustment ?? 0);
+    return Math.max(Number(grossAmount) - disc + adj, 0).toFixed(2);
+  }, [grossAmount, discountAmount, parsedPriceAdjustment]);
 
   const paidNow = sumPaymentSplit(paymentLines);
 
@@ -416,6 +436,13 @@ function NewSalePageInner() {
           total: quote.total,
           flowersTotal: quote.flowersTotal,
           materialsTotal: quote.materialsTotal,
+          lines: quote.lines.map((row) => ({
+            itemId: row.itemId,
+            quantity: row.quantity,
+            unitAmount: row.unitAmount,
+            lineTotal: row.lineTotal,
+            missingPrice: Boolean(row.missingPrice),
+          })),
         });
         const hints = new Map<string, string>();
         for (const row of quote.lines) {
@@ -536,16 +563,27 @@ function NewSalePageInner() {
     [stockNeedLines, stockByItemId],
   );
 
-  function discountPayload() {
-    if (discountType === 'NONE' || !auth.hasPermission('sales:discount')) return undefined;
-    if (discountType === 'PERCENT') {
-      const value = discountValue.trim();
-      if (!value) return undefined;
-      return { type: discountType, value, reason: discountReason };
+  function discountPayloadForSubmit(scaledGross: string, targetNet: string) {
+    const apiDisc = (Number(scaledGross) - Number(targetNet)).toFixed(2);
+    if (Number(apiDisc) <= 0) return undefined;
+    if (!auth.hasPermission('sales:discount')) return undefined;
+    return {
+      type: 'FIXED' as const,
+      value: apiDisc,
+      reason: discountReason,
+      comment: priceAdjustmentComment.trim() || undefined,
+    };
+  }
+
+  function saleCommentPayload(): string | undefined {
+    const parts: string[] = [];
+    if (comment.trim()) parts.push(comment.trim());
+    if (parsedPriceAdjustment && Number(parsedPriceAdjustment) !== 0 && priceAdjustmentComment.trim()) {
+      parts.push(
+        `Корректировка цены (${parsedPriceAdjustment} BYN): ${priceAdjustmentComment.trim()}`,
+      );
     }
-    const amount = parseBynToApi(discountValue);
-    if (!amount) return undefined;
-    return { type: discountType, value: amount, reason: discountReason };
+    return parts.length > 0 ? parts.join('\n') : undefined;
   }
 
   function setReadyQty(itemId: string, qty: number) {
@@ -563,7 +601,7 @@ function NewSalePageInner() {
       }
       if (nextQty <= 0) return prev;
       return [
-        ...prev.filter((p) => !(p.kind === 'CUSTOM' && p.composition.length === 0 && !p.name && !p.price)),
+        ...prev.filter((p) => !(p.kind === 'CUSTOM' && p.composition.length === 0)),
         {
           key: newKey(),
           kind: 'READY' as const,
@@ -619,15 +657,6 @@ function NewSalePageInner() {
     });
   }
 
-  function updateCustomMeta(patch: { name?: string; price?: string }) {
-    setPositions((prev) => {
-      const { list, custom } = ensureCustomPosition(prev);
-      return list.map((p) =>
-        p.key === custom.key && p.kind === 'CUSTOM' ? { ...p, ...patch } : p,
-      );
-    });
-  }
-
   function removePosition(key: string) {
     setPositions((prev) => {
       const next = prev.filter((p) => p.key !== key);
@@ -669,6 +698,8 @@ function NewSalePageInner() {
       description?: string;
     }> = [];
 
+    let baseGross = 0;
+
     for (const pos of meaningful) {
       if (pos.kind === 'READY') {
         const price = parseBynToApi(pos.unitPrice);
@@ -681,16 +712,17 @@ function NewSalePageInner() {
           });
         }
         const item = items.find((row) => row.id === pos.itemId);
+        const qty = pos.quantity.trim();
+        baseGross += Number(price) * Number(qty);
         apiLines.push({
           itemId: pos.itemId,
-          quantity: pos.quantity.trim(),
+          quantity: qty,
           unitPrice: price,
           description: item?.name,
         });
         continue;
       }
 
-      const price = parseBynToApi(pos.price);
       const lines = pos.composition.filter((line) => line.itemId && Number(line.quantity) > 0);
       if (lines.length === 0) {
         throw new ApiClientError({
@@ -700,36 +732,64 @@ function NewSalePageInner() {
           requestId: 'local',
         });
       }
-      if (!price) {
+      if (!retailQuote || retailQuote.total === '0.00') {
         throw new ApiClientError({
-          message: 'Укажите цену собранного букета',
+          message: 'Не удалось рассчитать цену по рознице — проверьте розничные цены',
           code: 'VALIDATION',
           status: 400,
           requestId: 'local',
         });
       }
-      if (!pos.name.trim()) {
+      const missingPrice = retailQuote.lines.some((row) => row.missingPrice);
+      if (missingPrice) {
         throw new ApiClientError({
-          message: 'Укажите название собранного букета',
+          message: 'Не для всех позиций задана розничная цена',
           code: 'VALIDATION',
           status: 400,
           requestId: 'local',
         });
       }
-      const firstQty = Number(lines[0]!.quantity);
-      const firstUnit =
-        firstQty > 0 ? (Number(price) / firstQty).toFixed(2) : Number(price).toFixed(2);
-      lines.forEach((line, index) => {
+
+      for (const line of lines) {
+        const quoteLine = retailQuote.lines.find((row) => row.itemId === line.itemId);
+        const unitPrice = quoteLine?.unitAmount ? parseBynToApi(quoteLine.unitAmount) : null;
+        if (!unitPrice) {
+          throw new ApiClientError({
+            message: 'Не для всех позиций задана розничная цена',
+            code: 'VALIDATION',
+            status: 400,
+            requestId: 'local',
+          });
+        }
+        const qty = line.quantity.trim();
+        baseGross += Number(unitPrice) * Number(qty);
         apiLines.push({
           itemId: line.itemId,
-          quantity: line.quantity.trim(),
-          unitPrice: index === 0 ? firstUnit : '0.00',
-          description: index === 0 ? pos.name.trim() : undefined,
+          quantity: qty,
+          unitPrice,
         });
-      });
+      }
+    }
+
+    const adj = Number(parsedPriceAdjustment ?? 0);
+    const scale = adj > 0 && baseGross > 0 ? (baseGross + adj) / baseGross : 1;
+    if (scale !== 1) {
+      return apiLines.map((line) => ({
+        ...line,
+        unitPrice: (Number(line.unitPrice) * scale).toFixed(2),
+      }));
     }
 
     return apiLines;
+  }
+
+  function buildSubmitPricing() {
+    const lines = buildDirectLines();
+    const scaledGross = lines
+      .reduce((sum, line) => sum + Number(line.unitPrice) * Number(line.quantity), 0)
+      .toFixed(2);
+    const targetNet = netAmount ?? scaledGross;
+    return { lines, scaledGross, targetNet };
   }
 
   const canComplete = auth.hasPermission('sales:complete');
@@ -758,8 +818,11 @@ function NewSalePageInner() {
       }
       meaningful.forEach((pos) => {
         if (pos.kind === 'CUSTOM') {
-          if (!pos.name.trim()) issues.push('Укажите название собранного букета');
-          if (!parseBynToApi(pos.price)) issues.push('Укажите цену собранного букета');
+          if (!retailQuote || retailQuote.total === '0.00') {
+            issues.push('Дождитесь расчёта цены по рознице или задайте розничные цены');
+          } else if (retailQuote.lines.some((row) => row.missingPrice)) {
+            issues.push('Не для всех позиций задана розничная цена');
+          }
         } else {
           const item = items.find((row) => row.id === pos.itemId);
           if (!parseBynToApi(pos.unitPrice)) {
@@ -767,6 +830,13 @@ function NewSalePageInner() {
           }
         }
       });
+    }
+    const adj = Number(parsedPriceAdjustment ?? 0);
+    if (adj < 0 && !auth.hasPermission('sales:discount')) {
+      issues.push('Уменьшение цены требует права на скидку');
+    }
+    if (parsedPriceAdjustment && Number(parsedPriceAdjustment) !== 0 && !priceAdjustmentComment.trim()) {
+      issues.push('Укажите комментарий к корректировке цены');
     }
     if (paymentRequired) {
       if (paymentMethods.length === 0) {
@@ -800,17 +870,19 @@ function NewSalePageInner() {
       const client = getApiClient();
       let saleId: string;
       if (fromOrderId) {
+        const orderGross = parseBynToApi(orderPrice) ?? '0.00';
         const created = await client.createSaleFromOrder(organizationId, storeId, fromOrderId, {
           unitPrice: parseBynToApi(orderPrice) ?? undefined,
-          comment: comment.trim() || undefined,
-          discount: discountPayload(),
+          comment: saleCommentPayload(),
+          discount: discountPayloadForSubmit(orderGross, netAmount ?? orderGross),
         });
         saleId = created.id;
       } else {
+        const { lines, scaledGross, targetNet } = buildSubmitPricing();
         const created = await client.createDirectSale(organizationId, storeId, {
-          comment: comment.trim() || undefined,
-          lines: buildDirectLines(),
-          discount: discountPayload(),
+          comment: saleCommentPayload(),
+          lines,
+          discount: discountPayloadForSubmit(scaledGross, targetNet),
         });
         saleId = created.id;
       }
@@ -948,39 +1020,11 @@ function NewSalePageInner() {
                           <StockShortageAlert shortages={stockShortages} context="sale" />
                         ) : null}
 
-                        {builderMode === 'CUSTOM' ? (
-                          <div className="sale-custom-meta">
-                            <Field label="Название букета" required>
-                              <Input
-                                value={activeCustom?.name ?? ''}
-                                onChange={(e) => updateCustomMeta({ name: e.target.value })}
-                                required
-                                placeholder="Например: Букет «Нежность»"
-                              />
-                            </Field>
-                            <Field label="Цена букета" required>
-                              <MoneyBynInput
-                                value={activeCustom?.price ?? ''}
-                                onChange={(price) => updateCustomMeta({ price })}
-                                required
-                              />
-                            </Field>
-                            {retailQuote && retailQuote.total !== '0.00' ? (
-                              <p className="field__hint" style={{ margin: 0 }}>
-                                По рознице: <strong>{retailQuote.total} BYN</strong> (цветы{' '}
-                                {retailQuote.flowersTotal}, доп. услуги {retailQuote.materialsTotal})
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  disabled={busy}
-                                  style={{ marginLeft: 8 }}
-                                  onClick={() => updateCustomMeta({ price: retailQuote.total })}
-                                >
-                                  Подставить
-                                </Button>
-                              </p>
-                            ) : null}
-                          </div>
+                        {builderMode === 'CUSTOM' && retailQuote && retailQuote.total !== '0.00' ? (
+                          <p className="field__hint" style={{ margin: 0 }}>
+                            По рознице: <strong>{retailQuote.total} BYN</strong> (цветы{' '}
+                            {retailQuote.flowersTotal}, доп. услуги {retailQuote.materialsTotal})
+                          </p>
                         ) : null}
 
                         <Field
@@ -1174,11 +1218,11 @@ function NewSalePageInner() {
                               {activeCustom && customPartsCount > 0 ? (
                                 <li className="sale-cart__row">
                                   <div>
-                                    <strong>{activeCustom.name.trim() || 'Собранный букет'}</strong>
+                                    <strong>Собранный букет</strong>
                                     <span>
                                       Сборка · {customPartsCount} поз.
-                                      {activeCustom.price
-                                        ? ` · ${parseBynToApi(activeCustom.price) ?? activeCustom.price} BYN`
+                                      {retailQuote && retailQuote.total !== '0.00'
+                                        ? ` · ${retailQuote.total} BYN`
                                         : ''}
                                     </span>
                                   </div>
@@ -1250,6 +1294,27 @@ function NewSalePageInner() {
                         ) : null}
                       </div>
                     ) : null}
+
+                    <div className="stack-form">
+                      <Field label="Корректировка цены">
+                        <Input
+                          value={priceAdjustment}
+                          onChange={(e) => setPriceAdjustment(e.target.value)}
+                          placeholder="0 или −5 / +10"
+                          inputMode="decimal"
+                        />
+                      </Field>
+                      {parsedPriceAdjustment && Number(parsedPriceAdjustment) !== 0 ? (
+                        <Field label="Комментарий к корректировке" required>
+                          <Input
+                            value={priceAdjustmentComment}
+                            onChange={(e) => setPriceAdjustmentComment(e.target.value)}
+                            required
+                            placeholder="Почему изменили итог"
+                          />
+                        </Field>
+                      ) : null}
+                    </div>
 
                     <Field label="Комментарий">
                       <Input
@@ -1332,6 +1397,15 @@ function NewSalePageInner() {
                       <div className="sale-summary__total-row">
                         <span>Скидка</span>
                         <strong>−{discountAmount} BYN</strong>
+                      </div>
+                    ) : null}
+                    {parsedPriceAdjustment && Number(parsedPriceAdjustment) !== 0 ? (
+                      <div className="sale-summary__total-row">
+                        <span>Корректировка</span>
+                        <strong>
+                          {Number(parsedPriceAdjustment) > 0 ? '+' : ''}
+                          {parsedPriceAdjustment} BYN
+                        </strong>
                       </div>
                     ) : null}
                     <div className="sale-summary__total-row sale-summary__total-row--net">

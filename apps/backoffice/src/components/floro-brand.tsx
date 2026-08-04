@@ -8,13 +8,9 @@ type FloroBrandProps = {
   className?: string;
 };
 
-/** Shared mark paths for logo + favicon. */
-export const FLORO_LOGO_PATHS = {
-  stem: 'M13 7V41',
-  leaf:
-    'M13 7C13 7 17.5 6 23.5 11.5C29.5 17 33.5 14 33.5 14C33.5 14 31.5 18.5 27.5 22.5C23.5 26.5 19.5 24.5 19.5 24.5C19.5 24.5 21.5 29 25.5 33C29.5 37 33.5 39 33.5 39',
-  bar: 'M13 21.5H27.5',
-} as const;
+/** Single-stroke Floro mark — lowercase f with a leaf flourish (brand board). */
+export const FLORO_F_PATH =
+  'M14 41.25V22H27.75H14V9.25C14 9.25 8.75 4.5 6.5 7.25C4.25 10 5.75 15.25 9.5 17.25C13.25 19.25 19.25 16.25 21.25 12.25C23.25 8.25 19.5 5.25 15.75 6.25C14.25 6.75 14 9.25 14 9.25';
 
 export function FloroLogo({ className, ...props }: SVGProps<SVGSVGElement>) {
   return (
@@ -27,23 +23,11 @@ export function FloroLogo({ className, ...props }: SVGProps<SVGSVGElement>) {
       {...props}
     >
       <path
-        d={FLORO_LOGO_PATHS.leaf}
+        d={FLORO_F_PATH}
         stroke="currentColor"
-        strokeWidth="2.5"
+        strokeWidth="2.2"
         strokeLinecap="round"
         strokeLinejoin="round"
-      />
-      <path
-        d={FLORO_LOGO_PATHS.stem}
-        stroke="currentColor"
-        strokeWidth="2.5"
-        strokeLinecap="round"
-      />
-      <path
-        d={FLORO_LOGO_PATHS.bar}
-        stroke="currentColor"
-        strokeWidth="2.5"
-        strokeLinecap="round"
       />
     </svg>
   );
