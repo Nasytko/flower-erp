@@ -1,6 +1,7 @@
 /** Shared Russian UI copy for Backoffice chrome (RU-only app). */
 export const ru = {
-  brand: 'Flower ERP',
+  brand: 'Floro',
+  brandTagline: 'Операционная система для современных флористов',
   backoffice: 'Бэк-офис',
   menu: 'Меню',
   openNav: 'Открыть меню',
