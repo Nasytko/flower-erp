@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useMemo } from 'react';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/components/auth-provider';
+import { FloroBrand } from '@/components/floro-brand';
 import { t } from '@/i18n/ru';
 import { resolveNavWorkspace, resolveStoreHomePath } from '@/lib/nav';
 import { SidebarNav } from './sidebar-nav';
@@ -41,13 +42,8 @@ export function DesktopSidebar({ environment }: { environment: AppEnvironment })
     >
       <div className="shell__sidebar-top">
         <Link href={homeHref} className="shell__brand" aria-label={t('brand')} title={t('brand')}>
-          <span className="shell__brand-mark" aria-hidden="true">
-            F
-          </span>
-          <span className="shell__brand-text">
-            {t('brand')}
-            <DevEnvironmentBadge environment={environment} />
-          </span>
+          <FloroBrand showWordmark={expanded} variant="light" />
+          {expanded ? <DevEnvironmentBadge environment={environment} /> : null}
         </Link>
         <button
           type="button"

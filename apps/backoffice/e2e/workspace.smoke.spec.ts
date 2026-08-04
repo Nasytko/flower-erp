@@ -7,7 +7,7 @@ test.describe('workspace smoke', () => {
     page,
   }) => {
     await page.goto('/login');
-    await expect(page.getByRole('heading', { name: /Flower ERP/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /Floro/i })).toBeVisible();
 
     await page.goto(
       '/organizations/00000000-0000-0000-0000-000000000001/stores/00000000-0000-0000-0000-000000000002/orders/calendar',

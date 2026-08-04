@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { generateSecret, generateSync, generateURI, verifySync } from 'otplib';
 
-const TOTP_ISSUER = 'Flower ERP';
+const TOTP_ISSUER = 'Floro';
 
 @Injectable()
 export class TotpService {

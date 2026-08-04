@@ -10,7 +10,7 @@ export const ru = {
   collapseNav: 'Свернуть меню до иконок',
   close: 'Закрыть',
   logout: 'Выйти',
-  loginSubtitle: 'Войдите в бэк-офис Flower ERP',
+  loginSubtitle: 'Войдите в Floro',
   loginField: 'Логин',
   loginHint: 'Тот же логин, который выдал администратор магазина',
   passwordField: 'Пароль',
@@ -41,6 +41,13 @@ export const ru = {
   failedToLoadStores: 'Не удалось загрузить магазины',
   noStores: 'Магазинов пока нет',
   allOrganizations: 'Все организации',
+  themeLabel: 'Тема оформления',
+  themeHint: 'Системная тема следует настройке браузера или операционной системы.',
+  themeSystem: 'Системная',
+  themeLight: 'Светлая',
+  themeDark: 'Тёмная',
+  themeResolvedLight: 'сейчас светлая',
+  themeResolvedDark: 'сейчас тёмная',
 } as const;
 
 export type RuKey = keyof typeof ru;

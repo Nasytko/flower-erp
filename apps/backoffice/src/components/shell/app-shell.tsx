@@ -7,6 +7,7 @@ import { usePathname } from 'next/navigation';
 import { useAuth } from '@/components/auth-provider';
 import { t } from '@/i18n/ru';
 import { resolveNavWorkspace, resolveStoreHomePath } from '@/lib/nav';
+import { FloroBrand } from '@/components/floro-brand';
 import { DesktopSidebar } from './desktop-sidebar';
 import { MobileDrawer } from './mobile-drawer';
 import { SidebarProvider, useSidebar } from './sidebar-context';
@@ -71,8 +72,11 @@ function AppShellInner({
             {t('menu')}
           </button>
           <Link href={homeHref} className="shell__title">
-            {t('backoffice')}
-            <DevEnvironmentBadge environment={environment} />
+            <span className="shell__title-wordmark">
+              {t('backoffice')}
+              <DevEnvironmentBadge environment={environment} />
+            </span>
+            <FloroBrand showWordmark variant="dark" className="shell__title-brand" />
           </Link>
           <WorkspaceSwitcher />
         </div>

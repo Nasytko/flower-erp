@@ -215,7 +215,7 @@ input {
   position: sticky;
   top: 0;
   align-self: start;
-  border-right: 1px solid var(--color-border);
+  border-right: 1px solid var(--color-sidebar-border);
   transition: width var(--motion-normal) var(--ease-standard);
 }
 
@@ -244,10 +244,10 @@ input {
   place-items: center;
   width: 36px;
   height: 36px;
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--color-sidebar-border);
   border-radius: var(--radius-pill);
-  background: var(--color-surface-muted);
-  color: var(--color-foreground);
+  background: transparent;
+  color: var(--color-sidebar-foreground);
   cursor: pointer;
   font: inherit;
   font-weight: var(--font-bold);
@@ -255,20 +255,16 @@ input {
 }
 
 .shell__sidebar-toggle:hover {
-  background: var(--color-accent-soft);
+  background: var(--color-sidebar-hover);
 }
 
 .shell__brand {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
+  gap: var(--space-2);
   min-width: 0;
   color: inherit;
   text-decoration: none;
-  font-family: var(--font-display);
-  font-weight: var(--font-bold);
-  letter-spacing: -0.02em;
-  line-height: var(--leading-tight);
 }
 
 .shell__brand-mark {
@@ -322,7 +318,7 @@ input {
   align-items: stretch;
   gap: var(--space-1);
   padding-top: var(--space-3);
-  border-top: 1px solid var(--color-border);
+  border-top: 1px solid var(--color-sidebar-border);
 }
 
 .shell__nav-settings {
@@ -330,7 +326,7 @@ input {
   flex-direction: column;
   gap: var(--space-2);
   padding: var(--space-2) 0 var(--space-3);
-  border-top: 1px solid var(--color-border);
+  border-top: 1px solid var(--color-sidebar-border);
   max-height: min(50vh, 420px);
   overflow-y: auto;
 }
@@ -420,7 +416,7 @@ input {
 }
 
 .shell__nav-link:hover {
-  background: var(--color-surface-muted);
+  background: var(--color-sidebar-hover);
 }
 
 .shell__nav-link[aria-current='page'] {
@@ -435,7 +431,7 @@ input {
   gap: var(--space-2);
   padding: var(--space-2);
   border-radius: var(--radius-md);
-  background: var(--color-surface-muted);
+  background: var(--color-sidebar-hover);
   min-height: 56px;
 }
 
@@ -465,7 +461,7 @@ input {
 
 .shell__sidebar-user-meta span {
   font-size: var(--text-xs);
-  color: var(--color-muted);
+  color: var(--color-sidebar-muted);
 }
 
 .shell__sidebar--expanded .shell__sidebar-user-meta {
@@ -476,7 +472,7 @@ input {
 .shell__sidebar-logout {
   border: 0;
   background: transparent;
-  color: var(--color-muted);
+  color: var(--color-sidebar-muted);
   cursor: pointer;
   font-size: 1rem;
   padding: var(--space-2);
@@ -484,8 +480,8 @@ input {
 }
 
 .shell__sidebar-logout:hover {
-  background: var(--color-surface);
-  color: var(--color-destructive);
+  background: var(--color-sidebar-hover);
+  color: #f4c7c3;
 }
 
 .shell__header {
@@ -567,6 +563,11 @@ input {
   font-weight: var(--font-bold);
 }
 
+.shell__sidebar .shell__avatar {
+  background: var(--color-sidebar-active);
+  color: var(--color-sidebar-active-fg);
+}
+
 .shell__user-name {
   display: none;
 }
@@ -627,6 +628,25 @@ input {
 
 .shell__title:hover {
   color: var(--color-primary);
+}
+
+.shell__title-wordmark {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+}
+
+.shell__title-brand {
+  display: none;
+}
+
+.shell__title-brand .floro-brand__logo {
+  width: 28px;
+  height: 28px;
+}
+
+.shell__title-brand .floro-brand__name {
+  font-size: var(--text-sm);
 }
 
 .shell__main {
@@ -874,20 +894,20 @@ input {
   padding: var(--space-6);
   position: relative;
   overflow: hidden;
-  background:
-    radial-gradient(ellipse 80% 60% at 20% 10%, rgba(26, 122, 69, 0.28), transparent 55%),
-    radial-gradient(ellipse 70% 50% at 90% 80%, rgba(12, 36, 25, 0.35), transparent 50%),
-    linear-gradient(145deg, #0c2419 0%, #143528 45%, #1a4a32 100%);
+  background: var(--login-page-bg);
 }
 
 .login-page::before {
   content: '';
   position: absolute;
   inset: 0;
-  background-image: radial-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+  background-image: radial-gradient(
+    color-mix(in srgb, var(--color-foreground) 5%, transparent) 1px,
+    transparent 1px
+  );
   background-size: 22px 22px;
   pointer-events: none;
-  opacity: 0.5;
+  opacity: 0.45;
 }
 
 .login-card {
@@ -897,30 +917,247 @@ input {
   gap: var(--space-4);
   padding: clamp(1.5rem, 4vw, 2.25rem);
   border-radius: var(--radius-lg);
-  background: color-mix(in srgb, var(--color-surface) 94%, transparent);
-  backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.35);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
   box-shadow: var(--shadow-lg);
 }
 
 .login-card__brand {
   margin: 0;
   display: inline-flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 0.35rem;
   flex-wrap: wrap;
-  font-family: var(--font-display);
-  font-size: clamp(1.75rem, 4vw, 2.15rem);
-  font-weight: var(--font-bold);
-  letter-spacing: -0.03em;
-  line-height: var(--leading-tight);
-  color: var(--color-foreground);
 }
 
 .login-card__subtitle {
   margin: 0;
   color: var(--color-muted);
   font-size: var(--text-sm);
+}
+
+/* ─── Floro brand ─────────────────────────────────────────────────────────── */
+
+.floro-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  color: var(--color-foreground);
+  min-width: 0;
+}
+
+.floro-brand--light {
+  color: var(--color-sidebar-foreground);
+}
+
+.floro-brand__logo {
+  width: 42px;
+  height: 42px;
+  flex-shrink: 0;
+}
+
+.floro-brand__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.floro-brand__name {
+  font-family: var(--font-display);
+  font-size: var(--text-md);
+  font-weight: var(--font-bold);
+  letter-spacing: -0.02em;
+  line-height: var(--leading-tight);
+}
+
+.floro-brand__tagline {
+  font-size: var(--text-xs);
+  font-weight: var(--font-medium);
+  color: var(--color-muted);
+  line-height: 1.35;
+  max-width: 16rem;
+}
+
+.floro-brand--light .floro-brand__tagline {
+  color: var(--color-sidebar-muted);
+}
+
+.login-card__brand .floro-brand__name {
+  font-size: clamp(1.65rem, 4vw, 2rem);
+}
+
+.login-card__brand .floro-brand__tagline {
+  font-size: var(--text-sm);
+}
+
+.shell__sidebar--collapsed .shell__brand {
+  justify-content: center;
+}
+
+/* ─── Theme selector (account) ────────────────────────────────────────────── */
+
+.theme-selector {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.theme-selector__hint {
+  margin: 0;
+}
+
+.theme-selector__options {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.theme-selector__option {
+  display: grid;
+  gap: 4px;
+  min-height: 72px;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-muted);
+  color: var(--color-foreground);
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  transition:
+    border-color var(--motion-fast) var(--ease-standard),
+    background-color var(--motion-fast) var(--ease-standard),
+    box-shadow var(--motion-fast) var(--ease-standard);
+}
+
+.theme-selector__option:hover {
+  border-color: var(--color-border-strong);
+  background: var(--color-surface);
+}
+
+.theme-selector__option--active {
+  border-color: var(--color-primary);
+  background: var(--color-primary-soft);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary) 18%, transparent);
+}
+
+.theme-selector__option-label {
+  font-size: var(--text-sm);
+  font-weight: var(--font-semibold);
+}
+
+.theme-selector__option-meta {
+  font-size: var(--text-xs);
+  color: var(--color-muted);
+}
+
+/* ─── Responsive shell & auth ─────────────────────────────────────────────── */
+
+@media (max-width: 1023px) {
+  .shell__title-wordmark {
+    display: none;
+  }
+
+  .shell__title-brand {
+    display: inline-flex;
+  }
+
+  .shell__header-left {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .shell__title {
+    flex-shrink: 0;
+  }
+}
+
+@media (max-width: 640px) {
+  :root {
+    --header-height: 64px;
+  }
+
+  .shell__header {
+    padding: 0 var(--space-3);
+    gap: var(--space-2);
+  }
+
+  .shell__header-left,
+  .shell__header-right {
+    gap: var(--space-2);
+  }
+
+  .shell__menu-btn {
+    width: 44px;
+    height: 44px;
+    flex-shrink: 0;
+  }
+
+  .workspace-switcher__trigger {
+    max-width: min(100%, 168px);
+    min-height: 44px;
+    padding: 0 10px;
+    font-size: var(--text-xs);
+  }
+
+  .workspace-switcher__store {
+    max-width: 88px;
+  }
+
+  .shell__user-menu {
+    max-width: none;
+    min-height: 44px;
+  }
+
+  .shell__user-menu .shell__logout {
+    min-height: 36px;
+    padding: 0 var(--space-2);
+    font-size: var(--text-xs);
+  }
+
+  .login-page {
+    padding: var(--space-4);
+    align-items: flex-start;
+    padding-top: clamp(1.5rem, 8vh, 3rem);
+  }
+
+  .login-card {
+    width: 100%;
+    padding: var(--space-4);
+    border-radius: var(--radius-md);
+  }
+
+  .theme-selector__options {
+    grid-template-columns: 1fr;
+  }
+
+  .theme-selector__option {
+    min-height: 56px;
+  }
+}
+
+@media (min-width: 641px) and (max-width: 1023px) {
+  .workspace-switcher__trigger {
+    max-width: min(100%, 260px);
+  }
+
+  .shell__user-menu .shell__user-name {
+    max-width: 120px;
+  }
+}
+
+@media (max-width: 480px) {
+  .login-card__brand .floro-brand {
+    align-items: flex-start;
+  }
+
+  .login-card__brand .floro-brand__tagline {
+    max-width: none;
+  }
+
+  .shell-drawer {
+    width: min(92vw, 320px);
+  }
 }
 
 .login-card label,
@@ -954,7 +1191,7 @@ input {
 .shell-drawer-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(20, 35, 26, 0.45);
+  background: var(--overlay-backdrop);
   opacity: 0;
   pointer-events: none;
   transition: opacity var(--motion-normal) var(--ease-standard);
@@ -970,7 +1207,7 @@ input {
   position: fixed;
   inset: 0 auto 0 0;
   width: min(88vw, 300px);
-  background: var(--color-surface);
+  background: var(--color-surface-sidebar);
   color: var(--color-sidebar-foreground);
   padding: var(--space-5);
   transform: translateX(-105%);
@@ -980,7 +1217,7 @@ input {
   flex-direction: column;
   gap: var(--space-6);
   box-shadow: var(--shadow-lg);
-  border-right: 1px solid var(--color-border);
+  border-right: 1px solid var(--color-sidebar-border);
 }
 
 .shell-drawer[data-open='true'] {
@@ -1003,10 +1240,10 @@ input {
   align-self: flex-end;
   width: 40px;
   height: 40px;
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--color-sidebar-border);
   border-radius: var(--radius-sm);
-  background: var(--color-surface-muted);
-  color: var(--color-foreground);
+  background: transparent;
+  color: var(--color-sidebar-foreground);
   cursor: pointer;
 }
 
@@ -1395,6 +1632,8 @@ input {
 .data-table-wrap {
   overflow-x: auto;
   margin: 0 calc(-1 * var(--space-1));
+  -webkit-overflow-scrolling: touch;
+  scrollbar-gutter: stable;
 }
 
 .data-table {
@@ -1430,7 +1669,7 @@ input {
 }
 
 .data-table__row--clickable:hover td {
-  background: color-mix(in srgb, var(--color-primary) 5%, white);
+  background: color-mix(in srgb, var(--color-primary) 5%, var(--color-mix-base));
 }
 
 .data-table__link {
@@ -2600,7 +2839,7 @@ input {
   border-radius: var(--radius-lg);
   background: linear-gradient(
     180deg,
-    color-mix(in srgb, var(--color-surface-muted) 55%, white) 0%,
+    color-mix(in srgb, var(--color-surface-muted) 55%, var(--color-mix-base)) 0%,
     var(--color-surface) 100%
   );
   box-shadow: var(--shadow-sm);
@@ -2682,7 +2921,7 @@ input {
   border-color: color-mix(in srgb, var(--color-primary) 55%, var(--color-border));
   background: linear-gradient(
     180deg,
-    color-mix(in srgb, var(--color-primary-soft) 80%, white) 0%,
+    color-mix(in srgb, var(--color-primary-soft) 80%, var(--color-mix-base)) 0%,
     var(--color-surface) 100%
   );
   box-shadow: var(--shadow-sm);
@@ -2690,7 +2929,7 @@ input {
 
 .order-calendar-strip__day--today:not(.order-calendar-strip__day--active) {
   border-color: color-mix(in srgb, var(--color-primary) 28%, var(--color-border));
-  background: color-mix(in srgb, var(--color-accent-soft) 35%, white);
+  background: color-mix(in srgb, var(--color-accent-soft) 35%, var(--color-mix-base));
 }
 
 .order-calendar-date-picker {
@@ -2735,7 +2974,7 @@ input {
 
 .order-calendar-quick-day--active {
   border-color: color-mix(in srgb, var(--color-primary) 55%, var(--color-border));
-  background: color-mix(in srgb, var(--color-primary-soft) 70%, white);
+  background: color-mix(in srgb, var(--color-primary-soft) 70%, var(--color-mix-base));
   box-shadow: var(--shadow-sm);
 }
 
@@ -2863,7 +3102,7 @@ input {
   margin-top: var(--space-1);
   padding: 0.1rem 0.45rem;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--color-primary) 14%, white);
+  background: color-mix(in srgb, var(--color-primary) 14%, var(--color-mix-base));
   color: var(--color-primary);
   font-size: 0.7rem;
   font-weight: var(--font-semibold);
@@ -2922,27 +3161,27 @@ input {
 }
 
 .order-calendar-column__head--new {
-  background: color-mix(in srgb, var(--color-primary) 12%, white);
+  background: color-mix(in srgb, var(--color-primary) 12%, var(--color-mix-base));
 }
 
 .order-calendar-column__head--in_work {
-  background: color-mix(in srgb, var(--color-warning) 18%, white);
+  background: color-mix(in srgb, var(--color-warning) 18%, var(--color-mix-base));
 }
 
 .order-calendar-column__head--ready {
-  background: color-mix(in srgb, var(--color-success) 16%, white);
+  background: color-mix(in srgb, var(--color-success) 16%, var(--color-mix-base));
 }
 
 .order-calendar-column__head--with_courier {
-  background: color-mix(in srgb, var(--color-warning) 24%, white);
+  background: color-mix(in srgb, var(--color-warning) 24%, var(--color-mix-base));
 }
 
 .order-calendar-column__head--handed_off {
-  background: color-mix(in srgb, var(--color-muted) 20%, white);
+  background: color-mix(in srgb, var(--color-muted) 20%, var(--color-mix-base));
 }
 
 .order-calendar-column__head--cancelled {
-  background: color-mix(in srgb, var(--color-danger) 14%, white);
+  background: color-mix(in srgb, var(--color-danger) 14%, var(--color-mix-base));
 }
 
 .order-calendar-day-stats {
@@ -2952,7 +3191,7 @@ input {
   gap: var(--space-3);
   padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-pill);
-  background: color-mix(in srgb, var(--color-surface-muted) 65%, white);
+  background: color-mix(in srgb, var(--color-surface-muted) 65%, var(--color-mix-base));
   border: 1px solid color-mix(in srgb, var(--color-border) 75%, transparent);
 }
 
@@ -3004,27 +3243,27 @@ input {
 }
 
 .order-calendar-day-stats__chip--info {
-  background: color-mix(in srgb, var(--color-primary) 12%, white);
+  background: color-mix(in srgb, var(--color-primary) 12%, var(--color-mix-base));
   border-color: color-mix(in srgb, var(--color-primary) 20%, transparent);
 }
 
 .order-calendar-day-stats__chip--warning {
-  background: color-mix(in srgb, var(--color-warning) 18%, white);
+  background: color-mix(in srgb, var(--color-warning) 18%, var(--color-mix-base));
   border-color: color-mix(in srgb, var(--color-warning) 24%, transparent);
 }
 
 .order-calendar-day-stats__chip--success {
-  background: color-mix(in srgb, var(--color-success) 16%, white);
+  background: color-mix(in srgb, var(--color-success) 16%, var(--color-mix-base));
   border-color: color-mix(in srgb, var(--color-success) 24%, transparent);
 }
 
 .order-calendar-day-stats__chip--muted {
-  background: color-mix(in srgb, var(--color-muted) 16%, white);
+  background: color-mix(in srgb, var(--color-muted) 16%, var(--color-mix-base));
   border-color: color-mix(in srgb, var(--color-muted) 24%, transparent);
 }
 
 .order-calendar-day-stats__chip--danger {
-  background: color-mix(in srgb, var(--color-danger) 12%, white);
+  background: color-mix(in srgb, var(--color-danger) 12%, var(--color-mix-base));
   border-color: color-mix(in srgb, var(--color-danger) 20%, transparent);
 }
 
@@ -3052,7 +3291,7 @@ input {
   min-height: 9rem;
   padding: var(--space-2);
   border-radius: var(--radius-lg);
-  background: color-mix(in srgb, var(--color-surface-muted) 70%, white);
+  background: color-mix(in srgb, var(--color-surface-muted) 70%, var(--color-mix-base));
   border: 1px solid color-mix(in srgb, var(--color-border) 70%, transparent);
   transition:
     background var(--motion-normal) var(--ease-standard),
@@ -3101,7 +3340,7 @@ input {
   padding: var(--space-2) 0;
   border: none;
   border-right: 1px solid color-mix(in srgb, var(--color-border) 80%, transparent);
-  background: color-mix(in srgb, var(--color-surface-muted) 80%, white);
+  background: color-mix(in srgb, var(--color-surface-muted) 80%, var(--color-mix-base));
   color: var(--color-muted);
   cursor: grab;
   touch-action: none;
@@ -3109,7 +3348,7 @@ input {
 }
 
 .order-calendar-card__handle:hover {
-  background: color-mix(in srgb, var(--color-primary-soft) 45%, white);
+  background: color-mix(in srgb, var(--color-primary-soft) 45%, var(--color-mix-base));
   color: var(--color-primary);
 }
 
@@ -3158,12 +3397,12 @@ input {
 }
 
 .order-calendar-card__type--pickup {
-  background: color-mix(in srgb, var(--color-primary) 12%, white);
+  background: color-mix(in srgb, var(--color-primary) 12%, var(--color-mix-base));
   color: var(--color-primary);
 }
 
 .order-calendar-card__type--delivery {
-  background: color-mix(in srgb, var(--color-warning) 18%, white);
+  background: color-mix(in srgb, var(--color-warning) 18%, var(--color-mix-base));
   color: color-mix(in srgb, var(--color-warning) 85%, black);
 }
 
@@ -3217,7 +3456,7 @@ input {
   max-width: 100%;
   padding: 0.2rem 0.55rem;
   border-radius: var(--radius-pill);
-  background: color-mix(in srgb, var(--color-warning-soft) 85%, white);
+  background: color-mix(in srgb, var(--color-warning-soft) 85%, var(--color-mix-base));
   border: 1px solid color-mix(in srgb, var(--color-warning) 28%, transparent);
   color: color-mix(in srgb, var(--color-warning) 88%, black);
   font-size: 0.68rem;
@@ -3279,7 +3518,7 @@ input {
 }
 
 .order-calendar-column__cards--droppable {
-  background: color-mix(in srgb, var(--color-primary-soft) 55%, white);
+  background: color-mix(in srgb, var(--color-primary-soft) 55%, var(--color-mix-base));
   border: 2px dashed color-mix(in srgb, var(--color-primary) 55%, var(--color-border));
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-primary) 10%, transparent);
   min-height: 11rem;
@@ -3376,7 +3615,7 @@ input {
 
 .order-calendar-month__cell--selected {
   border-color: var(--color-primary);
-  background: color-mix(in srgb, var(--color-primary) 10%, white);
+  background: color-mix(in srgb, var(--color-primary) 10%, var(--color-mix-base));
 }
 
 .order-calendar-month__cell--today .order-calendar-month__day {
@@ -4821,7 +5060,7 @@ a.attention-item:hover {
   position: absolute;
   inset: 0;
   border: none;
-  background: rgba(20, 35, 26, 0.45);
+  background: var(--overlay-backdrop);
   cursor: pointer;
 }
 
@@ -5288,7 +5527,7 @@ a.attention-item:hover {
   position: absolute;
   inset: 0;
   border: none;
-  background: rgba(20, 35, 26, 0.45);
+  background: var(--overlay-backdrop);
   cursor: pointer;
   backdrop-filter: blur(2px);
 }

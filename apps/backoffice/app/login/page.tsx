@@ -2,6 +2,7 @@
 
 import { FormEvent, useId, useState } from 'react';
 import { useAuth } from '@/components/auth-provider';
+import { FloroBrand } from '@/components/floro-brand';
 import { Field } from '@/components/layout/field';
 import { DevEnvironmentBadge } from '@/components/dev-environment-banner';
 import { getAppEnvironment } from '@/lib/app-environment';
@@ -51,7 +52,7 @@ export default function LoginPage() {
     <main className="login-page">
       <form className="login-card" onSubmit={onSubmit}>
         <h1 className="login-card__brand">
-          {t('brand')}
+          <FloroBrand showTagline variant="dark" />
           <DevEnvironmentBadge environment={getAppEnvironment()} />
         </h1>
         <p className="login-card__subtitle">{t('loginSubtitle')}</p>

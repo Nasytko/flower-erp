@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useId, useRef } from 'react';
+import { FloroBrand } from '@/components/floro-brand';
 import { t } from '@/i18n/ru';
 import { SidebarNav } from './sidebar-nav';
 
@@ -92,10 +93,7 @@ export function MobileDrawer({ open, onClose }: MobileDrawerProps) {
           {t('close')}
         </button>
         <div id={titleId} className="shell__brand">
-          <span className="shell__brand-mark" aria-hidden="true">
-            F
-          </span>
-          <span className="shell__brand-text">{t('brand')}</span>
+          <FloroBrand variant="light" />
         </div>
         <SidebarNav variant="drawer" onNavigate={onClose} />
       </div>

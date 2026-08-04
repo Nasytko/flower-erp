@@ -7,6 +7,7 @@ import { TotpSetupPanel } from '@/components/auth/totp-setup-panel';
 import { PageContainer } from '@/components/layout/page-container';
 import { PageHeader } from '@/components/layout/page-header';
 import { Section } from '@/components/layout/section';
+import { ThemeSelector } from '@/components/theme/theme-selector';
 import { Card } from '@flower/ui';
 import { getApiClient } from '@/lib/api-client';
 
@@ -55,6 +56,12 @@ export default function AccountSettingsPage() {
             ) : (
               <TotpSetupPanel totpEnabled={totpEnabled} onChanged={reloadTotpStatus} />
             )}
+          </Card>
+        </Section>
+
+        <Section>
+          <Card title="Внешний вид">
+            <ThemeSelector />
           </Card>
         </Section>
 

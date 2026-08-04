@@ -57,7 +57,7 @@ export default function OrganizationsPage() {
       <PageContainer>
         <PageHeader
           title="Организации"
-          description="Управление организациями-арендаторами Flower ERP."
+          description="Управление организациями-арендаторами Floro."
           breadcrumbs={[{ label: 'Организации' }]}
         />
 
