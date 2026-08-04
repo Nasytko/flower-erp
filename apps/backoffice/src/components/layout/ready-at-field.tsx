@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo } from 'react';
-import { Input } from '@flower/ui';
+import { DatePicker } from '@/components/layout/date-picker';
 import { TimePicker } from '@/components/layout/time-picker';
 
 type ReadyAtFieldProps = {
@@ -57,6 +57,7 @@ export function ReadyAtField({
   return (
     <div className={`ready-at-field${disabled ? ' ready-at-field--disabled' : ''}`}>
       <div className="ready-at-field__dates">
+        <span className="ready-at-field__section-label">Дата</span>
         <div className="ready-at-field__date-presets" role="group" aria-label="Дата">
           {presetDates.map((preset) => {
             const active = date === preset.value;
@@ -74,19 +75,20 @@ export function ReadyAtField({
             );
           })}
         </div>
-        <Input
+        <DatePicker
           id="ready-at-date"
-          type="date"
           value={date}
-          onChange={(e) => onDateChange(e.target.value)}
+          onChange={onDateChange}
           required={required}
           disabled={disabled}
           className={`ready-at-field__date-input${dateError ? ' field-control--invalid' : ''}`}
           aria-label="Дата"
+          placeholder="Выберите дату"
         />
         {dateError ? <span className="field__error">{dateError}</span> : null}
       </div>
       <div className="ready-at-field__time">
+        <span className="ready-at-field__section-label">Время</span>
         <TimePicker
           value={time}
           onChange={onTimeChange}

@@ -13,6 +13,7 @@ import { Section } from '@/components/layout/section';
 import { ErrorState, LoadingState } from '@/components/layout/states';
 import { StatusBadge } from '@/components/layout/status-badge';
 import { Field } from '@/components/layout/field';
+import { DatePicker } from '@/components/layout/date-picker';
 import { FancySelect } from '@/components/layout/fancy-select';
 import { ConfirmDialog } from '@/components/workspace/workspace-ui';
 import {
@@ -534,18 +535,16 @@ export default function SupplyDetailPage() {
                 {open ? (
                   <form onSubmit={(event) => void onSaveHeader(event)} className="form-grid">
                     <Field label="Дата прихода">
-                      <Input
-                        type="date"
+                      <DatePicker
                         value={receivedDate}
-                        onChange={(e) => setReceivedDate(e.target.value)}
+                        onChange={setReceivedDate}
                         aria-label="Дата прихода"
                       />
                     </Field>
                     <Field label="Оплатить до">
-                      <Input
-                        type="date"
+                      <DatePicker
                         value={paymentDueDate}
-                        onChange={(e) => setPaymentDueDate(e.target.value)}
+                        onChange={setPaymentDueDate}
                         aria-label="Срок оплаты"
                       />
                     </Field>
@@ -664,9 +663,6 @@ export default function SupplyDetailPage() {
                           <span className="supply-lines__label">Товар</span>
                           <div className="supply-lines__value">
                             <strong>{line.item?.name ?? line.itemId}</strong>
-                            {line.item?.code ? (
-                              <span className="supply-lines__code">{line.item.code}</span>
-                            ) : null}
                           </div>
                         </div>
                         <div className="supply-lines__cell">

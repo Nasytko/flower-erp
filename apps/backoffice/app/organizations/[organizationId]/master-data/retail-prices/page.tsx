@@ -9,6 +9,7 @@ import { PageContainer } from '@/components/layout/page-container';
 import { PageHeader } from '@/components/layout/page-header';
 import { Section } from '@/components/layout/section';
 import { ErrorState, LoadingState } from '@/components/layout/states';
+import { DatePicker } from '@/components/layout/date-picker';
 import { Field } from '@/components/layout/field';
 import { addDaysIso, startOfWeekMonday } from '@/lib/retail-price';
 import { formatApiErrorMessage } from '@/lib/format-api-error';
@@ -179,11 +180,11 @@ export default function RetailPricesPage() {
                 ← Пред.
               </Button>
               <Field label="С понедельника">
-                <Input
-                  type="date"
+                <DatePicker
                   value={weekStart}
-                  onChange={(e) => setWeekStart(e.target.value)}
+                  onChange={setWeekStart}
                   disabled={busy}
+                  aria-label="С понедельника"
                 />
               </Field>
               <Button type="button" variant="secondary" onClick={() => shiftWeek(1)} disabled={busy}>

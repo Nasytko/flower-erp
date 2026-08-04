@@ -9,6 +9,7 @@ import { getApiClient } from '@/lib/api-client';
 import { useAuth } from '@/components/auth-provider';
 import { Field } from '@/components/layout/field';
 import { FancySelect } from '@/components/layout/fancy-select';
+import { QtyStepper } from '@/components/layout/qty-stepper';
 import { MoneyBynInput, parseBynToApi } from '@/components/layout/money-byn-input';
 import {
   PaymentSplitEditor,
@@ -87,53 +88,6 @@ function emptyCustomPosition(): Extract<SalePosition, { kind: 'CUSTOM' }> {
     price: '',
     composition: [],
   };
-}
-
-function itemTypeLabel(type: string) {
-  if (type === 'FLOWER') return 'Цветок';
-  if (type === 'MATERIAL') return 'Материал';
-  return type;
-}
-
-function QtyStepper({
-  value,
-  onDecrease,
-  onIncrease,
-  disabled,
-  stepLabel,
-}: {
-  value: number;
-  onDecrease: () => void;
-  onIncrease: () => void;
-  disabled?: boolean;
-  /** e.g. "+1" for service applications */
-  stepLabel?: string;
-}) {
-  return (
-    <div className="sale-qty">
-      <button
-        type="button"
-        className="sale-qty__btn"
-        onClick={onDecrease}
-        disabled={disabled || value <= 0}
-        aria-label={stepLabel ? `Убрать ${stepLabel}` : 'Уменьшить'}
-      >
-        {stepLabel ? `−${stepLabel}` : '−'}
-      </button>
-      <span className="sale-qty__value" aria-live="polite">
-        {stepLabel && value > 0 ? `${value} (${stepLabel})` : value}
-      </span>
-      <button
-        type="button"
-        className="sale-qty__btn"
-        onClick={onIncrease}
-        disabled={disabled}
-        aria-label={stepLabel ? `Добавить ${stepLabel}` : 'Увеличить'}
-      >
-        {stepLabel ? `+${stepLabel}` : '+'}
-      </button>
-    </div>
-  );
 }
 
 export default function NewSalePage() {
@@ -594,12 +548,12 @@ function NewSalePageInner() {
     return { type: discountType, value: amount, reason: discountReason };
   }
 
-  function bumpReadyQty(itemId: string, delta: number) {
-    if (delta > 0 && (bouquetRecipeLineCount.get(itemId) ?? 0) === 0) return;
+  function setReadyQty(itemId: string, qty: number) {
+    const nextQty = Math.max(0, Math.floor(qty));
+    if (nextQty > 0 && (bouquetRecipeLineCount.get(itemId) ?? 0) === 0) return;
     setPositions((prev) => {
       const existing = prev.find((p) => p.kind === 'READY' && p.itemId === itemId);
       if (existing && existing.kind === 'READY') {
-        const nextQty = Math.max(0, (Number(existing.quantity) || 0) + delta);
         if (nextQty <= 0) return prev.filter((p) => p.key !== existing.key);
         return prev.map((p) =>
           p.key === existing.key && p.kind === 'READY'
@@ -607,14 +561,14 @@ function NewSalePageInner() {
             : p,
         );
       }
-      if (delta <= 0) return prev;
+      if (nextQty <= 0) return prev;
       return [
         ...prev.filter((p) => !(p.kind === 'CUSTOM' && p.composition.length === 0 && !p.name && !p.price)),
         {
           key: newKey(),
           kind: 'READY' as const,
           itemId,
-          quantity: '1',
+          quantity: String(nextQty),
           unitPrice: '',
         },
       ];
@@ -641,21 +595,21 @@ function NewSalePageInner() {
     return { list: [...prev, custom], custom };
   }
 
-  function bumpCustomQty(itemId: string, delta: number) {
+  function setCustomQty(itemId: string, qty: number) {
+    const nextQty = Math.max(0, Math.floor(qty));
     setPositions((prev) => {
       const { list, custom } = ensureCustomPosition(prev);
       const existing = custom.composition.find((line) => line.itemId === itemId);
       let composition = custom.composition;
       if (existing) {
-        const nextQty = Math.max(0, (Number(existing.quantity) || 0) + delta);
         composition =
           nextQty <= 0
             ? custom.composition.filter((line) => line.key !== existing.key)
             : custom.composition.map((line) =>
                 line.key === existing.key ? { ...line, quantity: String(nextQty) } : line,
               );
-      } else if (delta > 0) {
-        composition = [...custom.composition, { key: newKey(), itemId, quantity: '1' }];
+      } else if (nextQty > 0) {
+        composition = [...custom.composition, { key: newKey(), itemId, quantity: String(nextQty) }];
       } else {
         return prev;
       }
@@ -1068,7 +1022,6 @@ function NewSalePageInner() {
                                     >
                                       <div className="sale-cell__top">
                                         <strong className="sale-cell__name">{item.name}</strong>
-                                        <span className="sale-cell__meta">{item.code}</span>
                                         {shortage ? (
                                           <span className="sale-cell__meta sale-cell__meta--warn">
                                             доступно {shortage.available}
@@ -1081,8 +1034,7 @@ function NewSalePageInner() {
                                       <QtyStepper
                                         value={qty}
                                         disabled={busy}
-                                        onDecrease={() => bumpCustomQty(item.id, -1)}
-                                        onIncrease={() => bumpCustomQty(item.id, 1)}
+                                        onChange={(next) => setCustomQty(item.id, next)}
                                       />
                                     </div>
                                   );
@@ -1090,9 +1042,6 @@ function NewSalePageInner() {
                               </div>
                             )}
                             <h4 style={{ margin: '16px 0 8px' }}>Доп. услуги (+1)</h4>
-                            <p className="field__hint" style={{ margin: '0 0 8px' }}>
-                              Каждый +1 — одно применение услуги (упаковка ×2 для большого букета).
-                            </p>
                             {filteredMaterials.length === 0 ? (
                               <p className="sale-cells__empty">Нет материалов в справочнике</p>
                             ) : (
@@ -1108,7 +1057,6 @@ function NewSalePageInner() {
                                     >
                                       <div className="sale-cell__top">
                                         <strong className="sale-cell__name">{item.name}</strong>
-                                        <span className="sale-cell__meta">+1 · {item.code}</span>
                                         {shortage ? (
                                           <span className="sale-cell__meta sale-cell__meta--warn">
                                             доступно {shortage.available}
@@ -1122,8 +1070,7 @@ function NewSalePageInner() {
                                         value={qty}
                                         disabled={busy}
                                         stepLabel="+1"
-                                        onDecrease={() => bumpCustomQty(item.id, -1)}
-                                        onIncrease={() => bumpCustomQty(item.id, 1)}
+                                        onChange={(next) => setCustomQty(item.id, next)}
                                       />
                                     </div>
                                   );
@@ -1159,9 +1106,6 @@ function NewSalePageInner() {
                                 >
                                   <div className="sale-cell__top">
                                     <strong className="sale-cell__name">{item.name}</strong>
-                                    <span className="sale-cell__meta">
-                                      {itemTypeLabel(item.itemType)} · {item.code}
-                                    </span>
                                     {emptyRecipe ? (
                                       <span className="sale-cell__meta sale-cell__meta--warn">
                                         без состава
@@ -1176,8 +1120,7 @@ function NewSalePageInner() {
                                   <QtyStepper
                                     value={qty}
                                     disabled={busy || emptyRecipe}
-                                    onDecrease={() => bumpReadyQty(item.id, -1)}
-                                    onIncrease={() => bumpReadyQty(item.id, 1)}
+                                    onChange={(next) => setReadyQty(item.id, next)}
                                   />
                                   {qty > 0 ? (
                                     <div className="sale-cell__price">

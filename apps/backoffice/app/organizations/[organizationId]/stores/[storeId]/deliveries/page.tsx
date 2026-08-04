@@ -3,10 +3,11 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
-import { Button, Card, Input } from '@flower/ui';
+import { Button, Card } from '@flower/ui';
 import { ApiClientError, type DeliveryBoardDto } from '@flower/api-client';
 import { getApiClient } from '@/lib/api-client';
 import { useAuth } from '@/components/auth-provider';
+import { DatePicker } from '@/components/layout/date-picker';
 import { DocRef } from '@/components/layout/doc-ref';
 import { PageContainer } from '@/components/layout/page-container';
 import { PageHeader } from '@/components/layout/page-header';
@@ -144,11 +145,7 @@ export default function DeliveriesBoardPage() {
             <div className="stack-form">
               <label>
                 Дата
-                <Input
-                  type="date"
-                  value={date}
-                  onChange={(e) => setDate(e.target.value)}
-                />
+                <DatePicker value={date} onChange={setDate} aria-label="Дата" />
               </label>
               <label>
                 Статус

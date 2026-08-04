@@ -7,6 +7,7 @@ import { StockShortageAlert } from '@/components/inventory/stock-shortage-alert'
 import { getApiClient } from '@/lib/api-client';
 import { Field } from '@/components/layout/field';
 import { FancySelect } from '@/components/layout/fancy-select';
+import { QtyStepper } from '@/components/layout/qty-stepper';
 import { InlineAlert } from '@/components/workspace/workspace-ui';
 import {
   buildAvailableStockMap,
@@ -34,46 +35,6 @@ type BouquetOption = {
   previewLines: Array<{ componentName: string; quantity: string }>;
   previewMoreCount: number;
 };
-
-function QtyStepper({
-  value,
-  onDecrease,
-  onIncrease,
-  disabled,
-  stepLabel,
-}: {
-  value: number;
-  onDecrease: () => void;
-  onIncrease: () => void;
-  disabled?: boolean;
-  stepLabel?: string;
-}) {
-  return (
-    <div className="sale-qty">
-      <button
-        type="button"
-        className="sale-qty__btn"
-        onClick={onDecrease}
-        disabled={disabled || value <= 0}
-        aria-label={stepLabel ? `Убрать ${stepLabel}` : 'Уменьшить'}
-      >
-        {stepLabel ? `−${stepLabel}` : '−'}
-      </button>
-      <span className="sale-qty__value" aria-live="polite">
-        {stepLabel && value > 0 ? `${value} (${stepLabel})` : value}
-      </span>
-      <button
-        type="button"
-        className="sale-qty__btn"
-        onClick={onIncrease}
-        disabled={disabled}
-        aria-label={stepLabel ? `Добавить ${stepLabel}` : 'Увеличить'}
-      >
-        {stepLabel ? `+${stepLabel}` : '+'}
-      </button>
-    </div>
-  );
-}
 
 export type OrderCompositionSectionProps = {
   organizationId: string;
@@ -263,9 +224,8 @@ export function OrderCompositionSection({
     return computeReservedShortages(reservedLines);
   }, [mode, recipeLines, customNeedLines, stockByItemId, reservedLines, disabled]);
 
-  function bumpCustomQty(itemId: string, delta: number) {
-    const next = Math.max(0, (customQtyByItem.get(itemId) ?? 0) + delta);
-    onCustomQtyChange(itemId, next);
+  function setCustomQty(itemId: string, qty: number) {
+    onCustomQtyChange(itemId, qty);
   }
 
   return (
@@ -280,7 +240,6 @@ export function OrderCompositionSection({
           disabled={disabled}
         >
           <span className="sale-mode__title">Готовый букет</span>
-          <span className="sale-mode__hint">Из каталога букетов</span>
         </button>
         <button
           type="button"
@@ -291,7 +250,6 @@ export function OrderCompositionSection({
           disabled={disabled}
         >
           <span className="sale-mode__title">Собрать</span>
-          <span className="sale-mode__hint">Любые цветы и услуги</span>
         </button>
       </div>
 
@@ -317,8 +275,8 @@ export function OrderCompositionSection({
                   label: item.name,
                   hint:
                     item.recipeLineCount === 0
-                      ? `${item.code} · без состава`
-                      : item.code,
+                      ? 'без состава'
+                      : `${item.recipeLineCount} поз.`,
                 }))}
                 searchable
                 placeholder="Выберите букет из каталога"
@@ -369,27 +327,6 @@ export function OrderCompositionSection({
         )
       ) : (
         <>
-          {bouquetOptions.length > 0 ? (
-            <p className="field__hint">
-              Готовые букеты — вкладка{' '}
-              <button
-                type="button"
-                className="text-link"
-                style={{
-                  border: 'none',
-                  background: 'none',
-                  padding: 0,
-                  cursor: 'pointer',
-                  font: 'inherit',
-                }}
-                onClick={() => onModeChange('SHOWCASE')}
-                disabled={disabled}
-              >
-                «Готовый букет»
-              </button>
-              .
-            </p>
-          ) : null}
           <Field label="Поиск">
             <Input
               value={catalogQuery}
@@ -422,7 +359,6 @@ export function OrderCompositionSection({
                   >
                     <div className="sale-cell__top">
                       <strong className="sale-cell__name">{item.name}</strong>
-                      <span className="sale-cell__meta">{item.code}</span>
                       {shortage ? (
                         <span className="sale-cell__meta sale-cell__meta--warn">
                           доступно {shortage.available}
@@ -432,8 +368,7 @@ export function OrderCompositionSection({
                     <QtyStepper
                       value={qty}
                       disabled={disabled}
-                      onDecrease={() => bumpCustomQty(item.id, -1)}
-                      onIncrease={() => bumpCustomQty(item.id, 1)}
+                      onChange={(next) => setCustomQty(item.id, next)}
                     />
                   </div>
                 );
@@ -464,7 +399,6 @@ export function OrderCompositionSection({
                   >
                     <div className="sale-cell__top">
                       <strong className="sale-cell__name">{item.name}</strong>
-                      <span className="sale-cell__meta">+1 · {item.code}</span>
                       {shortage ? (
                         <span className="sale-cell__meta sale-cell__meta--warn">
                           доступно {shortage.available}
@@ -475,8 +409,7 @@ export function OrderCompositionSection({
                       value={qty}
                       disabled={disabled}
                       stepLabel="+1"
-                      onDecrease={() => bumpCustomQty(item.id, -1)}
-                      onIncrease={() => bumpCustomQty(item.id, 1)}
+                      onChange={(next) => setCustomQty(item.id, next)}
                     />
                   </div>
                 );
@@ -486,7 +419,6 @@ export function OrderCompositionSection({
         </>
       )}
 
-      {loading ? <p className="field__hint">Обновление остатков…</p> : null}
     </div>
   );
 }

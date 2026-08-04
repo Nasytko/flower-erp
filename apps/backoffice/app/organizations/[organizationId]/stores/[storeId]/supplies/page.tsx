@@ -12,6 +12,7 @@ import { DataTable, DataTableCellPrimary } from '@/components/layout/data-table'
 import { EntityListPanel } from '@/components/layout/entity-list-panel';
 import { StatusBadge } from '@/components/layout/status-badge';
 import { Field } from '@/components/layout/field';
+import { DatePicker } from '@/components/layout/date-picker';
 import { FancySelect } from '@/components/layout/fancy-select';
 import {
   SupplyWorkflowSteps,
@@ -182,18 +183,16 @@ export default function SuppliesPage() {
                   />
                 </Field>
                 <Field label="Дата прихода" hint="По умолчанию — сегодня">
-                  <Input
-                    type="date"
+                  <DatePicker
                     value={receivedDate}
-                    onChange={(e) => setReceivedDate(e.target.value)}
+                    onChange={setReceivedDate}
                     aria-label="Дата прихода"
                   />
                 </Field>
                 <Field label="Оплатить до" hint="Необязательно">
-                  <Input
-                    type="date"
+                  <DatePicker
                     value={paymentDueDate}
-                    onChange={(e) => setPaymentDueDate(e.target.value)}
+                    onChange={setPaymentDueDate}
                     aria-label="Срок оплаты"
                   />
                 </Field>

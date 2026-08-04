@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { Button, Card, Input } from '@flower/ui';
+import { Button, Card } from '@flower/ui';
 import { ApiClientError, type DeliveryMapDto } from '@flower/api-client';
 import { getApiClient } from '@/lib/api-client';
 import { useAuth } from '@/components/auth-provider';
@@ -12,6 +12,7 @@ import { PageHeader } from '@/components/layout/page-header';
 import { Section } from '@/components/layout/section';
 import { EmptyState, ErrorState, LoadingState } from '@/components/layout/states';
 import { StatusBadge } from '@/components/layout/status-badge';
+import { DatePicker } from '@/components/layout/date-picker';
 import { MapPlaceholder, type MapPoint } from '@/components/delivery/map-placeholder';
 import { YandexDeliveryMap } from '@/components/delivery/yandex-delivery-map';
 import { NavigationButtons } from '@/components/delivery/navigation-buttons';
@@ -117,7 +118,7 @@ export default function DeliveriesMapPage() {
         <Section>
           <Card title="Дата">
             <label>
-              <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+              <DatePicker value={date} onChange={setDate} aria-label="Дата" />
             </label>
           </Card>
         </Section>

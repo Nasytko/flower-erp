@@ -3,7 +3,8 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { Button, Card, Input } from '@flower/ui';
+import { Button, Card } from '@flower/ui';
+import { DatePicker } from '@/components/layout/date-picker';
 import { ApiClientError, type DeliveryCalendarDto } from '@flower/api-client';
 import { getApiClient } from '@/lib/api-client';
 import { useAuth } from '@/components/auth-provider';
@@ -94,7 +95,7 @@ export default function DeliveriesCalendarPage() {
         <Section>
           <Card title="День">
             <label>
-              <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+              <DatePicker value={date} onChange={setDate} aria-label="Дата" />
             </label>
           </Card>
         </Section>
