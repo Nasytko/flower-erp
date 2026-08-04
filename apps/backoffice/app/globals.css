@@ -3209,6 +3209,45 @@ input {
   line-height: 1.35;
 }
 
+.order-calendar-card__stock-warn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  width: fit-content;
+  max-width: 100%;
+  padding: 0.2rem 0.55rem;
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--color-warning-soft) 85%, white);
+  border: 1px solid color-mix(in srgb, var(--color-warning) 28%, transparent);
+  color: color-mix(in srgb, var(--color-warning) 88%, black);
+  font-size: 0.68rem;
+  font-weight: var(--font-semibold);
+  line-height: 1.25;
+}
+
+.order-calendar-card__stock-warn-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 0.95rem;
+  height: 0.95rem;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--color-warning) 82%, black);
+  color: #fff;
+  font-size: 0.62rem;
+  font-weight: var(--font-bold);
+  flex-shrink: 0;
+}
+
+.order-calendar-card__stock-warn-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.order-calendar-card--cancelled .order-calendar-card__stock-warn {
+  opacity: 0.75;
+}
+
 .order-calendar-card__actions {
   margin-top: var(--space-2);
 }

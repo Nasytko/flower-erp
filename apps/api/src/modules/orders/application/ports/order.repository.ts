@@ -154,6 +154,13 @@ export type OrderDashboardBuckets = {
 
 export type OrderBoardPaymentStatus = 'PAID' | 'PARTIALLY_PAID' | 'UNPAID';
 
+export type OrderBoardCompositionLineView = {
+  compositionItemId: string;
+  itemId: string;
+  itemName: string;
+  plannedQuantity: string;
+};
+
 export type OrderBoardCardView = {
   id: string;
   number: string;
@@ -176,9 +183,18 @@ export type OrderBoardCardView = {
   deliveryWindowStart: string | null;
   deliveryWindowEnd: string | null;
   compositionLabel: string | null;
+  warehouseId: string;
+  compositionLines: OrderBoardCompositionLineView[];
+  hasStockDeficit: boolean;
+  stockShortageHint: string | null;
 };
 
-export type OrderCalendarBoardView = {
+export type OrderBoardCardPublicView = Omit<
+  OrderBoardCardView,
+  'warehouseId' | 'compositionLines'
+>;
+
+export type OrderCalendarBoardRawView = {
   date: string;
   month: string;
   sections: {
@@ -188,6 +204,20 @@ export type OrderCalendarBoardView = {
     WITH_COURIER: OrderBoardCardView[];
     HANDED_OFF: OrderBoardCardView[];
     CANCELLED: OrderBoardCardView[];
+  };
+  dateCounts: Array<{ date: string; count: number }>;
+};
+
+export type OrderCalendarBoardView = {
+  date: string;
+  month: string;
+  sections: {
+    NEW: OrderBoardCardPublicView[];
+    IN_WORK: OrderBoardCardPublicView[];
+    READY: OrderBoardCardPublicView[];
+    WITH_COURIER: OrderBoardCardPublicView[];
+    HANDED_OFF: OrderBoardCardPublicView[];
+    CANCELLED: OrderBoardCardPublicView[];
   };
   dateCounts: Array<{ date: string; count: number }>;
 };
@@ -390,5 +420,5 @@ export interface OrderRepository {
     organizationId: string;
     storeId: string;
     date: Date;
-  }): Promise<OrderCalendarBoardView>;
+  }): Promise<OrderCalendarBoardRawView>;
 }

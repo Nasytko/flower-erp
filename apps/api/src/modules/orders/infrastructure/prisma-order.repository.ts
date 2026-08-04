@@ -41,7 +41,7 @@ import {
   type ItemBriefView,
   type OrderRepository,
   type OrderView,
-  type OrderCalendarBoardView,
+  type OrderCalendarBoardRawView,
   type OrderBoardCardView,
   type OrderBoardPaymentStatus,
   type PlannedCompositionItemInput,
@@ -837,7 +837,7 @@ export class PrismaOrderRepository implements OrderRepository {
     organizationId: string;
     storeId: string;
     date: Date;
-  }): Promise<OrderCalendarBoardView> {
+  }): Promise<OrderCalendarBoardRawView> {
     const dayStartAt = calendarDayStart(input.date);
     const dayEndAt = calendarDayEnd(input.date);
     const monthStartAt = new Date(dayStartAt.getFullYear(), dayStartAt.getMonth(), 1);
@@ -867,7 +867,6 @@ export class PrismaOrderRepository implements OrderRepository {
               items: {
                 include: { item: { select: { name: true } } },
                 orderBy: { sortOrder: 'asc' },
-                take: 3,
               },
             },
           },
@@ -975,7 +974,7 @@ export class PrismaOrderRepository implements OrderRepository {
       saleAllocBySaleId.set(alloc.targetId, list);
     }
 
-    const sections: OrderCalendarBoardView['sections'] = {
+    const sections: OrderCalendarBoardRawView['sections'] = {
       NEW: [],
       IN_WORK: [],
       READY: [],
@@ -1013,6 +1012,12 @@ export class PrismaOrderRepository implements OrderRepository {
 
       const items = order.composition?.items ?? [];
       const compositionLabel = buildCompositionLabel(items);
+      const compositionLines = items.map((line) => ({
+        compositionItemId: line.id,
+        itemId: line.itemId,
+        itemName: line.item.name,
+        plannedQuantity: line.plannedQuantity.toString(),
+      }));
 
       const card: OrderBoardCardView = {
         id: order.id,
@@ -1038,6 +1043,10 @@ export class PrismaOrderRepository implements OrderRepository {
         deliveryWindowStart: delivery?.windowStart?.toISOString() ?? null,
         deliveryWindowEnd: delivery?.windowEnd?.toISOString() ?? null,
         compositionLabel,
+        warehouseId: order.warehouseId,
+        compositionLines,
+        hasStockDeficit: false,
+        stockShortageHint: null,
       };
 
       sections[column as OrderBoardColumn].push(card);

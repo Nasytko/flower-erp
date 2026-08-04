@@ -3,6 +3,7 @@
 import { useMemo, useState, type DragEvent } from 'react';
 import type { OrderBoardCardDto, OrderBoardColumn } from '@flower/api-client';
 import { InlineAlert } from '@/components/workspace/workspace-ui';
+import { formatApiError } from '@/lib/format-api-error';
 import { OrderCalendarCard } from '@/components/order/order-calendar-card';
 import { OrderCalendarColumnHeader } from '@/components/order/order-calendar-date-strip';
 import { ORDER_BOARD_COLUMNS } from '@/lib/order-calendar-labels';
@@ -101,7 +102,7 @@ export function OrderCalendarBoard({
         toColumn: column,
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Не удалось переместить заказ');
+      setError(formatApiError(err, 'Не удалось переместить заказ').message);
     } finally {
       setBusy(false);
       handleDragEnd();

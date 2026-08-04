@@ -139,6 +139,24 @@ export function OrderCalendarCard({
         {card.compositionLabel ? (
           <span className="order-calendar-card__composition">{card.compositionLabel}</span>
         ) : null}
+        {card.hasStockDeficit ? (
+          <span
+            className="order-calendar-card__stock-warn"
+            role="status"
+            title={
+              card.stockShortageHint
+                ? `Не хватает на складе: ${card.stockShortageHint}`
+                : 'Не хватает на складе'
+            }
+          >
+            <span className="order-calendar-card__stock-warn-icon" aria-hidden>
+              !
+            </span>
+            <span className="order-calendar-card__stock-warn-text">
+              {card.stockShortageHint ?? 'Не хватает на складе'}
+            </span>
+          </span>
+        ) : null}
         <div className="order-calendar-card__footer">
           <span className="order-calendar-card__price">
             {card.plannedPrice ? formatMoney(card.plannedPrice) : '—'}

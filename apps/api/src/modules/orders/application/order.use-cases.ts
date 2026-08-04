@@ -19,6 +19,7 @@ import {
   INVENTORY_RESERVATION_PORT,
   type InventoryReservationPort,
 } from '../../inventory/application/ports/inventory-reservation.port';
+import { InventoryQueryUseCases } from '../../inventory/application/inventory-query.use-cases';
 import {
   INVENTORY_ISSUE_PORT,
   type InventoryIssuePort,
@@ -63,6 +64,8 @@ import {
   orderDisplayPhaseLabel,
   resolveOrderDisplayPhase,
 } from '../domain/order-display-phase';
+import { resolveOrderBoardStockHint } from '../domain/order-board-stock';
+import type { OrderCalendarBoardRawView, OrderCalendarBoardView } from './ports/order.repository';
 
 function mapDomain(error: unknown): never {
   if (error instanceof AssignmentConflictError) {
@@ -122,6 +125,7 @@ export class OrderUseCases {
     @Inject(ORDER_REPOSITORY) private readonly orders: OrderRepository,
     @Inject(INVENTORY_RESERVATION_PORT) private readonly reservations: InventoryReservationPort,
     @Inject(INVENTORY_ISSUE_PORT) private readonly inventoryIssue: InventoryIssuePort,
+    private readonly inventoryQuery: InventoryQueryUseCases,
     @Inject(UNIT_OF_WORK) private readonly uow: UnitOfWork,
     @Inject(AUDIT_PORT) private readonly audit: AuditPort,
     @Inject(CLOCK_PORT) private readonly clock: ClockPort,
@@ -1408,11 +1412,80 @@ export class OrderUseCases {
   async getCalendarBoard(organizationId: string, storeId: string, date?: string) {
     await this.organizations.getStore(organizationId, storeId);
     const parsed = date ? new Date(date) : this.clock.now();
-    return this.orders.getCalendarBoard({
+    const board = await this.orders.getCalendarBoard({
       organizationId,
       storeId,
       date: parsed,
     });
+    return this.enrichCalendarBoardStock(organizationId, storeId, board);
+  }
+
+  private async enrichCalendarBoardStock(
+    organizationId: string,
+    storeId: string,
+    board: OrderCalendarBoardRawView,
+  ): Promise<OrderCalendarBoardView> {
+    const cards = Object.values(board.sections).flat();
+    if (cards.length === 0) {
+      return this.toPublicCalendarBoard(board);
+    }
+
+    const compositionItemIds = cards.flatMap((card) =>
+      card.compositionLines.map((line) => line.compositionItemId),
+    );
+    const reservedMap =
+      compositionItemIds.length > 0
+        ? await this.reservations.sumActiveReservedByCompositionItems(
+            organizationId,
+            compositionItemIds,
+          )
+        : new Map<string, string>();
+
+    const warehouseIds = [...new Set(cards.map((card) => card.warehouseId))];
+    const availableByWarehouse = new Map<string, Map<string, string>>();
+    await Promise.all(
+      warehouseIds.map(async (warehouseId) => {
+        const balances = await this.inventoryQuery.listBalances(
+          organizationId,
+          storeId,
+          warehouseId,
+        );
+        availableByWarehouse.set(
+          warehouseId,
+          new Map(balances.map((row) => [row.itemId, row.availableQuantity])),
+        );
+      }),
+    );
+
+    for (const card of cards) {
+      const availableByItemId =
+        availableByWarehouse.get(card.warehouseId) ?? new Map<string, string>();
+      const stock = resolveOrderBoardStockHint({
+        status: card.status,
+        lines: card.compositionLines,
+        reservedByCompositionItemId: reservedMap,
+        availableByItemId,
+      });
+      card.hasStockDeficit = stock.hasStockDeficit;
+      card.stockShortageHint = stock.stockShortageHint;
+    }
+
+    return this.toPublicCalendarBoard(board);
+  }
+
+  private toPublicCalendarBoard(board: OrderCalendarBoardRawView): OrderCalendarBoardView {
+    const sections = {} as OrderCalendarBoardView['sections'];
+    for (const column of Object.keys(board.sections) as Array<keyof typeof board.sections>) {
+      sections[column] = board.sections[column].map(
+        ({ warehouseId: _warehouseId, compositionLines: _lines, ...card }) => card,
+      );
+    }
+    return {
+      date: board.date,
+      month: board.month,
+      dateCounts: board.dateCounts,
+      sections,
+    };
   }
 
   async getDashboard(

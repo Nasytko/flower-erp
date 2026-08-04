@@ -2662,6 +2662,8 @@ export type OrderBoardCardDto = {
   deliveryWindowStart: string | null;
   deliveryWindowEnd: string | null;
   compositionLabel: string | null;
+  hasStockDeficit: boolean;
+  stockShortageHint: string | null;
 };
 
 export type OrderCalendarBoardDto = {

@@ -13,7 +13,25 @@ export type CalendarMoveContext = {
 const RESERVABLE_STATUSES = new Set(['CONFIRMED', 'PARTIALLY_RESERVED']);
 const PREPARATION_START_STATUSES = new Set(['RESERVED', 'PARTIALLY_RESERVED']);
 
-/** Reserve stock (if needed) and move order to IN_PREPARATION before marking ready. */
+const CALENDAR_RELEASE_REASON = 'Возврат в колонку «Новые» через календарь';
+const CALENDAR_ROLLBACK_REASON = 'Откат назначения после ошибки календаря';
+
+async function rollbackClaim(
+  client: ApiClient,
+  organizationId: string,
+  storeId: string,
+  orderId: string,
+): Promise<void> {
+  try {
+    await client.releaseAssignment(organizationId, storeId, orderId, {
+      reason: CALENDAR_ROLLBACK_REASON,
+    });
+  } catch {
+    // Best-effort rollback — original error is more important for the user.
+  }
+}
+
+/** Reserve stock (if needed) and move order to IN_PREPARATION. */
 export async function ensureOrderInPreparation(
   client: ApiClient,
   organizationId: string,
@@ -42,6 +60,46 @@ export async function ensureOrderInPreparation(
   );
 }
 
+/** Reserve before claim so a failed reservation does not leave a stray assignment. */
+async function moveOrderToInWork(
+  client: ApiClient,
+  organizationId: string,
+  storeId: string,
+  orderId: string,
+  status: string,
+): Promise<void> {
+  let currentStatus = status;
+
+  if (RESERVABLE_STATUSES.has(currentStatus)) {
+    const reserved = await client.reserveOrder(organizationId, storeId, orderId);
+    currentStatus = reserved.status;
+  }
+
+  if (currentStatus === 'IN_PREPARATION') {
+    await client.claimOrder(organizationId, storeId, orderId);
+    return;
+  }
+
+  await client.claimOrder(organizationId, storeId, orderId);
+
+  if (PREPARATION_START_STATUSES.has(currentStatus)) {
+    try {
+      await client.startOrderPreparation(organizationId, storeId, orderId);
+    } catch (error) {
+      await rollbackClaim(client, organizationId, storeId, orderId);
+      throw error;
+    }
+    return;
+  }
+
+  if (currentStatus === 'IN_PREPARATION') return;
+
+  await rollbackClaim(client, organizationId, storeId, orderId);
+  throw new Error(
+    'Не удалось начать сборку: заказ должен быть зарезервирован на складе (статус RESERVED)',
+  );
+}
+
 export function canDropCardOnColumn(
   fromColumn: OrderBoardColumn,
   toColumn: OrderBoardColumn,
@@ -60,7 +118,13 @@ export function canDropCardOnColumn(
     return true;
   }
 
-  return toIdx === fromIdx + 1;
+  if (toIdx === fromIdx + 1) return true;
+
+  if (toIdx === fromIdx - 1 && fromColumn === 'IN_WORK' && toColumn === 'NEW') {
+    return card.status !== 'IN_PREPARATION';
+  }
+
+  return false;
 }
 
 export function calendarMoveLabel(
@@ -69,6 +133,7 @@ export function calendarMoveLabel(
   card: OrderBoardCardDto,
 ): string {
   if (fromColumn === 'NEW' && toColumn === 'IN_WORK') return 'Взять в работу';
+  if (fromColumn === 'IN_WORK' && toColumn === 'NEW') return 'Вернуть в новые';
   if (fromColumn === 'IN_WORK' && toColumn === 'READY') return 'Отметить готовым';
   if (fromColumn === 'READY' && toColumn === 'WITH_COURIER') return 'Передать курьеру';
   if (fromColumn === 'READY' && toColumn === 'HANDED_OFF') {
@@ -96,8 +161,19 @@ export async function executeCalendarMove(
   const orderId = card.id;
 
   if (fromColumn === 'NEW' && toColumn === 'IN_WORK') {
-    await client.claimOrder(organizationId, storeId, orderId);
-    await ensureOrderInPreparation(client, organizationId, storeId, orderId, card.status);
+    await moveOrderToInWork(client, organizationId, storeId, orderId, card.status);
+    return;
+  }
+
+  if (fromColumn === 'IN_WORK' && toColumn === 'NEW') {
+    if (card.status === 'IN_PREPARATION') {
+      throw new Error(
+        'Нельзя вернуть в «Новые»: сборка уже начата. Завершите сборку или отмените заказ.',
+      );
+    }
+    await client.releaseAssignment(organizationId, storeId, orderId, {
+      reason: CALENDAR_RELEASE_REASON,
+    });
     return;
   }
 
@@ -156,7 +232,7 @@ export function canDragCard(
     case 'NEW':
       return permissions.canAssign;
     case 'IN_WORK':
-      return permissions.canPrepare;
+      return permissions.canAssign || permissions.canPrepare;
     case 'READY':
       return permissions.canPrepare || permissions.canDelivery;
     case 'WITH_COURIER':
