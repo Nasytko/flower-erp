@@ -35,3 +35,7 @@ test('BYN scale two decimals', () => {
   assert.equal(new Money('1.005').round(2).toFixed(2), '1.01');
   assert.equal(new Money('1.004').round(2).toFixed(2), '1.00');
 });
+
+test('accepts comma as decimal separator', () => {
+  assert.equal(new Money('4,50').toFixed(2), '4.50');
+});

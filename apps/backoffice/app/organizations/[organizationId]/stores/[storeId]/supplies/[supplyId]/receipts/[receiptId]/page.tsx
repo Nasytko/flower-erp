@@ -12,6 +12,11 @@ import { StatusBadge } from '@/components/layout/status-badge';
 import { Field } from '@/components/layout/field';
 import { FancySelect } from '@/components/layout/fancy-select';
 import { formatApiErrorMessage } from '@/lib/format-api-error';
+import {
+  formatBynAmount,
+  normalizeBynInput,
+  parseBynToApi,
+} from '@/components/layout/money-byn-input';
 
 export default function GoodsReceiptPage() {
   const params = useParams<{
@@ -108,17 +113,17 @@ export default function GoodsReceiptPage() {
     setBusy(true);
     setError(null);
     try {
-      if (!price.trim() || Number(price) < 0) {
+      if (!parseBynToApi(price)) {
         setError('Укажите фактическую себестоимость за штуку (BYN)');
         setBusy(false);
         return;
       }
       await getApiClient().addGoodsReceiptItem(organizationId, storeId, receiptId, {
         supplyItemId,
-        receivedQuantity: received,
-        acceptedQuantity: accepted,
-        defectiveQuantity: defective,
-        actualUnitPrice: price,
+        receivedQuantity: received.trim().replace(',', '.'),
+        acceptedQuantity: accepted.trim().replace(',', '.'),
+        defectiveQuantity: defective.trim().replace(',', '.'),
+        actualUnitPrice: parseBynToApi(price)!,
         defectReason: defectReason || undefined,
       });
       await load();
@@ -239,8 +244,10 @@ export default function GoodsReceiptPage() {
                     >
                       <Input
                         value={price}
-                        onChange={(e) => setPrice(e.target.value)}
+                        onChange={(e) => setPrice(normalizeBynInput(e.target.value))}
+                        onBlur={() => setPrice((value) => formatBynAmount(value))}
                         inputMode="decimal"
+                        placeholder="0,00"
                         aria-label="Фактическая себестоимость за штуку"
                         required
                       />

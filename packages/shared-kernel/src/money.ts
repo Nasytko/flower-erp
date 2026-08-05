@@ -1,4 +1,5 @@
 import Decimal from 'decimal.js';
+import { normalizeDecimalString } from './decimal-string.js';
 
 /** Default currency for v1 Flower ERP. */
 export const DEFAULT_CURRENCY = 'BYN';
@@ -33,8 +34,10 @@ export class Money {
       this.value = input;
       return;
     }
+    const normalized =
+      typeof input === 'string' ? normalizeDecimalString(input) : input;
     try {
-      this.value = new Decimal(input);
+      this.value = new Decimal(normalized);
     } catch {
       throw new Error(`Invalid money value: ${String(input)}`);
     }

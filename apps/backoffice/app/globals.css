@@ -1125,14 +1125,15 @@ input {
 }
 
 .floro-brand--light .floro-brand__logo {
-  color: var(--color-sidebar-muted);
+  box-shadow: 0 0 0 1px rgba(183, 201, 179, 0.12);
 }
 
 .floro-brand__logo {
   width: 42px;
   height: 42px;
   flex-shrink: 0;
-  color: var(--color-primary);
+  border-radius: 11px;
+  object-fit: cover;
 }
 
 .floro-brand__text {

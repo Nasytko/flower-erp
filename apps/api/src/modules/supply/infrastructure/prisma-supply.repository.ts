@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { allocateOrgDocumentNumber } from '../../../infrastructure/ids/org-document-number';
+import { parsePrismaDecimal } from '../../../infrastructure/decimal/parse-prisma-decimal';
 import { PrismaService } from '../../../infrastructure/prisma/prisma.service';
 import { resolvePrismaClient } from '../../../infrastructure/persistence/prisma-transaction-context';
 import type {
@@ -239,9 +240,9 @@ export class PrismaSupplyRepository implements SupplyRepository {
         organizationId: input.organizationId,
         supplyId: input.supplyId,
         itemId: input.itemId,
-        orderedQuantity: new Prisma.Decimal(input.orderedQuantity),
+        orderedQuantity: parsePrismaDecimal(input.orderedQuantity),
         plannedUnitPrice: input.plannedUnitPrice
-          ? new Prisma.Decimal(input.plannedUnitPrice)
+          ? parsePrismaDecimal(input.plannedUnitPrice)
           : null,
       },
       include: { item: true },
@@ -271,8 +272,8 @@ export class PrismaSupplyRepository implements SupplyRepository {
     const row = await this.client.supplyItem.update({
       where: { id: existing.id },
       data: {
-        orderedQuantity: new Prisma.Decimal(input.orderedQuantity),
-        plannedUnitPrice: new Prisma.Decimal(input.plannedUnitPrice),
+        orderedQuantity: parsePrismaDecimal(input.orderedQuantity),
+        plannedUnitPrice: parsePrismaDecimal(input.plannedUnitPrice),
       },
       include: { item: true },
     });
@@ -350,10 +351,10 @@ export class PrismaSupplyRepository implements SupplyRepository {
         goodsReceiptId: input.goodsReceiptId,
         supplyItemId: input.supplyItemId,
         itemId: input.itemId,
-        receivedQuantity: new Prisma.Decimal(input.receivedQuantity),
-        acceptedQuantity: new Prisma.Decimal(input.acceptedQuantity),
-        defectiveQuantity: new Prisma.Decimal(input.defectiveQuantity),
-        actualUnitPrice: new Prisma.Decimal(input.actualUnitPrice),
+        receivedQuantity: parsePrismaDecimal(input.receivedQuantity),
+        acceptedQuantity: parsePrismaDecimal(input.acceptedQuantity),
+        defectiveQuantity: parsePrismaDecimal(input.defectiveQuantity),
+        actualUnitPrice: parsePrismaDecimal(input.actualUnitPrice),
         defectReason: input.defectReason,
       },
       include: { item: true, supplyItem: true },
@@ -375,9 +376,9 @@ export class PrismaSupplyRepository implements SupplyRepository {
     const row = await this.client.goodsReceiptItem.update({
       where: { id: input.id },
       data: {
-        receivedQuantity: new Prisma.Decimal(input.receivedQuantity),
-        acceptedQuantity: new Prisma.Decimal(input.acceptedQuantity),
-        actualUnitPrice: new Prisma.Decimal(input.actualUnitPrice),
+        receivedQuantity: parsePrismaDecimal(input.receivedQuantity),
+        acceptedQuantity: parsePrismaDecimal(input.acceptedQuantity),
+        actualUnitPrice: parsePrismaDecimal(input.actualUnitPrice),
       },
       include: { item: true, supplyItem: true },
     });

@@ -37,5 +37,6 @@ export function isValidDateRange(range: DateRange): boolean {
 }
 
 export { Money, DEFAULT_CURRENCY, MONEY_SCALE, type MoneyInput } from './money.js';
+export { normalizeDecimalString } from './decimal-string.js';
 
 export const CLOCK_PORT = Symbol('CLOCK_PORT');

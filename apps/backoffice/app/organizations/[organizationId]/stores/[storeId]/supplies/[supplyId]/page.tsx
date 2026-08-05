@@ -24,6 +24,11 @@ import { useToast } from '@/components/ui/toast';
 import { newIdempotencyKey } from '@/lib/idempotency';
 import { formatApiErrorMessage } from '@/lib/format-api-error';
 import { listAllCatalogItems } from '@/lib/catalog-items';
+import {
+  formatBynAmount,
+  normalizeBynInput,
+  parseBynToApi,
+} from '@/components/layout/money-byn-input';
 
 type PendingConfirm =
   | { kind: 'receive' }
@@ -49,8 +54,9 @@ type SupplyLine = {
 };
 
 function lineTotal(qty: string, price: string | null | undefined): string | null {
-  const q = Number(qty);
-  const p = Number(price);
+  const q = Number(qty.trim().replace(',', '.'));
+  const parsed = price != null && price.trim() !== '' ? parseBynToApi(price) : null;
+  const p = parsed ? Number(parsed) : NaN;
   if (!Number.isFinite(q) || !Number.isFinite(p) || q < 0 || p < 0) return null;
   return (q * p).toFixed(2);
 }
@@ -182,7 +188,7 @@ export default function SupplyDetailPage() {
       setError('Укажите количество больше нуля');
       return;
     }
-    if (!editCost.trim() || Number(editCost) < 0) {
+    if (!parseBynToApi(editCost)) {
       setError('Укажите себестоимость за штуку (BYN)');
       return;
     }
@@ -196,8 +202,8 @@ export default function SupplyDetailPage() {
     setError(null);
     try {
       await getApiClient().updateSupplyItem(organizationId, storeId, supplyId, line.itemId, {
-        orderedQuantity: editQty,
-        plannedUnitPrice: editCost,
+        orderedQuantity: editQty.trim().replace(',', '.'),
+        plannedUnitPrice: parseBynToApi(editCost)!,
       });
       cancelEdit();
       toast.success('Позиция сохранена');
@@ -216,25 +222,25 @@ export default function SupplyDetailPage() {
     setBusy(true);
     setError(null);
     try {
-      const cost = unitCost.trim();
+      const cost = parseBynToApi(unitCost);
       if (!itemId) {
         setError('Выберите товар');
         setBusy(false);
         return;
       }
-      if (!qty.trim() || Number(qty) <= 0) {
+      if (!qty.trim() || Number(qty.replace(',', '.')) <= 0) {
         setError('Укажите количество больше нуля');
         setBusy(false);
         return;
       }
-      if (!cost || Number(cost) < 0) {
+      if (!cost) {
         setError('Укажите себестоимость за штуку (BYN)');
         setBusy(false);
         return;
       }
       await getApiClient().addSupplyItem(organizationId, storeId, supplyId, {
         itemId,
-        orderedQuantity: qty,
+        orderedQuantity: qty.trim().replace(',', '.'),
         plannedUnitPrice: cost,
       });
       setQty('1');
@@ -685,8 +691,10 @@ export default function SupplyDetailPage() {
                             <Input
                               className="supply-lines__input"
                               value={editCost}
-                              onChange={(e) => setEditCost(e.target.value)}
+                              onChange={(e) => setEditCost(normalizeBynInput(e.target.value))}
+                              onBlur={() => setEditCost((value) => formatBynAmount(value))}
                               inputMode="decimal"
+                              placeholder="0,00"
                               aria-label="Себестоимость"
                             />
                           ) : (
@@ -786,9 +794,10 @@ export default function SupplyDetailPage() {
                           id={draftCostId}
                           className="supply-lines__input"
                           value={unitCost}
-                          onChange={(e) => setUnitCost(e.target.value)}
+                          onChange={(e) => setUnitCost(normalizeBynInput(e.target.value))}
+                          onBlur={() => setUnitCost((value) => formatBynAmount(value))}
                           inputMode="decimal"
-                          placeholder="0.00"
+                          placeholder="0,00"
                           required
                           aria-label="Себестоимость за штуку"
                         />

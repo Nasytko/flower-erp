@@ -47,7 +47,7 @@ export function MoneyBynInput({ value, onChange, onBlur, ...props }: MoneyBynInp
           onChange(formatBynAmount(event.target.value));
           onBlur?.(event);
         }}
-        placeholder={props.placeholder ?? '0.00'}
+        placeholder={props.placeholder ?? '0,00'}
         aria-describedby={props['aria-describedby']}
       />
       <span className="money-byn__currency" aria-hidden="true">

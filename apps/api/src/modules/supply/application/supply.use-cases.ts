@@ -6,7 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
-import { CLOCK_PORT, type ClockPort } from '@flower/shared-kernel';
+import { CLOCK_PORT, type ClockPort, normalizeDecimalString } from '@flower/shared-kernel';
 import { AUDIT_PORT, type AuditPort } from '../../../infrastructure/audit/audit.port';
 import { getRequestContext } from '../../../infrastructure/context/request-context';
 import { UNIT_OF_WORK, type UnitOfWork } from '../../../infrastructure/persistence/unit-of-work.port';
@@ -273,8 +273,11 @@ export class SupplyUseCases {
           organizationId: input.organizationId,
           supplyId: supply.id,
           itemId: item.id,
-          orderedQuantity: input.orderedQuantity,
-          plannedUnitPrice: input.plannedUnitPrice ?? null,
+          orderedQuantity: normalizeDecimalString(input.orderedQuantity),
+          plannedUnitPrice:
+            input.plannedUnitPrice != null && input.plannedUnitPrice.trim() !== ''
+              ? normalizeDecimalString(input.plannedUnitPrice)
+              : null,
         });
         await this.auditSupply(
           input.organizationId,
@@ -348,14 +351,16 @@ export class SupplyUseCases {
         const item = await this.items.getItem(input.organizationId, input.itemId);
         assertItemPurchasable(item);
         assertQuantityMatchesScale(input.orderedQuantity, DEFAULT_QUANTITY_SCALE);
-        const price = Number(input.plannedUnitPrice);
+        const orderedQuantity = normalizeDecimalString(input.orderedQuantity);
+        const plannedUnitPrice = normalizeDecimalString(input.plannedUnitPrice);
+        const price = Number(plannedUnitPrice);
         if (!Number.isFinite(price) || price < 0) {
           throw new BadRequestException({
             code: 'INVALID_UNIT_PRICE',
             message: 'Unit cost must be a non-negative decimal',
           });
         }
-        if (compareQty(input.orderedQuantity, '0') <= 0) {
+        if (compareQty(orderedQuantity, '0') <= 0) {
           throw new BadRequestException({
             code: 'INVALID_QUANTITY',
             message: 'Quantity must be greater than zero',
@@ -369,8 +374,8 @@ export class SupplyUseCases {
             organizationId: input.organizationId,
             supplyId: supply.id,
             itemId: item.id,
-            orderedQuantity: input.orderedQuantity,
-            plannedUnitPrice: input.plannedUnitPrice,
+            orderedQuantity,
+            plannedUnitPrice,
           });
           if (!updated) {
             throw new NotFoundException({
@@ -401,10 +406,10 @@ export class SupplyUseCases {
           });
         }
 
-        const qtyUnchanged = compareQty(line.orderedQuantity, input.orderedQuantity) === 0;
+        const qtyUnchanged = compareQty(line.orderedQuantity, orderedQuantity) === 0;
         const costUnchanged =
           line.plannedUnitPrice != null &&
-          Number(line.plannedUnitPrice) === Number(input.plannedUnitPrice);
+          Number(line.plannedUnitPrice) === Number(plannedUnitPrice);
         if (qtyUnchanged && costUnchanged) {
           return line;
         }
@@ -435,9 +440,9 @@ export class SupplyUseCases {
           itemId: item.id,
           itemName: item.name,
           itemCode: item.code,
-          quantity: input.orderedQuantity,
-          unitCost: input.plannedUnitPrice,
-          total: (Number(input.orderedQuantity) * Number(input.plannedUnitPrice)).toFixed(2),
+          quantity: orderedQuantity,
+          unitCost: plannedUnitPrice,
+          total: (Number(orderedQuantity) * Number(plannedUnitPrice)).toFixed(2),
         };
 
         await this.inventoryPosting.adjustGoodsReceiptItem({
@@ -447,24 +452,24 @@ export class SupplyUseCases {
           goodsReceiptId: posted.goodsReceiptId,
           goodsReceiptItemId: posted.goodsReceiptItemId,
           itemId: item.id,
-          acceptedQuantity: input.orderedQuantity,
-          actualUnitPrice: input.plannedUnitPrice,
+          acceptedQuantity: orderedQuantity,
+          actualUnitPrice: plannedUnitPrice,
           occurredAt: this.clock.now(),
         });
 
         await this.supplies.updateReceiptItem({
           id: posted.goodsReceiptItemId,
-          receivedQuantity: input.orderedQuantity,
-          acceptedQuantity: input.orderedQuantity,
-          actualUnitPrice: input.plannedUnitPrice,
+          receivedQuantity: orderedQuantity,
+          acceptedQuantity: orderedQuantity,
+          actualUnitPrice: plannedUnitPrice,
         });
 
         const updated = await this.supplies.updateSupplyItem({
           organizationId: input.organizationId,
           supplyId: supply.id,
           itemId: item.id,
-          orderedQuantity: input.orderedQuantity,
-          plannedUnitPrice: input.plannedUnitPrice,
+          orderedQuantity,
+          plannedUnitPrice,
         });
         if (!updated) {
           throw new NotFoundException({
