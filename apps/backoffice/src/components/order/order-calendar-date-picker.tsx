@@ -48,7 +48,7 @@ export function OrderCalendarDatePicker({
   }
 
   return (
-    <div className="order-calendar-date-picker" ref={rootRef}>
+    <div className={`order-calendar-date-picker${open ? ' order-calendar-date-picker--open' : ''}`} ref={rootRef}>
       <button
         type="button"
         className="order-calendar-date-picker__trigger"

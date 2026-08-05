@@ -58,7 +58,31 @@ type UserAdminCardProps = {
 
 function formatWhen(iso: string | null): string {
   if (!iso) return '—';
-  return new Date(iso).toLocaleString('ru-RU');
+  return new Date(iso).toLocaleString('ru-RU', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function formatWhenShort(iso: string | null): string {
+  if (!iso) return 'не входил';
+  const date = new Date(iso);
+  const now = new Date();
+  const sameDay =
+    date.getFullYear() === now.getFullYear() &&
+    date.getMonth() === now.getMonth() &&
+    date.getDate() === now.getDate();
+  const time = date.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+  if (sameDay) return `сегодня, ${time}`;
+  return date.toLocaleString('ru-RU', {
+    day: '2-digit',
+    month: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 }
 
 function userInitials(name: string): string {
@@ -68,11 +92,33 @@ function userInitials(name: string): string {
   return `${parts[0]![0] ?? ''}${parts[1]![0] ?? ''}`.toUpperCase();
 }
 
-function shortUserAgent(ua: string | null | undefined): string {
+function formatIp(ip: string | null | undefined): string {
+  if (!ip) return '—';
+  return ip.replace(/^::ffff:/i, '');
+}
+
+function parseBrowserLabel(ua: string | null | undefined): string {
   if (!ua) return '—';
-  const trimmed = ua.trim();
-  if (trimmed.length <= 48) return trimmed;
-  return `${trimmed.slice(0, 45)}…`;
+  const value = ua.trim();
+  if (/Edg\//.test(value)) return 'Microsoft Edge';
+  if (/Chrome\//.test(value) && !/Edg\//.test(value)) return 'Google Chrome';
+  if (/Firefox\//.test(value)) return 'Mozilla Firefox';
+  if (/Safari\//.test(value) && !/Chrome\//.test(value)) return 'Safari';
+  if (/OPR\//.test(value) || /Opera/.test(value)) return 'Opera';
+  return value.length <= 40 ? value : `${value.slice(0, 37)}…`;
+}
+
+function storeAccessSummary(user: UserAdminRow): string {
+  if (user.storeAccess.mode === 'ALL_STORES') return 'Все магазины';
+  if (user.storeAccess.stores.length === 0) return 'Магазины не назначены';
+  if (user.storeAccess.stores.length === 1) return user.storeAccess.stores[0]!.name;
+  return `${user.storeAccess.stores.length} магазина`;
+}
+
+function primaryRoleLabel(user: UserAdminRow): string | null {
+  const role = user.roles[0];
+  if (!role) return null;
+  return ROLE_LABELS_RU[role.code] ?? role.name;
 }
 
 export function UserAdminCard({
@@ -96,7 +142,18 @@ export function UserAdminCard({
   onResetSubmit,
 }: UserAdminCardProps) {
   const isFlorist = primaryRole === 'FLORIST';
+  const isDirector = primaryRole === 'DIRECTOR';
   const isLocked = Boolean(user.lockedUntil && new Date(user.lockedUntil).getTime() > Date.now());
+  const roleLabel = primaryRoleLabel(user);
+  const showStorePicker =
+    isFlorist || (isDirector && user.storeAccess.mode === 'SELECTED_STORES');
+
+  const metaParts = [
+    roleLabel,
+    storeAccessSummary(user),
+    `Вход: ${formatWhenShort(user.lastLoginAt)}`,
+    user.failedLoginAttempts > 0 ? `Неудачных входов: ${user.failedLoginAttempts}` : null,
+  ].filter(Boolean);
 
   return (
     <article className="user-card">
@@ -111,6 +168,7 @@ export function UserAdminCard({
               <DocRef>{user.login}</DocRef>
             </div>
             <div className="user-card__contact">{user.email ?? 'E-mail не указан'}</div>
+            <p className="user-card__meta-line">{metaParts.join(' · ')}</p>
           </div>
         </div>
         <div className="user-card__badges">
@@ -123,61 +181,46 @@ export function UserAdminCard({
           ) : null}
           {isLocked ? (
             <span className="user-card__pill user-card__pill--danger">
-              До {formatWhen(user.lockedUntil)}
+              Блок до {formatWhen(user.lockedUntil)}
             </span>
           ) : null}
         </div>
       </header>
 
-      {user.roles.length > 0 ? (
-        <div className="user-card__roles">
-          {user.roles.map((role) => (
-            <span key={role.code} className="user-card__role-chip">
-              {ROLE_LABELS_RU[role.code] ?? role.name}
-            </span>
-          ))}
-        </div>
-      ) : (
-        <p className="user-card__muted">Роль не назначена</p>
-      )}
-
-      <dl className="user-card__stats">
-        <div className="user-card__stat">
-          <dt>Последний вход</dt>
-          <dd>{formatWhen(user.lastLoginAt)}</dd>
-        </div>
-        <div className="user-card__stat">
-          <dt>IP</dt>
-          <dd>{user.lastSession?.ipAddress ?? '—'}</dd>
-        </div>
-        <div className="user-card__stat">
-          <dt>Сессия</dt>
-          <dd>{user.lastSession ? formatWhen(user.lastSession.lastUsedAt) : '—'}</dd>
-        </div>
-        <div className="user-card__stat">
-          <dt>Браузер</dt>
-          <dd title={user.lastSession?.userAgent ?? undefined}>
-            {shortUserAgent(user.lastSession?.userAgent)}
-          </dd>
-        </div>
-        <div className="user-card__stat">
-          <dt>Неудачные входы</dt>
-          <dd>{user.failedLoginAttempts}</dd>
-        </div>
-        <div className="user-card__stat">
-          <dt>Магазины</dt>
-          <dd>
-            {user.storeAccess.mode === 'ALL_STORES'
-              ? 'Все'
-              : user.storeAccess.stores.length > 0
-                ? user.storeAccess.stores.map((s) => s.name).join(', ')
-                : 'Не назначены'}
-          </dd>
-        </div>
-      </dl>
+      <details className="user-card__details">
+        <summary className="user-card__details-summary">Сессия и безопасность</summary>
+        <dl className="user-card__details-grid">
+          <div className="user-card__detail">
+            <dt>Последний вход</dt>
+            <dd>{formatWhen(user.lastLoginAt)}</dd>
+          </div>
+          <div className="user-card__detail">
+            <dt>Последняя активность</dt>
+            <dd>{user.lastSession ? formatWhen(user.lastSession.lastUsedAt) : '—'}</dd>
+          </div>
+          <div className="user-card__detail">
+            <dt>IP-адрес</dt>
+            <dd>{formatIp(user.lastSession?.ipAddress)}</dd>
+          </div>
+          <div className="user-card__detail">
+            <dt>Браузер</dt>
+            <dd title={user.lastSession?.userAgent ?? undefined}>
+              {parseBrowserLabel(user.lastSession?.userAgent)}
+            </dd>
+          </div>
+          <div className="user-card__detail">
+            <dt>Неудачные входы</dt>
+            <dd>{user.failedLoginAttempts}</dd>
+          </div>
+          <div className="user-card__detail">
+            <dt>Пароль изменён</dt>
+            <dd>{formatWhen(user.passwordChangedAt)}</dd>
+          </div>
+        </dl>
+      </details>
 
       {canManageRoles ? (
-        <div className="user-card__controls">
+        <div className="user-card__manage">
           <Field label="Роль">
             <FancySelect
               value={primaryRole}
@@ -189,7 +232,7 @@ export function UserAdminCard({
             />
           </Field>
 
-          {primaryRole === 'DIRECTOR' ? (
+          {isDirector ? (
             <Field label="Доступ к магазинам">
               <FancySelect
                 value={user.storeAccess.mode}
@@ -207,48 +250,59 @@ export function UserAdminCard({
             </Field>
           ) : null}
 
-          {user.storeAccess.mode === 'SELECTED_STORES' || isFlorist || stores.length > 0 ? (
-            <Field
-              label={isFlorist ? 'Магазин флориста' : 'Выбранные магазины'}
-              hint={isFlorist ? 'Минимум один магазин' : undefined}
-            >
-              <div className="user-card__stores">
-                {stores.map((store) => {
-                  const checked = user.storeAccess.storeIds.includes(store.id);
-                  return (
-                    <label key={store.id} className="user-card__store-option">
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        disabled={busy}
-                        onChange={(e) => onToggleStore(store.id, e.target.checked)}
-                      />
-                      <span>{store.name}</span>
-                      <DocRef>{store.code}</DocRef>
-                    </label>
-                  );
-                })}
-                {stores.length === 0 ? (
-                  <p className="user-card__muted">В организации пока нет магазинов.</p>
-                ) : null}
-              </div>
-            </Field>
+          {showStorePicker ? (
+            <div className="user-card__stores-field">
+              <Field
+                label={isFlorist ? 'Магазин флориста' : 'Выбранные магазины'}
+                hint={isFlorist ? 'Минимум один магазин' : undefined}
+              >
+              {stores.length > 0 ? (
+                <div className="user-card__stores">
+                  {stores.map((store) => {
+                    const checked = user.storeAccess.storeIds.includes(store.id);
+                    return (
+                      <label
+                        key={store.id}
+                        className={`user-card__store-chip${checked ? ' user-card__store-chip--active' : ''}`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          disabled={busy}
+                          onChange={(e) => onToggleStore(store.id, e.target.checked)}
+                        />
+                        <span className="user-card__store-chip-label">{store.name}</span>
+                        <DocRef>{store.code}</DocRef>
+                      </label>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="user-card__muted">В организации пока нет магазинов.</p>
+              )}
+              </Field>
+            </div>
           ) : null}
         </div>
       ) : null}
 
       {canManageUsers ? (
         <footer className="user-card__actions">
-          {user.status === 'ACTIVE' ? (
-            <Button type="button" variant="secondary" disabled={busy} onClick={onBlock}>
-              Заблокировать
+          <div className="user-card__actions-primary">
+            {user.status === 'ACTIVE' ? (
+              <Button type="button" variant="secondary" disabled={busy} onClick={onBlock}>
+                Заблокировать
+              </Button>
+            ) : null}
+            {user.status === 'BLOCKED' ? (
+              <Button type="button" disabled={busy} onClick={onUnblock}>
+                Разблокировать
+              </Button>
+            ) : null}
+            <Button type="button" variant="ghost" disabled={busy} onClick={onToggleReset}>
+              {resetOpen ? 'Отмена' : 'Сбросить пароль'}
             </Button>
-          ) : null}
-          {user.status === 'BLOCKED' ? (
-            <Button type="button" disabled={busy} onClick={onUnblock}>
-              Разблокировать
-            </Button>
-          ) : null}
+          </div>
           {user.status !== 'ARCHIVED' ? (
             <DeletionRequestButton
               organizationId={organizationId}
@@ -258,9 +312,6 @@ export function UserAdminCard({
               disabled={busy}
             />
           ) : null}
-          <Button type="button" variant="ghost" disabled={busy} onClick={onToggleReset}>
-            {resetOpen ? 'Отмена' : 'Сбросить пароль'}
-          </Button>
           {resetOpen ? (
             <form
               className="user-card__reset"

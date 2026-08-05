@@ -78,24 +78,6 @@ export function TimePicker({ value, onChange, required, id, disabled }: TimePick
 
   return (
     <div className="time-picker">
-      <div className="time-picker__presets" role="group" aria-label="Быстрый выбор времени">
-        {PRESET_TIMES.map((preset) => {
-          const active = value === preset;
-          return (
-            <button
-              key={preset}
-              type="button"
-              className={`time-picker__chip${active ? ' time-picker__chip--active' : ''}`}
-              aria-pressed={active}
-              disabled={disabled}
-              onClick={() => onChange(preset)}
-            >
-              {preset}
-            </button>
-          );
-        })}
-      </div>
-
       <div className="time-picker__exact">
         <span className="time-picker__custom-label">Точное время</span>
         <div
@@ -163,6 +145,27 @@ export function TimePicker({ value, onChange, required, id, disabled }: TimePick
               </ul>
             </div>
           ) : null}
+        </div>
+      </div>
+
+      <div className="time-picker__presets-wrap">
+        <span className="time-picker__presets-label">Быстрый выбор</span>
+        <div className="time-picker__presets" role="group" aria-label="Быстрый выбор времени">
+          {PRESET_TIMES.map((preset) => {
+            const active = value === preset;
+            return (
+              <button
+                key={preset}
+                type="button"
+                className={`time-picker__chip${active ? ' time-picker__chip--active' : ''}`}
+                aria-pressed={active}
+                disabled={disabled}
+                onClick={() => onChange(preset)}
+              >
+                {preset}
+              </button>
+            );
+          })}
         </div>
       </div>
     </div>
